@@ -23,7 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sora.variable} font-sans antialiased`}>
-        <div className="min-h-screen flex flex-col bg-background">
+        <div
+          className="min-h-screen flex flex-col"
+          style={{
+            background:
+              "radial-gradient(ellipse 50% 50% at 50% 90%, rgba(123, 184, 255, 0.15), transparent), hsl(220, 20%, 6%)",
+          }}
+        >
           <Header />
           {children}
           <Footer />
