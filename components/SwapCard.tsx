@@ -9,14 +9,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image, { StaticImageData } from "next/image";
+
+import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
+import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
+import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
+import hypeLogo from "@/public/assets/hype.png";
 
 const tokens = [
-  { symbol: "USDC", icon: "💵", name: "USD Coin" },
-  { symbol: "ETH", icon: "💎", name: "Ethereum" },
-  { symbol: "USDT", icon: "🟢", name: "Tether" },
-  { symbol: "BTC", icon: "🟠", name: "Bitcoin" },
-  { symbol: "UNI", icon: "🦄", name: "Uniswap" },
-  { symbol: "HYPE", icon: "🟣", name: "Hyperliquid" },
+  { symbol: "USDC", icon: usdcLogo, name: "USD Coin" },
+  { symbol: "ETH", icon: ethLogo, name: "Ethereum" },
+  { symbol: "USDT", icon: usdtLogo, name: "Tether" },
+  { symbol: "UNI", icon: uniLogo, name: "Uniswap" },
+  { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid" },
 ];
 
 interface TokenDropdownProps {
@@ -56,8 +62,14 @@ const TokenDropdown = ({
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
-        <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center">
-          <span className="text-xs">{selected.icon}</span>
+        <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+          <Image
+            src={selected.icon}
+            alt={`${selected.symbol} logo`}
+            width={24}
+            height={24}
+            className="object-contain w-full h-full"
+          />
         </div>
         <span className="font-medium">{selected.symbol}</span>
         <motion.div
@@ -92,8 +104,14 @@ const TokenDropdown = ({
                     token.symbol === selected.symbol ? "bg-secondary" : ""
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center">
-                    <span>{token.icon}</span>
+                  <div className="w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+                    <Image
+                      src={token.icon}
+                      alt={`${token.symbol} logo`}
+                      width={32}
+                      height={32}
+                      className="object-contain w-full h-full"
+                    />
                   </div>
                   <div className="text-left">
                     <p className="font-medium text-foreground">
@@ -252,8 +270,14 @@ const SwapCard = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center">
-            <span className="text-xs">💵</span>
+          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+            <Image
+              src={tokens[0].icon}
+              alt={`${tokens[0].symbol} logo`}
+              width={24}
+              height={24}
+              className="object-contain w-full h-full"
+            />
           </div>
           <span className="font-medium text-foreground">USDC</span>
           <span className="text-muted-foreground">$1</span>
@@ -264,8 +288,14 @@ const SwapCard = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center">
-            <span className="text-xs">💎</span>
+          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+            <Image
+              src={tokens[1].icon}
+              alt={`${tokens[1].symbol} logo`}
+              width={24}
+              height={24}
+              className="object-contain w-full h-full"
+            />
           </div>
           <span className="font-medium text-foreground">ETH</span>
           <span className="text-muted-foreground">$1</span>
