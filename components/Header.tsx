@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -35,7 +36,7 @@ const Header = () => {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border"
+        className="flex items-center justify-between px-4 sm:px-6 py-4 "
       >
         <div className="flex items-center gap-4 sm:gap-8">
           {/* Logo */}
@@ -98,7 +99,7 @@ const Header = () => {
             className="hidden sm:block p-2 rounded-lg hover:bg-secondary transition-colors"
             whileHover={{ scale: 1.1, rotate: 90 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => router.push("/settings")}
+            onClick={() => setSettingsOpen(true)}
           >
             <Settings className="w-5 h-5 text-muted-foreground" />
           </motion.button>
@@ -130,7 +131,7 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="hidden sm:block"
           >
-            <Button className="gradient-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base">
+            <Button className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base text-black">
               Connect Wallet
             </Button>
           </motion.div>
@@ -218,7 +219,7 @@ const Header = () => {
                   <span className="text-white">Arc</span>
                 </button>
                 <button
-                  onClick={() => router.push("/settings")}
+                  onClick={() => setSettingsOpen(true)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-muted-foreground"
                 >
                   <Settings className="w-5 h-5" />
@@ -227,6 +228,59 @@ const Header = () => {
               </div>
             </nav>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSettingsOpen(false)}
+              className="fixed inset-0 bg-black/50 z-40"
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="fixed top-20 right-4 w-80 bg-card rounded-2xl shadow-xl z-50 overflow-hidden border border-border"
+            >
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-foreground mb-6">
+                  Settings
+                </h2>
+
+                <div className="space-y-4">
+                  {/* Theme Setting */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">
+                      Theme
+                    </span>
+                    <span className="px-3 py-1 text-xs bg-muted rounded-full text-muted-foreground">
+                      soon
+                    </span>
+                  </div>
+
+                  {/* Preferred Explorer */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">
+                      Preferred Explorer
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      Arcscan
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

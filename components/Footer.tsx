@@ -31,7 +31,7 @@ const Footer = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, delay: 0.4 }}
-      className="flex items-center justify-between px-6 py-6 border-t border-border mt-auto"
+      className="flex items-center justify-between px-6 py-6 border-t border-border mt-auto bg-[#0C0C0D]"
     >
       <p className="text-sm text-muted-foreground">
         Tower Exchange • Copyright 2026
