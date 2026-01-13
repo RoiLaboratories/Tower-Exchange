@@ -126,7 +126,7 @@ const SwapCard = () => {
             <span className="text-sm text-muted-foreground">Sell</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Wallet className="w-4 h-4" />
-              <span>0 ARC</span>
+              <span>0 {sellToken.symbol}</span>
               <button className="text-muted-foreground hover:text-foreground">
                 50%
               </button>
