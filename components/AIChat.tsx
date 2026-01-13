@@ -111,7 +111,7 @@ export const AIChat = () => {
                   onClick={msg.isUser ? handleReset : undefined}
                   className={`max-w-[80%] ${
                     msg.isUser
-                      ? "bg-blue-600 text-white rounded-2xl px-5 py-3 cursor-pointer hover:bg-blue-700 transition-colors"
+                      ? "bg-[#7BB8FF] text-white rounded-2xl px-5 py-3 cursor-pointer  transition-colors"
                       : msg.text === "Trading Volume"
                       ? "bg-zinc-900/50 text-white rounded-xl p-4 backdrop-blur-sm"
                       : "bg-zinc-900/50 text-white rounded-xl px-5 py-3 backdrop-blur-sm"
@@ -127,7 +127,7 @@ export const AIChat = () => {
                               key={tf}
                               className={`px-3 py-1 rounded-lg text-xs ${
                                 idx === 1
-                                  ? "bg-blue-600 text-white"
+                                  ? "bg-[#7BB8FF] text-white"
                                   : "text-gray-400"
                               }`}
                             >
@@ -157,7 +157,7 @@ export const AIChat = () => {
                 </motion.div>
 
                 {msg.isUser && (
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#7BB8FF] flex items-center justify-center shrink-0">
                     <span className="text-white text-sm">U</span>
                   </div>
                 )}

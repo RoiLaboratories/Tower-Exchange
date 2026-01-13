@@ -1,5 +1,5 @@
 "use client";
-import { Settings, Menu, X } from "lucide-react";
+import { Settings, Menu, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
@@ -9,6 +9,7 @@ import { useRouter, usePathname } from "next/navigation";
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [arcDropdownOpen, setArcDropdownOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -107,15 +108,33 @@ const Header = () => {
             <Settings className="w-5 h-5 text-muted-foreground" />
           </motion.button>
 
-          {/* User Button */}
+          {/* Arc Button - Mobile Only (no dropdown) */}
           <motion.button
-            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+            className="md:hidden flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => router.push("/profile")}
           >
             <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
-              <span className="text-xs text-primary font-bold">
+              <Image
+                src="/assets/arc_logo_1-removebg-preview.png"
+                alt="Arc"
+                width={40}
+                height={40}
+                className="object-contain"
+              />
+            </div>
+            <span className="text-xs font-medium text-white">Arc</span>
+          </motion.button>
+
+          {/* Arc Dropdown Button - Desktop Only */}
+          <div className="hidden md:block relative">
+            <motion.button
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setArcDropdownOpen(!arcDropdownOpen)}
+            >
+              <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
                 <Image
                   src="/assets/arc_logo_1-removebg-preview.png"
                   alt="Arc"
@@ -123,10 +142,47 @@ const Header = () => {
                   height={40}
                   className="object-contain"
                 />
-              </span>
-            </div>
-            <span className="text-sm font-medium text-white">Arc</span>
-          </motion.button>
+              </div>
+              <span className="text-sm font-medium text-white">Arc</span>
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${
+                  arcDropdownOpen ? "rotate-180" : ""
+                }`}
+              />
+            </motion.button>
+
+            {/* Arc Dropdown Menu */}
+            <AnimatePresence>
+              {arcDropdownOpen && (
+                <>
+                  {/* Invisible backdrop to close dropdown */}
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setArcDropdownOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
+                  >
+                    <div className="p-2">
+                      <button
+                        className="w-full text-left px-4 py-2 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-foreground"
+                        onClick={() => {
+                          setArcDropdownOpen(false);
+                          // Add your Arc action here
+                        }}
+                      >
+                        Arc
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Connect Wallet Button */}
           <motion.div
@@ -134,7 +190,7 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="hidden sm:block"
           >
-            <Button className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base text-black">
+            <Button className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base text-black font-semibold">
               Connect Wallet
             </Button>
           </motion.div>
@@ -145,7 +201,7 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="block sm:hidden"
           >
-            <Button className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs">
+            <Button className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold">
               Connect
             </Button>
           </motion.div>
@@ -202,25 +258,8 @@ const Header = () => {
                 </motion.button>
               ))}
 
-              {/* Mobile-only items */}
-              <div className="pt-2 mt-2 border-t border-border space-y-2">
-                <button
-                  onClick={() => router.push("/profile")}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors text-sm font-medium"
-                >
-                  <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
-                    <span className="text-xs text-primary font-bold">
-                      <Image
-                        src="/assets/arc_logo_1-removebg-preview.png"
-                        alt="Arc"
-                        width={40}
-                        height={40}
-                        className="object-contain"
-                      />
-                    </span>
-                  </div>
-                  <span className="text-white">Arc</span>
-                </button>
+              {/* Mobile-only Settings */}
+              <div className="pt-2 mt-2 border-t border-border">
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-muted-foreground"

@@ -1,20 +1,55 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
+import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 
 export const PortfolioAnalysis = () => {
   const [timeframe, setTimeframe] = useState("7D");
   const timeframes = ["24H", "7D", "30D", "ALL"];
 
   const positions = [
-    { token: "USDC", amount: "1,000", value: "$999.99", change: "+0.01%" },
-    { token: "USDC", amount: "1,000", value: "$999.99", change: "+0.01%" },
-    { token: "USDC", amount: "1,000", value: "$999.99", change: "+0.01%" },
+    {
+      token: "USDC",
+      amount: "1,000",
+      value: "$999.99",
+      change: "+0.01%",
+      logo: usdcLogo,
+    },
+    {
+      token: "USDC",
+      amount: "1,000",
+      value: "$999.99",
+      change: "+0.01%",
+      logo: usdcLogo,
+    },
+    {
+      token: "USDC",
+      amount: "1,000",
+      value: "$999.99",
+      change: "+0.01%",
+      logo: usdcLogo,
+    },
   ];
 
   const closedPositions = [
-    { pair: "ETH × USDC", amount: "1 ETH = 3000 USDC" },
-    { pair: "ETH × USDC", amount: "1 ETH = 3200 USDC" },
+    {
+      pair: "ETH × USDC",
+      amount: "1 ETH = 3000 USDC",
+      logos: {
+        eth: ethLogo,
+        usdc: usdcLogo,
+      },
+    },
+    {
+      pair: "ETH × USDC",
+      amount: "1 ETH = 3200 USDC",
+      logos: {
+        eth: ethLogo,
+        usdc: usdcLogo,
+      },
+    },
   ];
 
   return (
@@ -46,7 +81,7 @@ export const PortfolioAnalysis = () => {
                 onClick={() => setTimeframe(tf)}
                 className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm ${
                   timeframe === tf
-                    ? "bg-blue-600 text-white"
+                    ? "bg-[#7BB8FF] text-white"
                     : "text-gray-400 hover:text-white"
                 }`}
               >
@@ -72,7 +107,7 @@ export const PortfolioAnalysis = () => {
             <polyline
               points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
               fill="none"
-              stroke="#3b82f6"
+              stroke="#7BB8FF"
               strokeWidth="2"
             />
           </svg>
@@ -95,8 +130,14 @@ export const PortfolioAnalysis = () => {
               className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-zinc-950"
             >
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                  <span className="text-white text-xs sm:text-sm">$</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center overflow-hidden">
+                  <Image
+                    src={position.logo}
+                    alt={position.token}
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
                   <div className="text-white font-medium text-sm sm:text-base">
@@ -135,11 +176,23 @@ export const PortfolioAnalysis = () => {
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex -space-x-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center border-2 border-zinc-950">
-                    <span className="text-white text-xs">Ξ</span>
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border-2 border-zinc-950 overflow-hidden">
+                    <Image
+                      src={position.logos.eth}
+                      alt="ETH"
+                      width={24}
+                      height={24}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600 flex items-center justify-center border-2 border-zinc-950">
-                    <span className="text-white text-xs">$</span>
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border-2 border-zinc-950 overflow-hidden">
+                    <Image
+                      src={position.logos.usdc}
+                      alt="USDC"
+                      width={24}
+                      height={24}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                 </div>
                 <span className="text-white font-medium text-xs sm:text-sm">
