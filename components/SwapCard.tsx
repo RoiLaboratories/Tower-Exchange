@@ -19,6 +19,7 @@ import hypeLogo from "@/public/assets/hype.png";
 import TokenModal from "./TokenModal";
 import SettingsModal from "./SettingsModal";
 import ChartModal from "./ChartModal";
+import TokenInput from "./reusable/TokenInput";
 
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin" },
@@ -142,16 +143,11 @@ const SwapCard = () => {
               excludeSymbol={receiveToken.symbol}
               onOpenModal={() => setIsSellTokenModalOpen(true)}
             />
-            <div className="text-right">
-              <input
-                type="text"
-                value={sellAmount}
-                onChange={(e) => setSellAmount(e.target.value)}
-                className="bg-transparent text-2xl font-semibold text-right w-32 outline-none text-foreground"
-                placeholder="0.00"
-              />
-              <p className="text-sm text-muted-foreground">~$0</p>
-            </div>
+            <TokenInput
+              value={sellAmount}
+              onChange={setSellAmount}
+              onClear={() => setSellAmount("0.00")}
+            />
           </div>
         </div>
 
@@ -182,16 +178,11 @@ const SwapCard = () => {
               excludeSymbol={sellToken.symbol}
               onOpenModal={() => setIsReceiveTokenModalOpen(true)}
             />
-            <div className="text-right">
-              <input
-                type="text"
-                value={receiveAmount}
-                onChange={(e) => setReceiveAmount(e.target.value)}
-                className="bg-transparent text-2xl font-semibold text-right w-32 outline-none text-foreground"
-                placeholder="0.00"
-              />
-              <p className="text-sm text-muted-foreground">~$0</p>
-            </div>
+            <TokenInput
+              value={receiveAmount}
+              onChange={setReceiveAmount}
+              onClear={() => setReceiveAmount("0.00")}
+            />
           </div>
         </div>
 
