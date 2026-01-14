@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 
 interface TokenInputProps {
@@ -25,7 +26,7 @@ const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
   };
 
   return (
-    <div className="text-right relative">
+    <div className="text-right relative flex-1 min-w-0">
       <input
         type="number"
         value={value}
@@ -47,7 +48,7 @@ const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
           fontSize: `${getInputFontSize(value)}px`,
           transition: "font-size 0.2s ease",
         }}
-        className="bg-transparent font-semibold text-right w-56 outline-none text-foreground pr-6"
+        className="bg-transparent font-semibold text-right w-full outline-none text-foreground pr-6"
         placeholder="0.00"
       />
       {value !== "0.00" && value !== "" && (
