@@ -96,7 +96,7 @@ export const AIChat = () => {
                 {!msg.isUser && (
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white">
                     <Image
-                      src="/assets/logo.png"
+                      src="/assets/chatLogo.svg"
                       alt="Tower logo"
                       width={32}
                       height={32}
@@ -168,7 +168,7 @@ export const AIChat = () => {
               <div className="flex gap-3 justify-start">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white">
                   <Image
-                    src="/assets/logo.png"
+                    src="/assets/chatLogo.svg"
                     alt="Tower logo"
                     width={32}
                     height={32}
@@ -213,7 +213,7 @@ export const AIChat = () => {
               className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
             >
               <Image
-                src="/assets/logo.png"
+                src="/assets/chatLogo.svg"
                 alt="Tower logo"
                 width={48}
                 height={48}

@@ -2,6 +2,7 @@
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { useState } from "react";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
@@ -12,6 +13,8 @@ interface ChartModalProps {
 }
 
 const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
+  const [selectedPeriod, setSelectedPeriod] = useState("24H");
+
   if (!isOpen) return null;
 
   return (
@@ -27,11 +30,17 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
 
       {/* Modal */}
       <motion.div
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
+        initial={{ x: "100%", opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: "100%", opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed inset-0 md:top-1/2 md:-translate-y-1/2 md:right-8 md:inset-auto w-full md:max-w-xl bg-[#18191b] border-0 md:border border-border/50 md:rounded-2xl shadow-2xl z-40 overflow-auto"
+        className="fixed inset-0 md:relative md:inset-auto w-full md:max-w-xl bg-[#18191b] border-0 md:border border-border/50 md:rounded-2xl shadow-2xl z-40 overflow-y-auto overflow-x-hidden"
+        style={
+          {
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+          } as React.CSSProperties
+        }
       >
         <div className="p-4 sm:p-6">
           {/* Header */}
@@ -62,15 +71,16 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               </h2>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="flex items-center gap-1 w-full md:w-auto">
               {/* Time period buttons */}
-              <div className="flex gap-1 sm:gap-2 flex-1 md:flex-initial overflow-x-auto">
+              <div className="flex gap-1 flex-1 md:flex-initial overflow-x-auto scrollbar-hide crup">
                 {["24H", "7D", "1M", "3M", "6M"].map((period) => (
                   <motion.button
                     key={period}
-                    className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
-                      period === "24H"
-                        ? "bg-secondary text-foreground"
+                    onClick={() => setSelectedPeriod(period)}
+                    className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                      period === selectedPeriod
+                        ? "bg-[#151617] text-foreground border border-gray-700"
                         : "text-muted-foreground hover:bg-secondary/50"
                     }`}
                     whileHover={{ scale: 1.05 }}

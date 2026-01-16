@@ -79,12 +79,175 @@ const SwapCard = () => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="w-full max-w-md mx-auto"
-    >
+    <div className="flex gap-6 items-start w-full justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
+      >
+        <motion.div
+          className="bg-[#191A1C] border border-border rounded-2xl p-6"
+          whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-foreground">Swap</h2>
+            <div className="flex items-center gap-2">
+              <motion.button
+                onClick={() => setIsChartOpen(!isChartOpen)}
+                className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <BarChart3 className="w-5 h-5 text-muted-foreground" />
+              </motion.button>
+              <motion.button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Settings className="w-5 h-5 text-muted-foreground" />
+              </motion.button>
+            </div>
+          </div>
+
+          <div className="bg-[#151617] rounded-xl p-4 mb-2">
+            <div className="flex items-center justify-between mb-2 ">
+              <span className="text-sm text-muted-foreground">Sell</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Wallet className="w-4 h-4" />
+                <span>0 {sellToken.symbol}</span>
+                <button className="text-muted-foreground hover:text-foreground">
+                  50%
+                </button>
+                <button className="text-muted-foreground hover:text-foreground">
+                  Max
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <TokenSelector
+                selected={sellToken}
+                onSelect={setSellToken}
+                excludeSymbol={receiveToken.symbol}
+                onOpenModal={() => setIsSellTokenModalOpen(true)}
+              />
+              <TokenInput
+                value={sellAmount}
+                onChange={setSellAmount}
+                onClear={() => setSellAmount("0.00")}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-center -my-6 relative z-10">
+            <motion.button
+              onClick={handleSwapTokens}
+              className="w-10 h-10 rounded-xl bg-secondary border border-border flex items-center justify-center hover:bg-accent transition-colors"
+              whileHover={{ scale: 1.1, rotate: 180 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ArrowDown className="w-5 h-5 text-muted-foreground" />
+            </motion.button>
+          </div>
+
+          <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">Receive</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Wallet className="w-4 h-4" />
+                <span>--</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <TokenSelector
+                selected={receiveToken}
+                onSelect={setReceiveToken}
+                excludeSymbol={sellToken.symbol}
+                onOpenModal={() => setIsReceiveTokenModalOpen(true)}
+              />
+              <TokenInput
+                value={receiveAmount}
+                onChange={setReceiveAmount}
+                onClear={() => setReceiveAmount("0.00")}
+              />
+            </div>
+          </div>
+
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button className="w-full bg-primary hover:opacity-90 rounded-xl h-14 text-base font-semibold text-black">
+              Connect Wallet
+            </Button>
+          </motion.div>
+        </motion.div>
+
+        <div className="flex items-center justify-center gap-4 mt-6">
+          <motion.button
+            onClick={() => setSellToken(sellToken)}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+              <Image
+                src={sellToken.icon}
+                alt={`${sellToken.symbol} logo`}
+                width={24}
+                height={24}
+                className="object-contain w-full h-full"
+              />
+            </div>
+            <span className="font-medium text-foreground">
+              {sellToken.symbol}
+            </span>
+            <span className="text-muted-foreground">$1</span>
+          </motion.button>
+          <motion.button
+            onClick={() => setReceiveToken(receiveToken)}
+            className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+              <Image
+                src={receiveToken.icon}
+                alt={`${receiveToken.symbol} logo`}
+                width={24}
+                height={24}
+                className="object-contain w-full h-full"
+              />
+            </div>
+            <span className="font-medium text-foreground">
+              {receiveToken.symbol}
+            </span>
+            <span className="text-muted-foreground">$1</span>
+          </motion.button>
+        </div>
+
+        <TokenModal
+          isOpen={isSellTokenModalOpen}
+          onClose={() => setIsSellTokenModalOpen(false)}
+          selected={sellToken}
+          onSelect={setSellToken}
+          excludeSymbol={receiveToken.symbol}
+        />
+
+        <TokenModal
+          isOpen={isReceiveTokenModalOpen}
+          onClose={() => setIsReceiveTokenModalOpen(false)}
+          selected={receiveToken}
+          onSelect={setReceiveToken}
+          excludeSymbol={sellToken.symbol}
+        />
+
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      </motion.div>
+
       <AnimatePresence>
         {isChartOpen && (
           <ChartModal
@@ -93,166 +256,7 @@ const SwapCard = () => {
           />
         )}
       </AnimatePresence>
-
-      <motion.div
-        animate={{ x: isChartOpen ? -200 : 0 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="bg-[#191A1C] border border-border rounded-2xl p-6"
-        whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-foreground">Swap</h2>
-          <div className="flex items-center gap-2">
-            <motion.button
-              onClick={() => setIsChartOpen(true)}
-              className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <BarChart3 className="w-5 h-5 text-muted-foreground" />
-            </motion.button>
-            <motion.button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Settings className="w-5 h-5 text-muted-foreground" />
-            </motion.button>
-          </div>
-        </div>
-
-        <div className="bg-[#151617] rounded-xl p-4 mb-2">
-          <div className="flex items-center justify-between mb-2 ">
-            <span className="text-sm text-muted-foreground">Sell</span>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Wallet className="w-4 h-4" />
-              <span>0 {sellToken.symbol}</span>
-              <button className="text-muted-foreground hover:text-foreground">
-                50%
-              </button>
-              <button className="text-muted-foreground hover:text-foreground">
-                Max
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <TokenSelector
-              selected={sellToken}
-              onSelect={setSellToken}
-              excludeSymbol={receiveToken.symbol}
-              onOpenModal={() => setIsSellTokenModalOpen(true)}
-            />
-            <TokenInput
-              value={sellAmount}
-              onChange={setSellAmount}
-              onClear={() => setSellAmount("0.00")}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-center -my-6 relative z-10">
-          <motion.button
-            onClick={handleSwapTokens}
-            className="w-10 h-10 rounded-xl bg-secondary border border-border flex items-center justify-center hover:bg-accent transition-colors"
-            whileHover={{ scale: 1.1, rotate: 180 }}
-            whileTap={{ scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-          >
-            <ArrowDown className="w-5 h-5 text-muted-foreground" />
-          </motion.button>
-        </div>
-
-        <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">Receive</span>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Wallet className="w-4 h-4" />
-              <span>--</span>
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <TokenSelector
-              selected={receiveToken}
-              onSelect={setReceiveToken}
-              excludeSymbol={sellToken.symbol}
-              onOpenModal={() => setIsReceiveTokenModalOpen(true)}
-            />
-            <TokenInput
-              value={receiveAmount}
-              onChange={setReceiveAmount}
-              onClear={() => setReceiveAmount("0.00")}
-            />
-          </div>
-        </div>
-
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button className="w-full bg-primary hover:opacity-90 rounded-xl h-14 text-base font-semibold text-black">
-            Connect Wallet
-          </Button>
-        </motion.div>
-      </motion.div>
-
-      <div className="flex items-center justify-center gap-4 mt-6">
-        <motion.button
-          onClick={() => setSellToken(tokens[0])}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
-            <Image
-              src={tokens[0].icon}
-              alt={`${tokens[0].symbol} logo`}
-              width={24}
-              height={24}
-              className="object-contain w-full h-full"
-            />
-          </div>
-          <span className="font-medium text-foreground">USDC</span>
-          <span className="text-muted-foreground">$1</span>
-        </motion.button>
-        <motion.button
-          onClick={() => setReceiveToken(tokens[1])}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
-            <Image
-              src={tokens[1].icon}
-              alt={`${tokens[1].symbol} logo`}
-              width={24}
-              height={24}
-              className="object-contain w-full h-full"
-            />
-          </div>
-          <span className="font-medium text-foreground">ETH</span>
-          <span className="text-muted-foreground">$1</span>
-        </motion.button>
-      </div>
-
-      <TokenModal
-        isOpen={isSellTokenModalOpen}
-        onClose={() => setIsSellTokenModalOpen(false)}
-        selected={sellToken}
-        onSelect={setSellToken}
-        excludeSymbol={receiveToken.symbol}
-      />
-
-      <TokenModal
-        isOpen={isReceiveTokenModalOpen}
-        onClose={() => setIsReceiveTokenModalOpen(false)}
-        selected={receiveToken}
-        onSelect={setReceiveToken}
-        excludeSymbol={sellToken.symbol}
-      />
-
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-    </motion.div>
+    </div>
   );
 };
 
