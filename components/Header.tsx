@@ -46,9 +46,13 @@ const Header = () => {
 
   const handleWalletSelect = (walletName: string) => {
     // Mock wallet connection - replace with actual wallet adapter logic
-    const mockAddress = `${walletName.substring(0, 4)}...${Math.random()
-      .toString(36)
-      .substring(2, 6)}`;
+    const array = new Uint8Array(2);
+    crypto.getRandomValues(array);
+    const randomSuffix = Array.from(array)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(-4);
+    const mockAddress = `${walletName.substring(0, 4)}...${randomSuffix}`;
     setWalletAddress(mockAddress);
     setShowWalletModal(false);
   };
@@ -82,7 +86,7 @@ const Header = () => {
           >
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
               <Image
-                src="/assets/logo.png"
+                src="/assets/Tower Logo.svg"
                 alt="Tower logo"
                 width={40}
                 height={40}
