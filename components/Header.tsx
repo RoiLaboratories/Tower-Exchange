@@ -31,7 +31,6 @@ const Header = () => {
   const walletOptions = [
     { name: "Phantom", icon: "/assets/phantom.png" },
     { name: "Solflare", icon: "/assets/solflare.png" },
-    { name: "Backpack", icon: "/assets/backpack.png" },
   ];
 
   const handleNavigation = (path: string, disabled?: boolean) => {
@@ -49,8 +48,8 @@ const Header = () => {
     const array = new Uint8Array(2);
     crypto.getRandomValues(array);
     const randomSuffix = Array.from(array)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
       .slice(-4);
     const mockAddress = `${walletName.substring(0, 4)}...${randomSuffix}`;
     setWalletAddress(mockAddress);
@@ -64,7 +63,7 @@ const Header = () => {
   const formatAddress = (address: string) => {
     if (address.length <= 8) return address;
     return `${address.substring(0, 4)}...${address.substring(
-      address.length - 4
+      address.length - 4,
     )}`;
   };
 
