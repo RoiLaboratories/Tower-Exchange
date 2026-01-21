@@ -56,7 +56,7 @@ const Header = () => {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex items-center justify-between px-4 sm:px-6 py-4 "
+        className="flex items-center justify-between px-4 sm:px-6 py-4"
       >
         <div className="flex items-center gap-4 sm:gap-8">
           {/* Logo */}
@@ -212,13 +212,6 @@ const Header = () => {
                 className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 py-2 text-sm sm:text-base text-black font-semibold flex items-center gap-2"
                 onClick={() => logout()}
               >
-                <Image
-                  src="/assets/phantom.png"
-                  alt="Wallet"
-                  width={16}
-                  height={16}
-                  className="opacity-70"
-                />
                 <span>{getDisplayAddress()}</span>
               </Button>
             ) : (
@@ -242,13 +235,6 @@ const Header = () => {
                 className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold flex items-center gap-1.5"
                 onClick={() => logout()}
               >
-                {/* <Image
-                  src="/assets/phantom.png"
-                  alt="Wallet"
-                  width={12}
-                  height={12}
-                  className="opacity-70"
-                /> */}
                 <span>{getDisplayAddress()}</span>
               </Button>
             ) : (

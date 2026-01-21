@@ -7,10 +7,11 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
+import { fetchArcBalance, formatBalance } from "@/lib/arcNetwork";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
@@ -80,20 +81,72 @@ const SwapCard = () => {
   const [sellToken, setSellToken] = useState(tokens[0]);
   const [receiveToken, setReceiveToken] = useState(tokens[1]);
 
+  // Actual wallet balances
+  const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
+    USDC: 0,
+    ETH: 0,
+    USDT: 0,
+    UNI: 0,
+    HYPE: 0,
+  });
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+
   // Modal states
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
 
+  // Fetch actual wallet balances from Arc testnet
+  const fetchUserBalances = useCallback(async () => {
+    if (!user?.wallet?.address) return;
+
+    setIsLoadingBalances(true);
+    try {
+      // Fetch USDC balance from Arc testnet
+      const usdcBalance = await fetchArcBalance(user.wallet.address);
+      
+      if (usdcBalance) {
+        setTokenBalances((prev) => ({
+          ...prev,
+          USDC: parseFloat(formatBalance(usdcBalance)),
+        }));
+      }
+
+      // TODO: Fetch other token balances
+      // For ETH, USDT, UNI, HYPE - you'll need to:
+      // 1. Make RPC calls to get ERC20 token balances using eth_call
+      // 2. Call the balanceOf function on each token contract
+      // Example:
+      // const ethBalance = await fetchERC20Balance(user.wallet.address, ETH_CONTRACT_ADDRESS);
+    } catch (error) {
+      console.error("Failed to fetch wallet balances:", error);
+    } finally {
+      setIsLoadingBalances(false);
+    }
+  }, [user?.wallet?.address]);
+
   // Sync wallet connection with Privy authentication
   useEffect(() => {
     if (authenticated && user) {
       setIsWalletConnected(true);
+      fetchUserBalances();
     } else {
       setIsWalletConnected(false);
+      setTokenBalances({
+        USDC: 0,
+        ETH: 0,
+        USDT: 0,
+        UNI: 0,
+        HYPE: 0,
+      });
     }
-  }, [authenticated, user]);
+  }, [authenticated, user, fetchUserBalances]);
+
+  // Get display balance for a token (actual if available, mock otherwise)
+  const getTokenBalance = (symbol: string): number => {
+    return tokenBalances[symbol] || 0;
+  };
 
   // Check if swap button should be active
   const isSwapActive =
@@ -296,7 +349,7 @@ const SwapCard = () => {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Wallet className="w-4 h-4" />
                 <span>
-                  {isWalletConnected ? sellToken.balance : 0} {sellToken.symbol}
+                  {isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(sellToken.symbol).toString())} ${sellToken.symbol}`}
                 </span>
                 <button className="text-muted-foreground hover:text-foreground">
                   50%
@@ -343,7 +396,7 @@ const SwapCard = () => {
               <span className="text-sm text-muted-foreground">Receive</span>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Wallet className="w-4 h-4" />
-                <span>{isWalletConnected ? receiveToken.balance : "--"}</span>
+                <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
               </div>
             </div>
             <div className="flex items-center justify-between">
