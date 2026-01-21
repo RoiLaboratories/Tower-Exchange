@@ -3,6 +3,7 @@ import { Sora, Cinzel } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { PrivyProvider } from "@/components/providers/PrivyProvider";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -28,11 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sora.variable} ${cinzel.variable}  antialiased`}>
-        <div className="min-h-screen flex flex-col">
-          <Header />
-          {children}
-          <Footer />
-        </div>
+        <PrivyProvider>
+          <div className="min-h-screen flex flex-col">
+            <Header />
+            {children}
+            <Footer />
+          </div>
+        </PrivyProvider>
       </body>
     </html>
   );

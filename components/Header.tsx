@@ -5,15 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [arcDropdownOpen, setArcDropdownOpen] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { user, login, logout, authenticated } = usePrivy();
 
   const navItems = [
     { name: "Trade", path: "/" },
@@ -27,38 +27,10 @@ const Header = () => {
     },
   ];
 
-  // Mock wallet options
-  const walletOptions = [
-    { name: "Phantom", icon: "/assets/phantom.png" },
-    { name: "Solflare", icon: "/assets/solflare.png" },
-    { name: "Backpack", icon: "/assets/backpack.png" },
-  ];
-
   const handleNavigation = (path: string, disabled?: boolean) => {
     if (disabled) return;
     router.push(path);
     setMobileMenuOpen(false);
-  };
-
-  const handleConnectWallet = () => {
-    setShowWalletModal(true);
-  };
-
-  const handleWalletSelect = (walletName: string) => {
-    // Mock wallet connection - replace with actual wallet adapter logic
-    const array = new Uint8Array(2);
-    crypto.getRandomValues(array);
-    const randomSuffix = Array.from(array)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-      .slice(-4);
-    const mockAddress = `${walletName.substring(0, 4)}...${randomSuffix}`;
-    setWalletAddress(mockAddress);
-    setShowWalletModal(false);
-  };
-
-  const handleDisconnect = () => {
-    setWalletAddress(null);
   };
 
   const formatAddress = (address: string) => {
@@ -66,6 +38,16 @@ const Header = () => {
     return `${address.substring(0, 4)}...${address.substring(
       address.length - 4
     )}`;
+  };
+
+  const getDisplayAddress = () => {
+    if (user?.wallet?.address) {
+      return formatAddress(user.wallet.address);
+    }
+    if (user?.email?.address) {
+      return user.email.address;
+    }
+    return null;
   };
 
   return (
@@ -225,10 +207,10 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="hidden sm:block"
           >
-            {walletAddress ? (
+            {authenticated ? (
               <Button
                 className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 py-2 text-sm sm:text-base text-black font-semibold flex items-center gap-2"
-                onClick={handleDisconnect}
+                onClick={() => logout()}
               >
                 <Image
                   src="/assets/phantom.png"
@@ -237,12 +219,12 @@ const Header = () => {
                   height={16}
                   className="opacity-70"
                 />
-                <span>{formatAddress(walletAddress)}</span>
+                <span>{getDisplayAddress()}</span>
               </Button>
             ) : (
               <Button
                 className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base text-black font-semibold"
-                onClick={handleConnectWallet}
+                onClick={() => login()}
               >
                 Connect Wallet
               </Button>
@@ -255,10 +237,10 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="block sm:hidden"
           >
-            {walletAddress ? (
+            {authenticated ? (
               <Button
                 className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold flex items-center gap-1.5"
-                onClick={handleDisconnect}
+                onClick={() => logout()}
               >
                 <Image
                   src="/assets/phantom.png"
@@ -267,12 +249,12 @@ const Header = () => {
                   height={12}
                   className="opacity-70"
                 />
-                <span>{formatAddress(walletAddress)}</span>
+                <span>{getDisplayAddress()}</span>
               </Button>
             ) : (
               <Button
                 className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold"
-                onClick={handleConnectWallet}
+                onClick={() => login()}
               >
                 Connect
               </Button>
@@ -343,69 +325,6 @@ const Header = () => {
               </div>
             </nav>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Wallet Selection Modal */}
-      <AnimatePresence>
-        {showWalletModal && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowWalletModal(false)}
-              className="fixed inset-0 bg-black/50 z-40"
-            />
-
-            {/* Modal */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-card rounded-2xl shadow-xl z-50 overflow-hidden border border-border"
-            >
-              <div className="p-6">
-                <h2 className="text-xl font-bold text-foreground mb-6">
-                  Connect Wallet
-                </h2>
-
-                <div className="space-y-3">
-                  {walletOptions.map((wallet) => (
-                    <motion.button
-                      key={wallet.name}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleWalletSelect(wallet.name)}
-                      className="w-full flex items-center gap-4 p-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors border border-border"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
-                        <Image
-                          src={wallet.icon}
-                          alt={wallet.name}
-                          width={32}
-                          height={32}
-                          className="object-contain"
-                        />
-                      </div>
-                      <span className="text-base font-medium text-foreground">
-                        {wallet.name}
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setShowWalletModal(false)}
-                  className="mt-4 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
 

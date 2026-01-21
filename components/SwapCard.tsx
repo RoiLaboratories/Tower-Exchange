@@ -7,9 +7,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { usePrivy } from "@privy-io/react-auth";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
@@ -61,6 +62,9 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
 };
 
 const SwapCard = () => {
+  // Privy hook
+  const { user, login, authenticated } = usePrivy();
+
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [swapState, setSwapState] = useState<
@@ -81,6 +85,15 @@ const SwapCard = () => {
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
+
+  // Sync wallet connection with Privy authentication
+  useEffect(() => {
+    if (authenticated && user) {
+      setIsWalletConnected(true);
+    } else {
+      setIsWalletConnected(false);
+    }
+  }, [authenticated, user]);
 
   // Check if swap button should be active
   const isSwapActive =
@@ -123,20 +136,16 @@ const SwapCard = () => {
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
-    setSwapState("loading");
+    if (authenticated) {
+      setIsWalletConnected(true);
+      setSwapState("idle");
+      return;
+    }
 
     try {
-      // TODO: Replace with actual wallet connection logic
-      // Example with MetaMask:
-      // if (typeof window.ethereum !== 'undefined') {
-      //   const provider = new BrowserProvider(window.ethereum);
-      //   const accounts = await provider.send("eth_requestAccounts", []);
-      //   setIsWalletConnected(true);
-      // }
-
-      // Simulate wallet connection delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      setSwapState("loading");
+      // Trigger Privy login modal
+      await login();
       setIsWalletConnected(true);
       setSwapState("idle");
     } catch (error) {

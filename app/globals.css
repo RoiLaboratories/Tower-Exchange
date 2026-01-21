@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../styles/privy-theme.css";
 
 body {
   font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI",
