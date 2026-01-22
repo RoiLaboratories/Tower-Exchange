@@ -18,7 +18,8 @@ import {
   getSwapQuote, 
   prepareSwapTransaction, 
   getPoolInfo,
-  TOKEN_CONTRACTS
+  TOKEN_CONTRACTS,
+  TOKEN_DECIMALS
 } from "@/lib/arcNetwork";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
@@ -141,7 +142,8 @@ const SwapCard = () => {
         );
         console.log("EURC balance (wei):", eurcBalanceWei);
         if (eurcBalanceWei && eurcBalanceWei !== "0x0") {
-          const eurcBalance = parseInt(eurcBalanceWei, 16) / 10 ** 18;
+          const eurcBalance =
+            parseInt(eurcBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.EURC || 18);
           console.log("EURC balance (converted):", eurcBalance);
           setTokenBalances((prev) => ({
             ...prev,
@@ -159,7 +161,8 @@ const SwapCard = () => {
         );
         console.log("SWPRC balance (wei):", swprcBalanceWei);
         if (swprcBalanceWei && swprcBalanceWei !== "0x0") {
-          const swprcBalance = parseInt(swprcBalanceWei, 16) / 10 ** 18;
+          const swprcBalance =
+            parseInt(swprcBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.SWPRC || 18);
           console.log("SWPRC balance (converted):", swprcBalance);
           setTokenBalances((prev) => ({
             ...prev,

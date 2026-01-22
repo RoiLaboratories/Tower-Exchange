@@ -19,6 +19,17 @@ export const TOKEN_CONTRACTS = {
   // HYPE: "0x...",
 };
 
+// Token Decimals Configuration
+export const TOKEN_DECIMALS: Record<string, number> = {
+  USDC: 6,
+  EURC: 6,
+  SWPRC: 6,
+  USDT: 6,
+  UNI: 18,
+  HYPE: 18,
+  ETH: 18,
+};
+
 // Arc Pool Configuration
 export const ARC_POOLS = {
   router: "0x2F4490e7c6F3DaC23ffEe6e71bFcb5d1CCd7d4eC",
