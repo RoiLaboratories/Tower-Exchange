@@ -4,7 +4,7 @@ import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
-import eurcLogo from "@/public/assets/EURC_logo.png";
+import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import swprcLogo from "@/public/assets/swapr_logo.png";
 
 export interface Token {

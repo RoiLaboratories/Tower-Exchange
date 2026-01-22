@@ -96,6 +96,8 @@ const SwapCard = () => {
     USDC: 0,
     ETH: 0,
     USDT: 0,
+    EURC: 0,
+    SWPRC: 0,
     UNI: 0,
     HYPE: 0,
   });
@@ -124,11 +126,16 @@ const SwapCard = () => {
       }
 
       // TODO: Fetch other token balances
-      // For ETH, USDT, UNI, HYPE - you'll need to:
+      // For ETH, USDT, EURC, SWPRC, UNI, HYPE - you'll need to:
       // 1. Make RPC calls to get ERC20 token balances using eth_call
       // 2. Call the balanceOf function on each token contract
+      // Token Contract Addresses:
+      // EURC: 0x... (to be configured)
+      // SWPRC: 0x... (to be configured)
+      // UNI: 0x... (to be configured)
+      // HYPE: 0x... (to be configured)
       // Example:
-      // const ethBalance = await fetchERC20Balance(user.wallet.address, ETH_CONTRACT_ADDRESS);
+      // const eurcBalance = await fetchERC20Balance(user.wallet.address, EURC_CONTRACT_ADDRESS);
     } catch (error) {
       console.error("Failed to fetch wallet balances:", error);
     } finally {
@@ -147,6 +154,8 @@ const SwapCard = () => {
         USDC: 0,
         ETH: 0,
         USDT: 0,
+        EURC: 0,
+        SWPRC: 0,
         UNI: 0,
         HYPE: 0,
       });
@@ -179,7 +188,54 @@ const SwapCard = () => {
   const handleSellAmountChange = (value: string) => {
     setSellAmount(value);
     if (value && parseFloat(value) > 0) {
-      // Mock exchange rate calculation - replace with actual DEX aggregator API
+      // Get quote from Arc pool for actual exchange rate
+      getQuoteForSwap(value);
+    } else {
+      setReceiveAmount("0.00");
+    }
+  };
+
+  // Get swap quote from Arc pool
+  const getQuoteForSwap = async (sellAmountValue: string) => {
+    try {
+      // Determine pool pair based on selected tokens
+      const poolKey = `${sellToken.symbol}/${receiveToken.symbol}`;
+      const poolInfo = getPoolInfo(poolKey);
+      
+      if (!poolInfo) {
+        // If pool doesn't exist, use a fallback mock rate
+        const mockRate =
+          sellToken.symbol === "ETH"
+            ? 1500
+            : sellToken.symbol === "USDC"
+            ? 1
+            : sellToken.symbol === "USDT"
+            ? 1
+            : sellToken.symbol === "UNI"
+            ? 12
+            : 8;
+        const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
+        setReceiveAmount(calculated);
+        return;
+      }
+
+      // Convert sell amount to wei (18 decimals)
+      const amountInWei = BigInt(parseFloat(sellAmountValue) * 10 ** 18).toString();
+
+      // Get quote from Arc pool (token indices: 0 for first token in pair, 1 for second)
+      const quoteInWei = await getSwapQuote(
+        poolInfo.address,
+        0, // sellToken index
+        1, // receiveToken index
+        amountInWei
+      );
+
+      // Convert quote back from wei to decimal
+      const quoteAmount = parseFloat(quoteInWei) / 10 ** 18;
+      setReceiveAmount(quoteAmount.toFixed(2));
+    } catch (error) {
+      console.error("Error getting swap quote:", error);
+      // Fallback to mock calculation on error
       const mockRate =
         sellToken.symbol === "ETH"
           ? 1500
@@ -190,10 +246,8 @@ const SwapCard = () => {
           : sellToken.symbol === "UNI"
           ? 12
           : 8;
-      const calculated = (parseFloat(value) * mockRate).toFixed(2);
+      const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
       setReceiveAmount(calculated);
-    } else {
-      setReceiveAmount("0.00");
     }
   };
 
