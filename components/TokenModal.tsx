@@ -10,11 +10,15 @@ import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
+import eurcLogo from "@/public/assets/EURC_logo.png";
+import swprcLogo from "@/public/assets/swapr_logo.png";
 
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
   { symbol: "ETH", icon: ethLogo, name: "Ethereum", balance: 2.5 },
   { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
+  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
+  { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
   { symbol: "UNI", icon: uniLogo, name: "Uniswap", balance: 50 },
   { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid", balance: 100 },
 ];
@@ -44,7 +48,9 @@ const TokenModal = ({
         searchInputRef.current?.focus();
       }, 100);
     } else {
-      setSearchQuery("");
+      setTimeout(() => {
+        setSearchQuery("");
+      }, 0);
     }
   }, [isOpen]);
 
@@ -116,40 +122,56 @@ const TokenModal = ({
               </div>
             ) : (
               <div className="px-2 pb-2">
-                {filteredTokens.map((token, index) => (
-                  <motion.button
-                    key={token.symbol}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.02 }}
-                    onClick={() => {
-                      onSelect(token);
-                      onClose();
-                    }}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-lg hover:bg-secondary/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
-                        <Image
-                          src={token.icon}
-                          alt={`${token.symbol} logo`}
-                          width={36}
-                          height={36}
-                          className="object-contain w-full h-full"
-                        />
+                {filteredTokens.map((token, index) => {
+                  const isSelected = selected.symbol === token.symbol;
+                  return (
+                    <motion.button
+                      key={token.symbol}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.02 }}
+                      onClick={() => {
+                        onSelect(token);
+                        onClose();
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-lg transition-colors group ${
+                        isSelected
+                          ? "bg-primary/20 hover:bg-primary/30"
+                          : "hover:bg-secondary/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden ${
+                          isSelected ? "bg-primary/40" : "bg-primary/20"
+                        }`}>
+                          <Image
+                            src={token.icon}
+                            alt={`${token.symbol} logo`}
+                            width={36}
+                            height={36}
+                            className="object-contain w-full h-full"
+                          />
+                        </div>
+                        <div className="text-left">
+                          <p className={`font-medium text-sm ${
+                            isSelected ? "text-primary" : "text-foreground"
+                          }`}>
+                            {token.symbol}
+                          </p>
+                          <p className="text-xs text-muted-foreground/60">
+                            {token.name}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-medium text-foreground text-sm">
-                          {token.symbol}
-                        </p>
-                        <p className="text-xs text-muted-foreground/60">
-                          {token.name}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-muted-foreground/40 text-lg">−</span>
-                  </motion.button>
-                ))}
+                      {isSelected && (
+                        <span className="text-primary text-lg font-bold">✓</span>
+                      )}
+                      {!isSelected && (
+                        <span className="text-muted-foreground/40 text-lg">−</span>
+                      )}
+                    </motion.button>
+                  );
+                })}
               </div>
             )}
           </div>
