@@ -52,69 +52,9 @@ export const ARC_POOLS = {
 };
 
 /**
- * Cache for router token indices to avoid repeated RPC calls
- */
-const tokenIndexCache: Map<string, number> = new Map();
-
-/**
- * Get the token address at a specific index in the router
- * @param routerAddress - Address of the swap router
- * @param tokenIndex - Index of the token in the router
- * @returns Token address or null if not found
- */
-async function getRouterTokenAddress(
-  routerAddress: string,
-  tokenIndex: number
-): Promise<string | null> {
-  try {
-    // Encode tokens(uint256) function call
-    // Function selector for tokens(uint256): 0xfc735e99
-    const functionSelector = "0xfc735e99";
-    const indexHex = BigInt(tokenIndex).toString(16).padStart(64, "0");
-    const encodedData = functionSelector + indexHex;
-
-    const response = await fetch(ARC_TESTNET_CONFIG.rpcUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: Date.now(),
-        method: "eth_call",
-        params: [
-          {
-            to: routerAddress,
-            data: encodedData,
-          },
-          "latest",
-        ],
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      console.error(`RPC Error getting token at index ${tokenIndex}:`, data.error);
-      return null;
-    }
-
-    if (data.result && data.result !== "0x") {
-      // Extract the address from the result (last 40 characters of the 32-byte value)
-      const address = "0x" + data.result.slice(-40);
-      return address.toLowerCase();
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`Error getting router token at index ${tokenIndex}:`, error);
-    return null;
-  }
-}
-
-/**
- * Find the index of a token in the router by its address
- * @param routerAddress - Address of the swap router
+ * Get the index of a token in the router
+ * This version uses a hardcoded mapping based on Arc testnet configuration
+ * @param routerAddress - Address of the swap router (unused, for future dynamic discovery)
  * @param tokenAddress - Token contract address to find
  * @returns Token index or -1 if not found
  */
@@ -123,45 +63,27 @@ export async function getRouterTokenIndex(
   tokenAddress: string
 ): Promise<number> {
   const normalizedAddress = tokenAddress.toLowerCase();
-  const cacheKey = `${routerAddress.toLowerCase()}_${normalizedAddress}`;
+  
+  // Hardcoded token index mapping for Arc testnet router
+  // These indices are based on the router configuration
+  const tokenIndexMap: Record<string, number> = {
+    "0x0000000000000000000000000000000000000001": 0, // USDC (native/placeholder)
+    "0x89b50855aa3be2f677cd6303cec089b5f319d72a": 1, // EURC
+    "0xbe7477bf91526fc9988c8f33e91b6db687119d45": 2, // SWPRC
+  };
 
-  // Check cache first
-  if (tokenIndexCache.has(cacheKey)) {
-    return tokenIndexCache.get(cacheKey)!;
+  const index = tokenIndexMap[normalizedAddress];
+  
+  if (index !== undefined) {
+    console.log(`Token ${tokenAddress} found at index ${index}`);
+    return index;
   }
 
-  try {
-    // Get token count to know how many indices to check
-    const countData = encodeFunctionData("getTokenCount", []);
-
-    const countResponse = await makeJsonRpcCall("eth_call", [
-      {
-        to: routerAddress,
-        data: countData,
-      },
-      "latest",
-    ]);
-
-    const tokenCount = parseInt(countResponse, 16);
-    console.log("Router token count:", tokenCount);
-
-    // Check each index to find the matching token
-    for (let i = 0; i < tokenCount; i++) {
-      const tokenAddr = await getRouterTokenAddress(routerAddress, i);
-      if (tokenAddr === normalizedAddress) {
-        tokenIndexCache.set(cacheKey, i);
-        console.log(`Token ${tokenAddress} found at index ${i}`);
-        return i;
-      }
-    }
-
-    console.warn(`Token ${tokenAddress} not found in router`);
-    return -1;
-  } catch (error) {
-    console.error(`Error finding token index for ${tokenAddress}:`, error);
-    return -1;
-  }
+  console.warn(`Token ${tokenAddress} not found in hardcoded mapping`);
+  return -1;
 }
+
+/**
 
 /**
  * Find token indices for a swap pair in the router
@@ -420,6 +342,8 @@ function encodeFunctionData(functionName: string, inputs: string[]): string {
     "get_dy(uint256,uint256,uint256)": "0x50c0e8aa",
     "swap(uint256,uint256,uint256,uint256)": "0xa08cd8e2",
     "getBalances()": "0xe4e61b70",
+    "getTokenCount()": "0x0dfe1681",
+    "tokens(uint256)": "0xfc735e99",
   };
 
   const typeMap: Record<string, string[]> = {
@@ -431,6 +355,8 @@ function encodeFunctionData(functionName: string, inputs: string[]): string {
       "uint256",
     ],
     "getBalances()": [],
+    "getTokenCount()": [],
+    "tokens(uint256)": ["uint256"],
   };
 
   let typeList: string[] = [];
@@ -440,6 +366,10 @@ function encodeFunctionData(functionName: string, inputs: string[]): string {
     typeList = typeMap["swap(uint256,uint256,uint256,uint256)"];
   } else if (functionName === "getBalances") {
     typeList = typeMap["getBalances()"];
+  } else if (functionName === "getTokenCount") {
+    typeList = typeMap["getTokenCount()"];
+  } else if (functionName === "tokens") {
+    typeList = typeMap["tokens(uint256)"];
   }
 
   const signature = `${functionName}(${typeList.join(",")})`;
