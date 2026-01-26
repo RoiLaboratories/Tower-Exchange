@@ -8,6 +8,13 @@ export const ARC_TESTNET_CONFIG = {
   faucetUrl: "https://faucet.circle.com",
 };
 
+// QuantumExchange API Configuration
+export const QUANTUM_EXCHANGE_CONFIG = {
+  baseUrl: "https://www.quantumexchange.app/api/v1",
+  chainId: 1301,
+  rpcUrl: "https://rpc.arc.testnet",
+};
+
 // Token Contract Addresses on Arc Testnet
 export const TOKEN_CONTRACTS: Record<string, string> = {
   USDC: "0x3600000000000000000000000000000000000000",
@@ -660,5 +667,230 @@ export function calculatePriceImpact(
     return Math.max(0, impact) / denominator;
   } catch {
     return 0;
+  }
+}
+
+/**
+ * QuantumExchange API Integration
+ * REST API based integration for getting swap quotes
+ */
+
+interface QuoteResponse {
+  success: boolean;
+  data?: {
+    fromToken: {
+      address: string;
+      symbol: string;
+      decimals: number;
+    };
+    toToken: {
+      address: string;
+      symbol: string;
+      decimals: number;
+    };
+    fromAmount: string;
+    toAmount: string;
+    priceImpact: number;
+    minimumReceived: string;
+    route: Array<{
+      from: string;
+      to: string;
+      type: string;
+    }>;
+    estimatedGas: number;
+    protocols: string[];
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+  timestamp: number;
+}
+
+interface SwapDataResponse {
+  success: boolean;
+  data?: {
+    to: string;
+    data: string;
+    value: string;
+    gasLimit: number;
+    approvalAddress: string | null;
+    approvalAmount: string | null;
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+  timestamp: number;
+}
+
+/**
+ * Get a swap quote using QuantumExchange API
+ * @param tokenInAddress - Input token contract address
+ * @param tokenOutAddress - Output token contract address
+ * @param amountIn - Amount to swap (in wei)
+ * @param slippage - Slippage tolerance in % (default: 0.5)
+ * @returns Quote data with output amount and price impact
+ */
+export async function getSwapQuoteFromQuantumExchange(
+  tokenInAddress: string,
+  tokenOutAddress: string,
+  amountIn: string,
+  slippage: number = 0.5
+): Promise<{
+  toAmount: string;
+  minimumReceived: string;
+  priceImpact: number;
+  estimatedGas: number;
+}> {
+  try {
+    const params = new URLSearchParams({
+      fromToken: tokenInAddress,
+      toToken: tokenOutAddress,
+      amount: amountIn,
+      slippage: slippage.toString(),
+    });
+
+    const url = `${QUANTUM_EXCHANGE_CONFIG.baseUrl}/quote?${params.toString()}`;
+
+    console.log("Getting quote from QuantumExchange:", {
+      tokenInAddress,
+      tokenOutAddress,
+      amountIn,
+      slippage,
+    });
+
+    const response = await fetch(url);
+    const result: QuoteResponse = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message || "Failed to get quote from QuantumExchange"
+      );
+    }
+
+    console.log("QuantumExchange quote received:", {
+      toAmount: result.data.toAmount,
+      minimumReceived: result.data.minimumReceived,
+      priceImpact: result.data.priceImpact,
+      estimatedGas: result.data.estimatedGas,
+    });
+
+    return {
+      toAmount: result.data.toAmount,
+      minimumReceived: result.data.minimumReceived,
+      priceImpact: result.data.priceImpact,
+      estimatedGas: result.data.estimatedGas,
+    };
+  } catch (error) {
+    console.error("Error getting quote from QuantumExchange:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get swap transaction data from QuantumExchange API
+ * @param tokenInAddress - Input token contract address
+ * @param tokenOutAddress - Output token contract address
+ * @param amountIn - Amount to swap (in wei)
+ * @param slippage - Slippage tolerance in %
+ * @param recipient - Recipient wallet address
+ * @param deadline - Transaction deadline in seconds from now (optional)
+ * @returns Transaction data ready to sign and broadcast
+ */
+export async function getSwapTransactionFromQuantumExchange(
+  tokenInAddress: string,
+  tokenOutAddress: string,
+  amountIn: string,
+  slippage: number,
+  recipient: string,
+  deadline: number = 300
+): Promise<{
+  to: string;
+  data: string;
+  value: string;
+  gasLimit: number;
+  approvalAddress: string | null;
+  approvalAmount: string | null;
+}> {
+  try {
+    const params = new URLSearchParams({
+      fromToken: tokenInAddress,
+      toToken: tokenOutAddress,
+      amount: amountIn,
+      slippage: slippage.toString(),
+      recipient: recipient,
+      deadline: (Math.floor(Date.now() / 1000) + deadline).toString(),
+    });
+
+    const url = `${QUANTUM_EXCHANGE_CONFIG.baseUrl}/swap?${params.toString()}`;
+
+    console.log("Getting swap data from QuantumExchange:", {
+      tokenInAddress,
+      tokenOutAddress,
+      amountIn,
+      slippage,
+      recipient,
+    });
+
+    const response = await fetch(url);
+    const result: SwapDataResponse = await response.json();
+
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message || "Failed to get swap data from QuantumExchange"
+      );
+    }
+
+    console.log("QuantumExchange swap data received:", {
+      to: result.data.to,
+      value: result.data.value,
+      gasLimit: result.data.gasLimit,
+      approvalAddress: result.data.approvalAddress,
+    });
+
+    return {
+      to: result.data.to,
+      data: result.data.data,
+      value: result.data.value,
+      gasLimit: result.data.gasLimit,
+      approvalAddress: result.data.approvalAddress,
+      approvalAmount: result.data.approvalAmount,
+    };
+  } catch (error) {
+    console.error("Error getting swap data from QuantumExchange:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get list of supported tokens from QuantumExchange
+ * @returns Array of supported tokens with metadata
+ */
+export async function getQuantumExchangeTokens(): Promise<
+  Array<{
+    address: string;
+    symbol: string;
+    name: string;
+    decimals: number;
+    logoUrl: string;
+  }>
+> {
+  try {
+    const url = `${QUANTUM_EXCHANGE_CONFIG.baseUrl}/tokens`;
+
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (!result.success || !result.data?.tokens) {
+      throw new Error("Failed to fetch tokens from QuantumExchange");
+    }
+
+    console.log("QuantumExchange tokens fetched:", result.data.tokens.length);
+
+    return result.data.tokens;
+  } catch (error) {
+    console.error("Error fetching tokens from QuantumExchange:", error);
+    throw error;
   }
 }

@@ -15,8 +15,8 @@ import {
   fetchArcBalance, 
   fetchERC20Balance,
   formatBalance, 
-  getSwapQuote,
-  prepareSwapTransaction,
+  getSwapQuoteFromQuantumExchange,
+  getSwapTransactionFromQuantumExchange,
   TOKEN_CONTRACTS,
   TOKEN_DECIMALS
 } from "@/lib/arcNetwork";
@@ -231,7 +231,7 @@ const SwapCard = () => {
     }
   };
 
-  // Get swap quote from Arc swap router
+  // Get swap quote from QuantumExchange API
   const getQuoteForSwap = async (sellAmountValue: string) => {
     try {
       // Get token addresses for the swap
@@ -263,7 +263,7 @@ const SwapCard = () => {
         parseFloat(sellAmountValue) * 10 ** sellTokenDecimals
       ).toString();
 
-      console.log("Getting quote from router:", {
+      console.log("Getting quote from QuantumExchange:", {
         sellToken: sellToken.symbol,
         receiveToken: receiveToken.symbol,
         tokenInAddress,
@@ -271,22 +271,24 @@ const SwapCard = () => {
         amountInWei,
       });
 
-      // Get quote from Arc swap router using token addresses
-      const quoteInWei = await getSwapQuote(
+      // Get quote from QuantumExchange API
+      const quoteData = await getSwapQuoteFromQuantumExchange(
         tokenInAddress,
         tokenOutAddress,
-        amountInWei
+        amountInWei,
+        0.5 // 0.5% slippage tolerance
       );
 
-      console.log("Quote received (wei):", quoteInWei);
+      console.log("Quote received from QuantumExchange:", quoteData);
 
       // Convert quote back from wei using correct decimals for the receive token
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-      const quoteAmount = parseInt(quoteInWei, 16) / 10 ** receiveTokenDecimals;
+      const quoteAmount = parseFloat(quoteData.toAmount) / 10 ** receiveTokenDecimals;
 
       console.log("Quote converted:", {
         receiveTokenDecimals,
         quoteAmount,
+        priceImpact: quoteData.priceImpact,
       });
 
       setReceiveAmount(quoteAmount.toFixed(2));
@@ -382,46 +384,41 @@ const SwapCard = () => {
 
       // Step 1: Convert amounts to wei using correct decimals
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-      const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
 
       const amountInWei = BigInt(
         parseFloat(sellAmount) * 10 ** sellTokenDecimals
       ).toString();
-      
-      const minAmountOutWei = BigInt(
-        parseFloat(receiveAmount) * 10 ** receiveTokenDecimals * 0.99
-      ).toString(); // 1% slippage tolerance
 
-      console.log("Preparing swap:", {
+      console.log("Preparing swap via QuantumExchange:", {
         sellToken: sellToken.symbol,
         receiveToken: receiveToken.symbol,
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        minAmountOutWei,
       });
 
-      // Step 2: Get quote for verification from the router
-      const expectedAmountOut = await getSwapQuote(
+      // Step 2: Get swap transaction data from QuantumExchange
+      const swapData = await getSwapTransactionFromQuantumExchange(
         tokenInAddress,
         tokenOutAddress,
-        amountInWei
+        amountInWei,
+        0.5, // 0.5% slippage
+        user.wallet.address
       );
 
-      console.log("Swap quote verified:", expectedAmountOut);
+      console.log("Swap transaction data received:", swapData);
 
-      // Step 3: Prepare swap transaction via router
-      // For now, we'll use placeholder indices until we properly map them
-      // This will be updated when executing actual swaps
-      const txData = prepareSwapTransaction(
-        0, // Will be updated with actual index
-        1, // Will be updated with actual index
-        amountInWei
-      );
+      // Step 3: Handle token approval if needed
+      if (swapData.approvalAddress && swapData.approvalAmount) {
+        console.log("Token approval needed:", {
+          approvalAddress: swapData.approvalAddress,
+          approvalAmount: swapData.approvalAmount,
+        });
+        // TODO: Implement approval transaction via Privy
+        // const approveTx = await tokenContract.approve(swapData.approvalAddress, swapData.approvalAmount);
+      }
 
-      console.log("Transaction prepared:", txData);
-
-      // Step 4: Send transaction to user's wallet via Privy
+      // Step 4: Send swap transaction to user's wallet via Privy
       // Note: This would typically be handled by the wallet provider
       // For now, we simulate the transaction
       await new Promise((resolve) => setTimeout(resolve, 2000));
