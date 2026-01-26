@@ -12,6 +12,7 @@ import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import swprcLogo from "@/public/assets/swapr_logo.png";
+import quantumLogo from "@/public/assets/quantum-logo.png";
 
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
@@ -21,6 +22,8 @@ const tokens = [
   { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
   { symbol: "UNI", icon: uniLogo, name: "Uniswap", balance: 50 },
   { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid", balance: 100 },
+  { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
+  { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
 ];
 
 interface TokenModalProps {

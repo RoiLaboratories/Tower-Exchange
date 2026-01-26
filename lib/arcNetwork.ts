@@ -16,19 +16,26 @@ export const QUANTUM_EXCHANGE_CONFIG = {
 };
 
 // Token Contract Addresses on Arc Testnet
+// Note: Only USDC, WUSDC, QTM are supported by QuantumExchange API
 export const TOKEN_CONTRACTS: Record<string, string> = {
   USDC: "0x3600000000000000000000000000000000000000",
+  WUSDC: "0xD40fCAa5d2cE963c5dABC2bf59E268489ad7BcE4",
+  QTM: "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   // Add other token addresses as needed
   // USDT: "0x...",
   // UNI: "0x...",
   // HYPE: "0x...",
+  // ETH: "0x...",
 };
 
 // Token Decimals Configuration
+// Note: USDC has 18 decimals on Arc Testnet, WUSDC has 6
 export const TOKEN_DECIMALS: Record<string, number> = {
-  USDC: 6,
+  USDC: 18,
+  WUSDC: 6,
+  QTM: 18,
   EURC: 6,
   SWPRC: 6,
   USDT: 6,
@@ -37,30 +44,23 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   ETH: 18,
 };
 
-// Arc Pool Configuration
+// Arc Pool Configuration - QuantumExchange supported pools
 // IMPORTANT: Each pool contract has its own get_dy function with local indices (0, 1)
 // Token 0 is always listed first, Token 1 is listed second
 export const ARC_POOLS = {
-  router: "0x2F4490e7c6F3DaC23ffEe6e71bFcb5d1CCd7d4eC", // Use this for swap execution only
+  router: "0x00468f90a40432Fc488C87B0FBe69c2D0fADF0a0", // Uniswap V2 Router (for reference only)
+  routerQuantum: "0x9d52b6c810d6f95e3d44ca64af3b55f7f66448ff", // RouterQuantum for wrap/unwrap swaps
   pools: {
-    "USDC/EURC": {
-      address: "0xd22e4fB80E21e8d2C91131eC2D6b0C000491934B",
-      tokens: ["USDC", "EURC"],
-    },
-    "USDC/SWPRC": {
-      address: "0x613bc8A188a571e7Ffe3F884FabAB0F43ABB8282",
-      tokens: ["USDC", "SWPRC"],
-    },
-    "EURC/SWPRC": {
-      address: "0x9463DE67E73B42B2cE5e45cab7e32184B9c24939",
-      tokens: ["EURC", "SWPRC"],
+    "WUSDC/QTM": {
+      address: "0xD330Ae5713AF6507f43420e85C941a68BfbaD9D0",
+      tokens: ["WUSDC", "QTM"],
     },
   },
 };
 
 /**
  * Get the index of a token in the router
- * This version uses a hardcoded mapping based on Arc testnet configuration
+ * DEPRECATED: This is only kept for reference. QuantumExchange API handles all routing.
  * @param routerAddress - Address of the swap router (unused, for future dynamic discovery)
  * @param tokenAddress - Token contract address to find
  * @returns Token index or -1 if not found
@@ -75,8 +75,8 @@ export async function getRouterTokenIndex(
   // These indices are based on the router configuration
   const tokenIndexMap: Record<string, number> = {
     "0x3600000000000000000000000000000000000000": 0, // USDC
-    "0x89b50855aa3be2f677cd6303cec089b5f319d72a": 1, // EURC
-    "0xbe7477bf91526fc9988c8f33e91b6db687119d45": 2, // SWPRC
+    "0xd40fcaa5d2ce963c5dabc2bf59e268489ad7bce4": 1, // WUSDC
+    "0xcd304d2a421bfed31d45f0054af8e8a6a4cf3eae": 2, // QTM
   };
 
   const index = tokenIndexMap[normalizedAddress];
