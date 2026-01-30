@@ -479,7 +479,8 @@ const SwapCard = () => {
       // Step 4: Send swap transaction via provider
       console.log("Sending swap transaction...");
 
-      // First, estimate gas to catch errors before sending
+      // Try to estimate gas, but don't block if it fails
+      // (some RPC endpoints have issues with gas estimation on complex transactions)
       try {
         console.log("Estimating gas...");
         const gasEstimate = await eip1193Provider.request({
@@ -493,8 +494,8 @@ const SwapCard = () => {
         });
         console.log("Gas estimate successful:", gasEstimate);
       } catch (estimateError) {
-        console.error("Gas estimation failed:", estimateError);
-        throw new Error(`Transaction will likely fail: ${estimateError}`);
+        // Log the error but continue - the wallet will provide its own gas estimation
+        console.warn("Gas estimation failed (wallet will estimate):", estimateError);
       }
 
       const txHash = await sendTransactionViaProvider({
