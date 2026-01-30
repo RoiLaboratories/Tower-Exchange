@@ -479,6 +479,24 @@ const SwapCard = () => {
       // Step 4: Send swap transaction via provider
       console.log("Sending swap transaction...");
 
+      // First, estimate gas to catch errors before sending
+      try {
+        console.log("Estimating gas...");
+        const gasEstimate = await eip1193Provider.request({
+          method: 'eth_estimateGas',
+          params: [{
+            from: userAddress,
+            to: swapData.to,
+            value: swapData.value,
+            data: swapData.data,
+          }],
+        });
+        console.log("Gas estimate successful:", gasEstimate);
+      } catch (estimateError) {
+        console.error("Gas estimation failed:", estimateError);
+        throw new Error(`Transaction will likely fail: ${estimateError}`);
+      }
+
       const txHash = await sendTransactionViaProvider({
         to: swapData.to,
         value: swapData.value,
@@ -486,6 +504,9 @@ const SwapCard = () => {
       });
 
       console.log("Swap transaction executed with hash:", txHash);
+      
+      // Wait a moment for the transaction to be picked up
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       
       // Store the transaction hash
       setTransactionHash(txHash);
