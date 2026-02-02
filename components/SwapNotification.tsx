@@ -42,7 +42,7 @@ const SwapNotification = ({
       <div
         className={`${
           isSuccess ? "bg-[#1a1d1f]" : "bg-[#1a1d1f]"
-        } rounded-2xl px-5 py-4 shadow-2xl flex items-start gap-3 min-w-[320px]`}
+        } backdrop-blur-md rounded-2xl px-5 py-4 shadow-2xl flex items-start gap-3 min-w-[320px] border border-white/10`}
       >
         <div className="pt-0.5">
           {isSuccess ? (
