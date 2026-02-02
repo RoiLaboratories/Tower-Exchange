@@ -847,6 +847,9 @@ export async function getSwapTransactionFromQuantumExchange(
       value: result.data.value,
       gasLimit: result.data.gasLimit,
       approvalAddress: result.data.approvalAddress,
+      approvalAmount: result.data.approvalAmount,
+      data: result.data.data?.substring(0, 200) + "...",
+      fullResponse: result,
     });
 
     return {

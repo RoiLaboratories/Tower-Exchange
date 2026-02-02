@@ -458,6 +458,7 @@ const SwapCard = () => {
         tokenOutAddress,
         amountInWei,
         walletAddress: user.wallet.address,
+        balanceOfSellToken: getTokenBalance(sellToken.symbol),
       });
 
       // Step 2: Get swap transaction data from QuantumExchange
@@ -564,11 +565,55 @@ const SwapCard = () => {
             
             // Check if transaction was successful (status === '0x1')
             if (receipt.status === '0x0') {
+              console.error("Transaction failed! Getting revert reason...");
+              
+              // Try to get the revert reason by calling eth_call on the failed transaction
+              try {
+                const tx = await eip1193Provider.request({
+                  method: 'eth_getTransactionByHash',
+                  params: [txHash],
+                });
+                
+                console.log("Failed transaction data:", tx);
+                
+                // Try to call the same transaction to get the revert reason
+                const callResult = await eip1193Provider.request({
+                  method: 'eth_call',
+                  params: [
+                    {
+                      from: tx.from,
+                      to: tx.to,
+                      value: tx.value,
+                      data: tx.input,
+                    },
+                    'latest'
+                  ],
+                });
+                
+                console.log("eth_call result:", callResult);
+              } catch (callError: unknown) {
+                const callErrorObj = callError instanceof Error ? callError : new Error(String(callError));
+                console.error("Revert reason extraction error:", {
+                  message: callErrorObj.message,
+                  error: callError,
+                });
+                
+                // Try to decode the error message if it's available
+                if (callError instanceof Error && callError.message.includes('revert')) {
+                  console.error("Revert reason:", callError.message);
+                }
+              }
+              
               throw new Error("Transaction failed on-chain (status: 0x0)");
             }
             break;
           }
-        } catch (receiptError) {
+        } catch (receiptError: unknown) {
+          const receiptErrorObj = receiptError instanceof Error ? receiptError : new Error(String(receiptError));
+          // Only throw if it's the "Transaction failed on-chain" error
+          if (receiptErrorObj.message.includes("Transaction failed on-chain")) {
+            throw receiptError;
+          }
           console.error("Error fetching receipt:", receiptError);
         }
         
