@@ -171,7 +171,10 @@ const Profile = () => {
           {activeTab === "positions" ? (
             <Positions />
           ) : (
-            <Activities isWalletConnected={authenticated} />
+            <Activities
+              isWalletConnected={authenticated}
+              walletAddress={user?.wallet?.address || null}
+            />
           )}
         </AnimatePresence>
       </main>

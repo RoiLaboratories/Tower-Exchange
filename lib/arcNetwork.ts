@@ -9,7 +9,7 @@ export const ARC_TESTNET_CONFIG = {
 };
 
 // Arc testnet network params for wallets (Metamask-compatible)
-export const ARC_CHAIN_HEX = "0x4cdfb2"; // 5042002 in hex
+export const ARC_CHAIN_HEX = "0x4cef52"; // 5042002 in hex
 export const ARC_ADD_NETWORK_PARAMS = [
   {
     chainId: ARC_CHAIN_HEX,

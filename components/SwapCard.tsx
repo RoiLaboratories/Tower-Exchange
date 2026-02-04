@@ -18,7 +18,9 @@ import {
   getSwapQuoteFromQuantumExchange,
   getSwapTransactionFromQuantumExchange,
   TOKEN_CONTRACTS,
-  TOKEN_DECIMALS
+  TOKEN_DECIMALS,
+  ARC_CHAIN_HEX,
+  ARC_ADD_NETWORK_PARAMS
 } from "@/lib/arcNetwork";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
@@ -85,6 +87,7 @@ const SwapCard = () => {
 
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [chainId, setChainId] = useState<string | null>(null);
   const [swapState, setSwapState] = useState<
     "idle" | "loading" | "success" | "failed"
   >("idle");
@@ -92,6 +95,89 @@ const SwapCard = () => {
     null
   );
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
+
+  // Monitor chain ID changes
+  useEffect(() => {
+    if (!authenticated || typeof window === "undefined") return;
+
+    const checkChainId = async () => {
+      try {
+        const connectedWallet = wallets.find(
+          (w) => w.address?.toLowerCase() === user?.wallet?.address?.toLowerCase()
+        );
+        
+        if (connectedWallet) {
+          const provider = await connectedWallet.getEthereumProvider();
+          if (provider) {
+            const currentChainId = await provider.request({ method: "eth_chainId" });
+            setChainId(currentChainId as string);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking chain ID:", error);
+      }
+    };
+
+    checkChainId();
+
+    // Listen for chain changes
+    const handleChainChanged = (newChainId: string) => {
+      setChainId(newChainId);
+    };
+
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const { ethereum } = window as any;
+      ethereum.on?.("chainChanged", handleChainChanged);
+      return () => ethereum.removeListener?.("chainChanged", handleChainChanged);
+    }
+  }, [authenticated, user, wallets]);
+
+  // Check if on Arc Testnet
+  const isOnArcTestnet = chainId === ARC_CHAIN_HEX;
+
+  // Function to switch/add Arc Testnet network
+  const switchToArcTestnet = async () => {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+      throw new Error("No Ethereum provider found");
+    }
+
+    try {
+      const { ethereum } = window as any;
+      await ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: ARC_CHAIN_HEX }],
+      });
+    } catch (switchError: any) {
+      // This error code indicates that the chain has not been added to MetaMask
+      if (switchError.code === 4902) {
+        try {
+          await (window as any).ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: ARC_ADD_NETWORK_PARAMS,
+          });
+        } catch (addError) {
+          throw new Error("Failed to add Arc Testnet network");
+        }
+      } else {
+        throw switchError;
+      }
+    }
+  };
+
+  const toHexQuantity = (value: bigint | number | string) => {
+    const v = typeof value === "bigint" ? value : BigInt(value);
+    return "0x" + v.toString(16);
+  };
+
+  // Minimal calldata encoding for ERC20 approve(spender, amount)
+  // approve(address,uint256) selector = 0x095ea7b3
+  const encodeErc20Approve = (spender: string, amountWei: string) => {
+    const selector = "0x095ea7b3";
+    const spenderNo0x = spender.toLowerCase().replace(/^0x/, "");
+    const spenderPadded = spenderNo0x.padStart(64, "0");
+    const amountHex = BigInt(amountWei).toString(16).padStart(64, "0");
+    return selector + spenderPadded + amountHex;
+  };
 
   // Token and amount states
   const [sellAmount, setSellAmount] = useState("0.00");
@@ -368,6 +454,32 @@ const SwapCard = () => {
         throw new Error("Wallet not connected");
       }
 
+      // Check if on correct network
+      if (!isOnArcTestnet) {
+        try {
+          await switchToArcTestnet();
+          // Wait a moment for chain switch to complete
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          // Re-check chain ID
+          const connectedWallet = wallets.find(
+            (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
+          );
+          if (connectedWallet) {
+            const provider = await connectedWallet.getEthereumProvider();
+            if (provider) {
+              const currentChainId = await provider.request({ method: "eth_chainId" });
+              if (currentChainId !== ARC_CHAIN_HEX) {
+                throw new Error("Please switch to Arc Testnet to continue");
+              }
+            }
+          }
+        } catch (networkError: any) {
+          throw new Error(
+            networkError.message || "Please switch to Arc Testnet network to perform swaps"
+          );
+        }
+      }
+
       // Get the connected wallet
       const connectedWallet = wallets.find(
         (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
@@ -390,7 +502,10 @@ const SwapCard = () => {
         throw new Error("User wallet address not available");
       }
 
-      const sendTransactionViaProvider = async (txData: { to: string; value: string; data: string }, txType: string = "transaction") => {
+      const sendTransactionViaProvider = async (
+        txData: { to: string; value: string; data: string; gas?: number | string },
+        txType: string = "transaction"
+      ) => {
         try {
           console.log(`[${txType}] Sending to provider:`, {
             from: userAddress,
@@ -398,28 +513,64 @@ const SwapCard = () => {
             value: txData.value,
             dataLength: txData.data?.length || 0,
             data: txData.data?.substring(0, 100) + "...",
+            gas: txData.gas,
           });
+
+          // Get current chain ID to include in transaction
+          const currentChainId = await eip1193Provider.request({ method: "eth_chainId" });
+          
+          if (currentChainId !== ARC_CHAIN_HEX) {
+            throw new Error(
+              `Invalid chain ID. Expected ${ARC_CHAIN_HEX} (Arc Testnet), got ${currentChainId}. Please switch to Arc Testnet.`
+            );
+          }
 
           const result = await eip1193Provider.request({
             method: 'eth_sendTransaction',
             params: [{
               from: userAddress, // Use the validated address
               to: txData.to,
-              value: txData.value,
+              value: txData.value?.startsWith("0x")
+                ? txData.value
+                : toHexQuantity(txData.value || "0"),
               data: txData.data,
+              // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
+              ...(txData.gas ? { gas: typeof txData.gas === "string" ? txData.gas : toHexQuantity(txData.gas) } : {}),
             }],
           });
 
           console.log(`[${txType}] Successfully sent, hash:`, result);
           return result as string;
         } catch (error: unknown) {
-          const errorObj = error instanceof Error ? error : new Error(String(error));
-          console.error(`[${txType}] Failed with error:`, {
-            message: errorObj.message,
-            code: (error as Record<string, unknown>)?.code,
-            data: (error as Record<string, unknown>)?.data,
-            fullError: error,
-          });
+          // Better error serialization
+          let errorDetails: Record<string, unknown> = {
+            type: txType,
+            timestamp: new Date().toISOString(),
+          };
+
+          if (error instanceof Error) {
+            errorDetails.message = error.message;
+            errorDetails.stack = error.stack;
+            errorDetails.name = error.name;
+          } else if (typeof error === "string") {
+            errorDetails.message = error;
+          } else if (error && typeof error === "object") {
+            // Handle EIP-1193 errors and other structured errors
+            const err = error as Record<string, unknown>;
+            errorDetails = {
+              ...errorDetails,
+              message: err.message || err.reason || String(error),
+              code: err.code,
+              data: err.data,
+              // Common EIP-1193 error properties
+              shortMessage: err.shortMessage,
+              cause: err.cause,
+            };
+          } else {
+            errorDetails.message = String(error);
+          }
+
+          console.error(`[${txType}] Failed with error:`, errorDetails);
           throw error;
         }
       };
@@ -482,10 +633,18 @@ const SwapCard = () => {
         // Send approval transaction via provider
         try {
           console.log("Sending approval transaction...");
+          // QuantumExchange provides approvalAddress (spender) + approvalAmount (uint256)
+          // We must call token.approve(spender, amount) on the input token contract.
+          const approvalCalldata = encodeErc20Approve(
+            swapData.approvalAddress,
+            swapData.approvalAmount
+          );
           const approveTxHash = await sendTransactionViaProvider({
             to: tokenInAddress,
             value: "0",
-            data: swapData.data,
+            data: approvalCalldata,
+            // Wallets still estimate gas, but providing a buffer helps on some providers
+            gas: 120000,
           }, "APPROVAL");
 
           console.log("Approval transaction sent:", approveTxHash);
@@ -493,13 +652,35 @@ const SwapCard = () => {
           // Wait for approval confirmation
           await new Promise((resolve) => setTimeout(resolve, 2000));
         } catch (approvalError: unknown) {
-          const approvalErrorObj = approvalError instanceof Error ? approvalError : new Error(String(approvalError));
-          console.error("Approval transaction error details:", {
-            message: approvalErrorObj.message,
-            code: (approvalError as Record<string, unknown>)?.code,
-            data: (approvalError as Record<string, unknown>)?.data,
-            fullError: approvalError,
-          });
+          // Better error serialization for approval errors
+          let approvalErrorDetails: Record<string, unknown> = {
+            context: "tokenApproval",
+            timestamp: new Date().toISOString(),
+            token: sellToken.symbol,
+            approvalAddress: swapData.approvalAddress,
+          };
+
+          if (approvalError instanceof Error) {
+            approvalErrorDetails.message = approvalError.message;
+            approvalErrorDetails.stack = approvalError.stack;
+            approvalErrorDetails.name = approvalError.name;
+          } else if (typeof approvalError === "string") {
+            approvalErrorDetails.message = approvalError;
+          } else if (approvalError && typeof approvalError === "object") {
+            const err = approvalError as Record<string, unknown>;
+            approvalErrorDetails = {
+              ...approvalErrorDetails,
+              message: err.message || err.reason || String(approvalError),
+              code: err.code,
+              data: err.data,
+              shortMessage: err.shortMessage,
+              cause: err.cause,
+            };
+          } else {
+            approvalErrorDetails.message = String(approvalError);
+          }
+
+          console.error("Approval transaction error details:", approvalErrorDetails);
           console.warn("Approval transaction failed or already approved, continuing with swap...");
           // Continue with swap even if approval fails (it might already be approved)
         }
@@ -529,20 +710,46 @@ const SwapCard = () => {
         console.log("Gas estimate successful:", gasEstimate);
       } catch (estimateError: unknown) {
         // Log the error but continue - the wallet will provide its own gas estimation
-        const estimateErrorObj = estimateError instanceof Error ? estimateError : new Error(String(estimateError));
-        console.error("Gas estimation error details:", {
-          message: estimateErrorObj.message,
-          code: (estimateError as Record<string, unknown>)?.code,
-          data: (estimateError as Record<string, unknown>)?.data,
-        });
+        let estimateErrorDetails: Record<string, unknown> = {
+          context: "gasEstimation",
+          timestamp: new Date().toISOString(),
+          note: "Continuing with swap - wallet will estimate gas",
+        };
+
+        if (estimateError instanceof Error) {
+          estimateErrorDetails.message = estimateError.message;
+          estimateErrorDetails.stack = estimateError.stack;
+          estimateErrorDetails.name = estimateError.name;
+        } else if (typeof estimateError === "string") {
+          estimateErrorDetails.message = estimateError;
+        } else if (estimateError && typeof estimateError === "object") {
+          const err = estimateError as Record<string, unknown>;
+          estimateErrorDetails = {
+            ...estimateErrorDetails,
+            message: err.message || err.reason || String(estimateError),
+            code: err.code,
+            data: err.data,
+            shortMessage: err.shortMessage,
+            cause: err.cause,
+          };
+        } else {
+          estimateErrorDetails.message = String(estimateError);
+        }
+
+        console.error("Gas estimation error details:", estimateErrorDetails);
         console.warn("Gas estimation failed (wallet will estimate)");
       }
 
-      const txHash = await sendTransactionViaProvider({
-        to: swapData.to,
-        value: swapData.value,
-        data: swapData.data,
-      }, "SWAP");
+      const txHash = await sendTransactionViaProvider(
+        {
+          to: swapData.to,
+          value: swapData.value,
+          data: swapData.data,
+          // Per QuantumExchange docs, use the provided gasLimit when available
+          gas: swapData.gasLimit ?? undefined,
+        },
+        "SWAP"
+      );
 
       console.log("Swap transaction executed with hash:", txHash);
       
@@ -646,14 +853,37 @@ const SwapCard = () => {
         fetchUserBalances();
       }, 3000);
     } catch (error: unknown) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      console.error("Swap transaction error - Full details:", {
-        message: errorObj.message,
-        code: (error as Record<string, unknown>)?.code,
-        data: (error as Record<string, unknown>)?.data,
-        stack: errorObj.stack,
-        errorObj: error,
-      });
+      // Better error serialization for swap errors
+      let errorDetails: Record<string, unknown> = {
+        context: "handleSwap",
+        timestamp: new Date().toISOString(),
+        sellToken: sellToken.symbol,
+        receiveToken: receiveToken.symbol,
+        sellAmount,
+      };
+
+      if (error instanceof Error) {
+        errorDetails.message = error.message;
+        errorDetails.stack = error.stack;
+        errorDetails.name = error.name;
+      } else if (typeof error === "string") {
+        errorDetails.message = error;
+      } else if (error && typeof error === "object") {
+        // Handle EIP-1193 errors and other structured errors
+        const err = error as Record<string, unknown>;
+        errorDetails = {
+          ...errorDetails,
+          message: err.message || err.reason || String(error),
+          code: err.code,
+          data: err.data,
+          shortMessage: err.shortMessage,
+          cause: err.cause,
+        };
+      } else {
+        errorDetails.message = String(error);
+      }
+
+      console.error("Swap transaction error - Full details:", errorDetails);
       
       setSwapState("failed");
       setNotification("failed");
