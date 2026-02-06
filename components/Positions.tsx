@@ -20,15 +20,28 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
 
   // Use wallet holdings if available and loaded, otherwise use mock data
   const displayHoldings = useMemo(() => {
-    if (walletAddress && walletHoldings.length > 0) {
+    // If no wallet connected, return empty array to show empty state
+    if (!walletAddress) {
+      return [];
+    }
+    // If wallet is connected and has holdings, show them
+    if (walletHoldings.length > 0) {
       return walletHoldings;
     }
-    // Return mock data if no wallet address or no holdings found
-    return holdingsData;
+    // If wallet is connected but no holdings found, return empty array
+    return [];
   }, [walletAddress, walletHoldings]);
 
   // Calculate and report total value using useEffect (not useMemo)
   useEffect(() => {
+    // If wallet is connected but has no holdings, set to $0.00
+    if (walletAddress && !loading && walletHoldings.length === 0) {
+      if (onTotalValueChange) {
+        onTotalValueChange("$0.00");
+      }
+      return;
+    }
+
     const total = displayHoldings.reduce((sum, holding) => {
       const value = parseFloat(holding.value.replace("$", ""));
       return sum + value;
@@ -38,7 +51,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
     if (onTotalValueChange) {
       onTotalValueChange(totalValue);
     }
-  }, [displayHoldings, onTotalValueChange]);
+  }, [displayHoldings, onTotalValueChange, walletAddress, loading, walletHoldings.length]);
 
   return (
     <motion.div
@@ -191,7 +204,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                   </table>
                 </div>
               </div>
-            ) : !loading && !error && displayHoldings.length === 0 ? (
+            ) : !loading && !error && walletAddress && walletHoldings.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -200,7 +213,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
               >
                 <div className="mb-6">
                   <svg
-                    className="w-20 h-20 text-white"
+                    className="w-20 h-20 opacity-60"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -214,12 +227,33 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                   </svg>
                 </div>
                 <h4 className="text-xl font-semibold mb-2">
-                  No Holdings Found
+                  No Holdings
                 </h4>
                 <p className="text-gray-400 text-center">
-                  {walletAddress
-                    ? "This wallet has no holdings to display."
-                    : "Connect a wallet to view your holdings."}
+                  Your wallet doesn't have any token holdings yet. Start trading to build your portfolio.
+                </p>
+              </motion.div>
+            ) : !loading && !error && !walletAddress && displayHoldings.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col items-center justify-center py-20 px-6"
+              >
+                <div className="mb-6">
+                  <Image
+                    src="/assets/wallet.png"
+                    alt="No wallet connected"
+                    width={80}
+                    height={80}
+                    className="w-20 h-20 opacity-60"
+                  />
+                </div>
+                <h4 className="text-xl font-semibold mb-2">
+                  No wallet connected
+                </h4>
+                <p className="text-gray-400 text-center">
+                  Connect your wallet to view your holdings.
                 </p>
               </motion.div>
             ) : null}

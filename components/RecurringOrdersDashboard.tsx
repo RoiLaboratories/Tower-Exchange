@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/lib/recurringOrderService";
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
+import CancelOrderConfirmationModal from "@/components/CancelOrderConfirmationModal";
 
 export const RecurringOrdersDashboard = () => {
   const { user } = usePrivy();
@@ -15,6 +16,8 @@ export const RecurringOrdersDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<RecurringOrder | null>(null);
 
   // Load orders on component mount
   useEffect(() => {
@@ -65,17 +68,35 @@ export const RecurringOrdersDashboard = () => {
   };
 
   const handleCancelOrder = async (orderId: string) => {
-    if (!confirm("Are you sure you want to cancel this recurring order?")) {
+    if (!walletAddress) {
+      alert("Please connect your wallet");
       return;
     }
 
-    setCancelingId(orderId);
+    const orderToCancelData = orders.find((o) => o.id === orderId);
+    if (!orderToCancelData) {
+      alert("Order not found");
+      return;
+    }
+
+    setOrderToCancel(orderToCancelData);
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!orderToCancel || !walletAddress) {
+      return;
+    }
+
+    setCancelingId(orderToCancel.id);
     try {
-      await cancelRecurringOrder(orderId);
-      setOrders(orders.map((o) => (o.id === orderId ? { ...o, is_active: false } : o)));
-      if (selectedOrder?.id === orderId) {
+      await cancelRecurringOrder(orderToCancel.id, walletAddress);
+      setOrders(orders.map((o) => (o.id === orderToCancel.id ? { ...o, is_active: false } : o)));
+      if (selectedOrder?.id === orderToCancel.id) {
         setSelectedOrder({ ...selectedOrder, is_active: false });
       }
+      setShowCancelModal(false);
+      setOrderToCancel(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to cancel order";
       alert(`Error: ${errorMessage}`);
@@ -398,6 +419,23 @@ export const RecurringOrdersDashboard = () => {
           </motion.div>
         </div>
       )}
+      
+      {/* Cancel Order Confirmation Modal */}
+      <AnimatePresence>
+        {showCancelModal && orderToCancel && (
+          <CancelOrderConfirmationModal
+            orderType={orderToCancel.order_type}
+            sourceToken={orderToCancel.source_token}
+            targetToken={orderToCancel.target_token}
+            onConfirm={handleConfirmCancelOrder}
+            onCancel={() => {
+              setShowCancelModal(false);
+              setOrderToCancel(null);
+            }}
+            isLoading={cancelingId === orderToCancel.id}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

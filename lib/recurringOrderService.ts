@@ -153,9 +153,74 @@ export const updateRecurringOrder = async (
 };
 
 /**
+ * Log an order cancellation activity
+ */
+export const logOrderCancellation = async (
+  walletAddress: string,
+  orderId: string,
+  sourceToken: string,
+  targetToken: string,
+  orderType: "buy" | "sell"
+): Promise<void> => {
+  const { error } = await supabase.from("activities").insert({
+    wallet_address: walletAddress.toLowerCase(),
+    type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Cancelled`,
+    source_currency_ticker: sourceToken,
+    destination_currency_ticker: targetToken,
+    source_network_name: "Arc",
+    destination_network_name: "Arc",
+    status: "Successful",
+    amount: 0,
+  });
+
+  if (error) {
+    console.error("Error logging order cancellation:", error);
+    throw new Error(`Failed to log order cancellation: ${error.message}`);
+  }
+};
+
+/**
+ * Log an order creation activity
+ */
+export const logOrderCreation = async (
+  walletAddress: string,
+  sourceToken: string,
+  targetToken: string,
+  orderType: "buy" | "sell",
+  amount: number
+): Promise<void> => {
+  const { error } = await supabase.from("activities").insert({
+    wallet_address: walletAddress.toLowerCase(),
+    type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Created`,
+    source_currency_ticker: sourceToken,
+    destination_currency_ticker: targetToken,
+    source_network_name: "Arc",
+    destination_network_name: "Arc",
+    status: "Successful",
+    amount: amount,
+  });
+
+  if (error) {
+    console.error("Error logging order creation:", error);
+    throw new Error(`Failed to log order creation: ${error.message}`);
+  }
+};
+
+/**
  * Cancel a recurring order (deactivate it)
  */
-export const cancelRecurringOrder = async (orderId: string): Promise<void> => {
+export const cancelRecurringOrder = async (
+  orderId: string,
+  walletAddress: string
+): Promise<void> => {
+  // Get order details before canceling for activity logging
+  const order = await getRecurringOrder(orderId);
+
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  // Update order status
   const { error } = await supabase
     .from("recurring_orders")
     .update({ is_active: false })
@@ -165,6 +230,20 @@ export const cancelRecurringOrder = async (orderId: string): Promise<void> => {
     const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
     console.error("Error canceling recurring order:", errorMessage);
     throw new Error(`Failed to cancel recurring order: ${errorMessage}`);
+  }
+
+  // Log the cancellation as an activity
+  try {
+    await logOrderCancellation(
+      walletAddress,
+      orderId,
+      order.source_token,
+      order.target_token,
+      order.order_type
+    );
+  } catch (err) {
+    console.error("Error logging cancellation activity:", err);
+    // Don't throw - order is already canceled, just log the error
   }
 };
 
@@ -275,6 +354,9 @@ export const calculateNextExecutionDate = (frequency: string): string => {
   const now = new Date();
 
   switch (frequency.toLowerCase()) {
+    case "hourly":
+      now.setHours(now.getHours() + 1);
+      break;
     case "daily":
       now.setDate(now.getDate() + 1);
       break;

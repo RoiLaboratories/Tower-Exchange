@@ -8,23 +8,44 @@ import { FrequencyField } from "./FrequencyField";
 import { AmountInput } from "./AmountInput";
 import { FrequencyModal } from "../FrequencyModal";
 import { DatePicker } from "../DatePicker";
-import { createRecurringOrder } from "@/lib/recurringOrderService";
+import RecurringOrderNotification from "../RecurringOrderNotification";
+import { createRecurringOrder, logOrderCreation } from "@/lib/recurringOrderService";
+
+// Helper function to format date as MM/DD/YYYY
+const formatDateToString = (date: Date): string => {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+};
 
 export const RecurringBuys = () => {
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const walletAddress = user?.wallet?.address;
 
+  // Calculate today's date
+  const today = new Date();
+  const todayFormatted = `${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}/${today.getFullYear()}`;
+
   const [selectedPayToken, setSelectedPayToken] = useState(tokens[0]);
   const [selectedBuyToken, setSelectedBuyToken] = useState<typeof tokens[0] | null>(null);
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
-  const [endDate, setEndDate] = useState("01/22/2026");
+  const [endDate, setEndDate] = useState(todayFormatted);
 
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationFrequency, setNotificationFrequency] = useState<string>("");
+  const [notificationData, setNotificationData] = useState<{
+    amount: string;
+    sourceToken: string;
+    targetToken: string;
+    frequency: string;
+  } | null>(null);
 
   // Filter tokens to exclude the selected pay token
   const availableTokensForBuy = tokens.filter(
@@ -104,14 +125,32 @@ export const RecurringBuys = () => {
       setSelectedBuyToken(null);
       setAmount("10.00");
       setFrequency("Weekly");
-      setEndDate("01/22/2026");
+      const newToday = new Date();
+      const newTodayFormatted = `${String(newToday.getMonth() + 1).padStart(2, "0")}/${String(newToday.getDate()).padStart(2, "0")}/${newToday.getFullYear()}`;
+      setEndDate(newTodayFormatted);
 
-      // Show success message
-      setError(null);
-      console.log("✅ Recurring buy order created successfully", order);
-      
-      // Show success alert
-      alert(`Recurring buy order created! Orders will execute ${frequency.toLowerCase()}.`);
+      // Capture notification data with current values
+      setNotificationData({
+        amount,
+        sourceToken: selectedPayToken.symbol,
+        targetToken: selectedBuyToken?.symbol || "",
+        frequency,
+      });
+      setShowNotification(true);
+
+      // Log order creation activity
+      try {
+        await logOrderCreation(
+          walletAddress,
+          selectedPayToken.symbol,
+          selectedBuyToken?.symbol || "",
+          "buy",
+          parseFloat(amount)
+        );
+      } catch (logError) {
+        console.error("Error logging order creation:", logError);
+        // Don't fail the order creation if logging fails
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to create recurring buy order";
       setError(errorMsg);
@@ -184,6 +223,16 @@ export const RecurringBuys = () => {
       </motion.div>
 
       <AnimatePresence>
+        {showNotification && notificationData && (
+          <RecurringOrderNotification
+            orderType="buy"
+            amount={notificationData.amount}
+            sourceToken={notificationData.sourceToken}
+            targetToken={notificationData.targetToken}
+            frequency={notificationData.frequency}
+            onClose={() => setShowNotification(false)}
+          />
+        )}
         <FrequencyModal
           key="frequency-modal"
           isOpen={showFrequencyModal}

@@ -316,6 +316,69 @@ CREATE TRIGGER update_execution_history_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
+-- SUPABASE EDGE FUNCTION SCHEDULING (pg_cron)
+-- ============================================================================
+
+-- Enable pg_cron extension for scheduled jobs
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Schedule the execute-recurring-orders Edge Function to run every hour
+-- This will check for orders due for execution and trigger them automatically
+-- NOTE: Replace 'project-id' with your actual Supabase project ID
+-- The function runs at 0 minutes past every hour
+SELECT cron.schedule(
+  'execute-recurring-orders-hourly',
+  '0 * * * *', -- Run every hour at the top of the hour
+  $$
+  SELECT
+    net.http_post(
+      url := concat(
+        'https://',
+        current_setting('app.settings.supabase_project_id'),
+        '.supabase.co/functions/v1/execute-recurring-orders'
+      ),
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', concat('Bearer ', current_setting('app.settings.supabase_service_key'))
+      ),
+      body := jsonb_build_object(
+        'timestamp', now()
+      )
+    ) as request_id;
+  $$
+);
+
+-- Schedule to run every 30 minutes for more frequent execution
+-- Uncomment if you want more frequent checks
+-- SELECT cron.schedule(
+--   'execute-recurring-orders-frequent',
+--   '*/30 * * * *', -- Run every 30 minutes
+--   $$
+--   SELECT
+--     net.http_post(
+--       url := concat(
+--         'https://',
+--         current_setting('app.settings.supabase_project_id'),
+--         '.supabase.co/functions/v1/execute-recurring-orders'
+--       ),
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'Authorization', concat('Bearer ', current_setting('app.settings.supabase_service_key'))
+--       ),
+--       body := jsonb_build_object(
+--         'timestamp', now()
+--       )
+--     ) as request_id;
+--   $$
+-- );
+
+-- View all scheduled cron jobs
+-- SELECT * FROM cron.job;
+
+-- Cancel a specific cron job (example)
+-- SELECT cron.unschedule('execute-recurring-orders-hourly');
+
+-- ============================================================================
 -- EXAMPLE INSERTS (FOR TESTING)
 -- ============================================================================
 

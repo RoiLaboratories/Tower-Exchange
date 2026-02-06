@@ -46,7 +46,13 @@ export const DatePicker = ({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const previousMonth = () => {
-    setCurrentMonth(new Date(year, month - 1, 1));
+    const newMonth = new Date(year, month - 1, 1);
+    const today = new Date();
+    // Don't allow going to months before current month
+    if (newMonth.getFullYear() > today.getFullYear() || 
+        (newMonth.getFullYear() === today.getFullYear() && newMonth.getMonth() >= today.getMonth())) {
+      setCurrentMonth(newMonth);
+    }
   };
 
   const nextMonth = () => {
@@ -79,6 +85,14 @@ export const DatePicker = ({
       today.getMonth() === month &&
       today.getFullYear() === year
     );
+  };
+
+  const isPastDate = (day: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(year, month, day);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate < today;
   };
 
   const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => i);
@@ -153,8 +167,11 @@ export const DatePicker = ({
                 variant={isSelectedDate(day) ? "default" : "ghost"}
                 size="icon"
                 onClick={() => handleDateSelect(day)}
+                disabled={isPastDate(day)}
                 className={`aspect-square h-auto text-sm ${
-                  isSelectedDate(day)
+                  isPastDate(day)
+                    ? "opacity-30 cursor-not-allowed"
+                    : isSelectedDate(day)
                     ? "bg-white text-black hover:bg-white/90 font-semibold"
                     : isToday(day)
                     ? "bg-zinc-800 text-white hover:bg-zinc-700 font-medium"

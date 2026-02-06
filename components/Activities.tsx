@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
+import arcLogo from "@/public/assets/arc_logo_1-removebg-preview.png";
 
 interface ActivitiesProps {
   isWalletConnected?: boolean;
@@ -27,6 +28,7 @@ interface DisplayActivity {
   status: "Successful" | "Failed";
   date: string;
   time: string;
+  isCancellation?: boolean;
 }
 
 // Format timestamp to date and time
@@ -82,6 +84,7 @@ const Activities = ({
         const transformedActivities: DisplayActivity[] = (data || []).map(
           (row: ActivityRow) => {
             const { date, time } = formatTimestamp(row.timestamp);
+            const isCancellation = row.type.toLowerCase().includes("cancelled");
             return {
               type: row.type,
               source: {
@@ -99,6 +102,7 @@ const Activities = ({
               status: row.status === "Successful" ? "Successful" : "Failed",
               date,
               time,
+              isCancellation,
             };
           }
         );
@@ -215,7 +219,14 @@ const Activities = ({
                   }}
                 >
                   <td className="py-5 px-6">
-                    <span className="font-medium">{activity.type}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{activity.type}</span>
+                      {activity.isCancellation && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/50">
+                          Cancelled
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-5 px-6">
                     <div className="flex items-center gap-3">
@@ -237,11 +248,14 @@ const Activities = ({
                             </span>
                           </div>
                         )}
-                        <div
-                          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: "#7bb8ff" }}
-                        >
-                          <span className="text-[8px] font-bold">A</span>
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-white border border-gray-300">
+                          <Image
+                            src={arcLogo}
+                            alt="Arc chain"
+                            width={16}
+                            height={16}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
                       </div>
                       <div>
@@ -275,11 +289,14 @@ const Activities = ({
                               </span>
                             </div>
                           )}
-                          <div
-                            className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: "#7bb8ff" }}
-                          >
-                            <span className="text-[8px] font-bold">A</span>
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-white border border-gray-300">
+                            <Image
+                              src={arcLogo}
+                              alt="Arc chain"
+                              width={16}
+                              height={16}
+                              className="w-full h-full object-contain"
+                            />
                           </div>
                         </div>
                         <div>

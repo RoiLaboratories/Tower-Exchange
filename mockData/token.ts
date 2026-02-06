@@ -6,6 +6,7 @@ import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import swprcLogo from "@/public/assets/swapr_logo.png";
+import qtmLogo from "@/public/assets/quantum-logo.png";
 
 export interface Token {
   symbol: string;
@@ -89,6 +90,26 @@ export const tokens: Token[] = [
     change24h: "+3.5%",
     marketCap: "$250M",
     chartData: [0.80, 0.81, 0.82, 0.83, 0.82, 0.84, 0.85, 0.845, 0.85],
+  },
+  {
+    symbol: "QTM",
+    price: "$2.45",
+    change: "+18.7%",
+    icon: qtmLogo,
+    color: "text-success",
+    change24h: "+18.7%",
+    marketCap: "$500M",
+    chartData: [1.95, 2.05, 2.10, 2.20, 2.30, 2.35, 2.40, 2.43, 2.45],
+  },
+  {
+    symbol: "WUSDC",
+    price: "$1.00",
+    change: "+0.2%",
+    icon: usdcLogo, // Use USDC logo
+    color: "text-primary",
+    change24h: "+0.2%",
+    marketCap: "$100M",
+    chartData: [0.99, 0.995, 1.0, 1.0, 1.0, 1.001, 1.0, 1.0, 1.0],
   },
 ];
 
