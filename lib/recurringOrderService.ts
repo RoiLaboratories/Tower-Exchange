@@ -62,8 +62,13 @@ export const createRecurringOrder = async (
     .single();
 
   if (error) {
-    console.error("Error creating recurring order:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error creating recurring order:", errorMessage);
+    throw new Error(`Failed to create recurring order: ${errorMessage}`);
+  }
+
+  if (!data) {
+    throw new Error("Failed to create recurring order: No data returned from database");
   }
 
   return data;
@@ -90,8 +95,9 @@ export const getRecurringOrders = async (
   });
 
   if (error) {
-    console.error("Error fetching recurring orders:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error fetching recurring orders:", errorMessage);
+    throw new Error(`Failed to fetch recurring orders: ${errorMessage}`);
   }
 
   return data || [];
@@ -132,8 +138,13 @@ export const updateRecurringOrder = async (
     .single();
 
   if (error) {
-    console.error("Error updating recurring order:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error updating recurring order:", errorMessage);
+    throw new Error(`Failed to update recurring order: ${errorMessage}`);
+  }
+
+  if (!data) {
+    throw new Error("Failed to update recurring order: No data returned");
   }
 
   return data;
@@ -149,8 +160,9 @@ export const cancelRecurringOrder = async (orderId: string): Promise<void> => {
     .eq("id", orderId);
 
   if (error) {
-    console.error("Error canceling recurring order:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error canceling recurring order:", errorMessage);
+    throw new Error(`Failed to cancel recurring order: ${errorMessage}`);
   }
 };
 
@@ -164,8 +176,9 @@ export const deleteRecurringOrder = async (orderId: string): Promise<void> => {
     .eq("id", orderId);
 
   if (error) {
-    console.error("Error deleting recurring order:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error deleting recurring order:", errorMessage);
+    throw new Error(`Failed to delete recurring order: ${errorMessage}`);
   }
 };
 
@@ -182,8 +195,9 @@ export const getOrderExecutions = async (
     .order("execution_date", { ascending: false });
 
   if (error) {
-    console.error("Error fetching order executions:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error fetching order executions:", errorMessage);
+    throw new Error(`Failed to fetch order executions: ${errorMessage}`);
   }
 
   return data || [];
@@ -202,8 +216,9 @@ export const getWalletExecutions = async (
     .order("execution_date", { ascending: false });
 
   if (error) {
-    console.error("Error fetching wallet executions:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error fetching wallet executions:", errorMessage);
+    throw new Error(`Failed to fetch wallet executions: ${errorMessage}`);
   }
 
   return data || [];
@@ -239,8 +254,13 @@ export const logOrderExecution = async (
     .single();
 
   if (error) {
-    console.error("Error logging order execution:", error);
-    throw error;
+    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+    console.error("Error logging order execution:", errorMessage);
+    throw new Error(`Failed to log order execution: ${errorMessage}`);
+  }
+
+  if (!data) {
+    throw new Error("Failed to log order execution: No data returned");
   }
 
   return data;
