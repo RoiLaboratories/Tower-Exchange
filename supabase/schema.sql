@@ -224,6 +224,9 @@ CREATE TABLE IF NOT EXISTS recurring_orders (
   is_active BOOLEAN DEFAULT true, -- Whether the order is active
   execution_count INTEGER DEFAULT 0, -- Number of times executed
   
+  -- Wallet authorization
+  signature TEXT, -- EIP-191 personal_sign signature from wallet for authorization (nullable)
+  
   -- Metadata
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

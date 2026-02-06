@@ -42,7 +42,8 @@ export const createRecurringOrder = async (
   targetToken: string,
   amount: number,
   frequency: string,
-  endDate?: string
+  endDate?: string,
+  signature?: string
 ): Promise<RecurringOrder> => {
   const { data, error } = await supabase
     .from("recurring_orders")
@@ -57,6 +58,7 @@ export const createRecurringOrder = async (
       end_date: endDate ? new Date(endDate).toISOString() : null,
       next_execution_date: calculateNextExecutionDate(frequency),
       is_active: true,
+      ...(signature && { signature }),
     })
     .select()
     .single();

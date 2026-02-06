@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { tokens } from "@/mockData/token";
 import { TokenDropdown } from "./TokenDropdown";
 import { FrequencyField } from "./FrequencyField";
@@ -12,6 +12,7 @@ import { createRecurringOrder } from "@/lib/recurringOrderService";
 
 export const RecurringSell = () => {
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   const walletAddress = user?.wallet?.address;
 
   const [selectedSellToken, setSelectedSellToken] = useState<typeof tokens[0] | null>(null);
@@ -24,6 +25,11 @@ export const RecurringSell = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter tokens to exclude the selected convert token
+  const availableTokensForSell = tokens.filter(
+    (token) => token.symbol !== selectedConvertToken.symbol
+  );
 
   const handleContinue = async () => {
     if (!walletAddress) {
@@ -45,15 +51,42 @@ export const RecurringSell = () => {
     setError(null);
 
     try {
-      // Step 1: Create message for signature
+      // Step 1: Create message to sign
       const message = `I authorize Tower Finance to set up a recurring ${frequency} ${selectedSellToken.symbol} → ${selectedConvertToken.symbol} sell order for ${amount} ${selectedSellToken.symbol}`;
       
-      console.log("Requesting wallet signature for:", message);
+      let signature: string | undefined;
 
-      // Step 2: Request wallet signature via Privy
-      // The wallet will prompt the user to sign this message
-      // Note: Store signature if you want to validate authorization later
-      // For now, we proceed - in production, you might want to verify the signature
+      try {
+        // Step 2: Get the wallet and sign the message
+        const connectedWallet = wallets.find(
+          (w) => w.address?.toLowerCase() === walletAddress.toLowerCase()
+        );
+
+        if (!connectedWallet) {
+          throw new Error("Connected wallet not found");
+        }
+
+        // Get the EIP-1193 provider from the wallet
+        const eip1193Provider = await connectedWallet.getEthereumProvider();
+
+        if (!eip1193Provider) {
+          throw new Error("Failed to get wallet provider");
+        }
+
+        // Convert message to hex
+        const messageHex = "0x" + Buffer.from(message).toString("hex");
+
+        // Request signature - WALLET WILL PROMPT USER
+        signature = await eip1193Provider.request({
+          method: "personal_sign",
+          params: [messageHex, walletAddress],
+        }) as string;
+
+        console.log("✅ Message signed successfully:", signature);
+      } catch (signError) {
+        console.warn("⚠️ Signature request failed:", signError);
+        // Proceed without signature (optional - can require it)
+      }
 
       // Step 3: Create the recurring order in the database
       const order = await createRecurringOrder(
@@ -63,7 +96,8 @@ export const RecurringSell = () => {
         selectedConvertToken.symbol,
         parseFloat(amount),
         frequency,
-        endDate
+        endDate,
+        signature
       );
 
       // Reset form
@@ -76,7 +110,7 @@ export const RecurringSell = () => {
       setError(null);
       console.log("✅ Recurring sell order created successfully", order);
       
-      // Optional: Show a toast notification here
+      // Show success alert
       alert(`Recurring sell order created! Orders will execute ${frequency.toLowerCase()}.`);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to create recurring sell order";
@@ -110,6 +144,7 @@ export const RecurringSell = () => {
           selected={selectedConvertToken}
           onSelect={setSelectedConvertToken}
           showInfo
+          availableTokens={availableTokensForSell}
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

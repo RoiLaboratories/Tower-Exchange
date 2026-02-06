@@ -11,6 +11,7 @@ interface TokenDropdownProps {
   onSelect: (token: any) => void;
   showInfo?: boolean;
   placeholder?: string;
+  availableTokens?: any[]; // Optional: limit available tokens
 }
 
 export const TokenDropdown = ({
@@ -19,8 +20,10 @@ export const TokenDropdown = ({
   onSelect,
   showInfo = false,
   placeholder = "Select Token",
+  availableTokens,
 }: TokenDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const displayTokens = availableTokens || tokens;
 
   return (
     <div>
@@ -76,7 +79,7 @@ export const TokenDropdown = ({
                 } as React.CSSProperties & { WebkitOverflowScrolling?: string }
               }
             >
-              {tokens.map((token, index) => (
+              {displayTokens.map((token, index) => (
                 <motion.button
                   key={token.symbol}
                   initial={{ opacity: 0, x: -10 }}
