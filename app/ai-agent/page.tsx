@@ -30,7 +30,7 @@ const AIAgentPage = () => {
   ];
 
   return (
-    <div className="min-h-screen text-white">
+    <div className="min-h-screen text-white flex flex-col">
       <TokenTicker />
 
       {/* Mobile Toggle Button - Only visible on mobile */}
@@ -46,8 +46,7 @@ const AIAgentPage = () => {
       </div>
 
       <div
-        className="flex flex-col lg:flex-row"
-        style={{ height: "calc(100vh - 64px)" }}
+        className="flex flex-col lg:flex-row flex-1 overflow-hidden"
       >
         {/* Left Side - AI Chat */}
         <motion.div
