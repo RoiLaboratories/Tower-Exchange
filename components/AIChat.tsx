@@ -4,14 +4,10 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { ArrowUp } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { sendMessageToAIAgent, createAIAgentSession } from "@/lib/aiAgentService";
+import { sendMessageToAIAgent, createAIAgentSession, saveChatMessageToHistory, getConversationHistory } from "@/lib/aiAgentService";
+import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
-
-const quickPrompts = [
-  "What are my buy/sell position",
-  "Show are my 7D trading volume",
-  "Provide overall analysis on the market",
-];
+import { Plus, MessageSquare, Trash2, Menu, X } from "lucide-react";
 
 interface Message {
   id: number;
@@ -21,6 +17,19 @@ interface Message {
   error?: string;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  timestamp: number;
+  messageCount: number;
+}
+
+const quickPrompts = [
+  "What are my buy/sell position",
+  "Show are my 7D trading volume",
+  "Provide overall analysis on the market",
+];
+
 export const AIChat = () => {
   const { user } = usePrivy();
   const [message, setMessage] = useState("");
@@ -29,6 +38,122 @@ export const AIChat = () => {
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Load sessions from localStorage
+  const loadSessions = (walletAddress: string): ChatSession[] => {
+    try {
+      const sessionsData = localStorage.getItem(
+        `tower-ai-sessions-${walletAddress}`
+      );
+      return sessionsData ? JSON.parse(sessionsData) : [];
+    } catch (error) {
+      console.error("Error loading sessions:", error);
+      return [];
+    }
+  };
+
+  // Save sessions to localStorage
+  const saveSessions = (walletAddress: string, sessionsData: ChatSession[]) => {
+    try {
+      localStorage.setItem(
+        `tower-ai-sessions-${walletAddress}`,
+        JSON.stringify(sessionsData)
+      );
+    } catch (error) {
+      console.error("Error saving sessions:", error);
+    }
+  };
+
+  // Start a new chat
+  const startNewChat = async () => {
+    if (!user?.wallet?.address) return;
+
+    try {
+      const newSessionId = uuidv4();
+      const newSession: ChatSession = {
+        id: newSessionId,
+        title: "New Chat",
+        timestamp: Date.now(),
+        messageCount: 0,
+      };
+
+      // Add to sessions list
+      const updatedSessions = [newSession, ...sessions];
+      setSessions(updatedSessions);
+      saveSessions(user.wallet.address, updatedSessions);
+
+      // Switch to new session
+      switchSession(newSessionId);
+    } catch (error) {
+      console.error("Error creating new chat:", error);
+    }
+  };
+
+  // Switch to a different session
+  const switchSession = async (newSessionId: string) => {
+    if (!user?.wallet?.address) return;
+
+    try {
+      setSessionId(newSessionId);
+      localStorage.setItem("ai-session-id", newSessionId);
+      setMessages([]);
+      setMessage("");
+      setError(null);
+      setSidebarOpen(false); // Close sidebar after selecting a session
+
+      // Load history for this session
+      const history = await getConversationHistory(
+        newSessionId,
+        user.wallet.address
+      );
+
+      if (history.length > 0) {
+        const loadedMessages: Message[] = [];
+        let messageId = 1;
+
+        history.forEach((item) => {
+          if (item.user_query) {
+            loadedMessages.push({
+              id: messageId++,
+              text: item.user_query,
+              isUser: true,
+            });
+          }
+          if (item.ai_response) {
+            loadedMessages.push({
+              id: messageId++,
+              text: item.ai_response,
+              isUser: false,
+            });
+          }
+        });
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error("Error switching session:", error);
+    }
+  };
+
+  // Delete a session
+  const deleteSession = (sessionToDelete: string) => {
+    try {
+      const updatedSessions = sessions.filter((s) => s.id !== sessionToDelete);
+      setSessions(updatedSessions);
+      if (user?.wallet?.address) {
+        saveSessions(user.wallet.address, updatedSessions);
+      }
+
+      // If we deleted the active session, switch to the first available
+      if (sessionId === sessionToDelete && updatedSessions.length > 0) {
+        switchSession(updatedSessions[0].id);
+      }
+    } catch (error) {
+      console.error("Error deleting session:", error);
+    }
+  };
 
   // Initialize session when user is available
   useEffect(() => {
@@ -36,14 +161,64 @@ export const AIChat = () => {
       if (!user?.wallet?.address) return;
 
       try {
-        // Try to create a session or use a stored one
-        const storedSessionId = localStorage.getItem("ai-session-id");
-        if (storedSessionId) {
-          setSessionId(storedSessionId);
-        } else {
+        // Load profile picture from localStorage
+        const profilePicUrl = loadProfileData(user.wallet.address);
+        setProfilePictureUrl(profilePicUrl);
+
+        // Load all sessions for this user
+        const userSessions = loadSessions(user.wallet.address);
+        
+        // Try to use stored session or create a new one
+        let sessionIdToUse = localStorage.getItem("ai-session-id");
+        
+        if (!sessionIdToUse || !userSessions.find((s) => s.id === sessionIdToUse)) {
           const response = await createAIAgentSession(user.wallet.address);
-          setSessionId(response.sessionId);
-          localStorage.setItem("ai-session-id", response.sessionId);
+          sessionIdToUse = response.sessionId;
+          
+          // Add to sessions list if not already there
+          if (!userSessions.find((s) => s.id === sessionIdToUse)) {
+            const newSession: ChatSession = {
+              id: sessionIdToUse,
+              title: "Chat",
+              timestamp: Date.now(),
+              messageCount: 0,
+            };
+            userSessions.unshift(newSession);
+            saveSessions(user.wallet.address, userSessions);
+          }
+        }
+        
+        setSessions(userSessions);
+        localStorage.setItem("ai-session-id", sessionIdToUse);
+        setSessionId(sessionIdToUse);
+
+        // Load chat history from Supabase
+        const history = await getConversationHistory(
+          sessionIdToUse,
+          user.wallet.address
+        );
+
+        if (history.length > 0) {
+          const loadedMessages: Message[] = [];
+          let messageId = 1;
+          
+          history.forEach((item) => {
+            if (item.user_query) {
+              loadedMessages.push({
+                id: messageId++,
+                text: item.user_query,
+                isUser: true,
+              });
+            }
+            if (item.ai_response) {
+              loadedMessages.push({
+                id: messageId++,
+                text: item.ai_response,
+                isUser: false,
+              });
+            }
+          });
+          setMessages(loadedMessages);
         }
       } catch (err) {
         console.error("Failed to initialize session:", err);
@@ -92,6 +267,31 @@ export const AIChat = () => {
         isUser: false,
       };
       setMessages((prev) => [...prev, aiResponse]);
+
+      // Save chat to Supabase
+      await saveChatMessageToHistory(
+        user.wallet.address,
+        sessionId,
+        text,
+        response.reply
+      );
+
+      // Update session title and message count
+      const updatedSessions = sessions.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            title:
+              session.title === "New Chat"
+                ? text.substring(0, 30) + (text.length > 30 ? "..." : "")
+                : session.title,
+            messageCount: session.messageCount + 1,
+          };
+        }
+        return session;
+      });
+      setSessions(updatedSessions);
+      saveSessions(user.wallet.address, updatedSessions);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to get response";
@@ -131,22 +331,109 @@ export const AIChat = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 w-full">
-      {/* Error notification */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm"
+    <div className="flex-1 flex h-full relative">
+      {/* Sidebar - Collapsible Overlay */}
+      <motion.div
+        initial={{ x: -250 }}
+        animate={{ x: sidebarOpen ? 0 : -250 }}
+        transition={{ duration: 0.3 }}
+        className="absolute left-0 top-0 bottom-0 w-64 bg-zinc-900/80 backdrop-blur-sm border-r border-zinc-700/50 flex flex-col overflow-hidden z-50"
+      >
+        {/* New Chat Button */}
+        <button
+          onClick={startNewChat}
+          className="m-4 flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 font-medium transition-colors"
         >
-          {error}
-        </motion.div>
+          <Plus size={18} />
+          New Chat
+        </button>
+
+        {/* Divider */}
+        <div className="h-px bg-zinc-700/50 mx-4" />
+
+        {/* Sessions List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {sessions.length === 0 ? (
+            <div className="text-gray-400 text-sm text-center py-4">
+              No conversations yet
+            </div>
+          ) : (
+            sessions.map((session) => (
+              <motion.div
+                key={session.id}
+                whileHover={{ x: 4 }}
+                className={`group relative rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                  sessionId === session.id
+                    ? "bg-blue-600/20 border border-blue-500/50"
+                    : "hover:bg-zinc-800/50"
+                }`}
+                onClick={() => switchSession(session.id)}
+              >
+                <div className="flex items-start gap-2 min-w-0">
+                  <MessageSquare size={14} className="mt-1 shrink-0 text-gray-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-gray-300 truncate">
+                      {session.title}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(session.timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Delete Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSession(session.id);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-red-400 transition-opacity"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </motion.div>
+
+      {/* Backdrop - Click to close sidebar */}
+      {sidebarOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/30 z-40"
+        />
       )}
 
-      {/* Messages Area - Takes up remaining space */}
-      <div className="flex-1 overflow-y-auto space-y-4 flex flex-col justify-end">
-        {messages.length > 0 && (
+      {/* Main Chat Area - Takes full space, sidebar overlays */}
+      <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 w-full overflow-hidden relative">
+        {/* Sidebar Toggle Icon */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute top-4 left-4 p-2 rounded-lg hover:bg-zinc-800/50 text-gray-400 hover:text-white transition-colors z-10"
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+
+        {/* Error notification */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm"
+          >
+            {error}
+          </motion.div>
+        )}
+
+        {/* Messages Area - Takes up remaining space */}
+        <div className="flex-1 overflow-y-auto space-y-4 flex flex-col justify-end pt-12">
+          {messages.length > 0 && (
           <div className="space-y-4">
             {messages.map((msg) => (
               <div
@@ -219,8 +506,20 @@ export const AIChat = () => {
                 </motion.div>
 
                 {msg.isUser && (
-                  <div className="w-8 h-8 rounded-full bg-[#7BB8FF] flex items-center justify-center shrink-0">
-                    <span className="text-white text-sm">U</span>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-[#7BB8FF]">
+                    {profilePictureUrl ? (
+                      <Image
+                        src={profilePictureUrl}
+                        alt="User avatar"
+                        width={32}
+                        height={32}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <span className="text-white text-sm font-semibold">
+                        {user?.wallet?.address?.substring(0, 1).toUpperCase() || "U"}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -260,69 +559,70 @@ export const AIChat = () => {
             )}
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Bottom Container: Logo, Prompts, and Input */}
-      <div className="shrink-0 max-w-2xl mt-6">
-        {/* Logo and Prompts - Only show when no messages */}
-        {messages.length === 0 && (
-          <div className="mb-6">
-            {/* Logo */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200 }}
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
+        {/* Bottom Container: Logo, Prompts, and Input */}
+        <div className="shrink-0 max-w-2xl mt-6">
+          {/* Logo and Prompts - Only show when no messages */}
+          {messages.length === 0 && (
+            <div className="mb-6">
+              {/* Logo */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 200 }}
+                className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
+              >
+                <Image
+                  src="/assets/chat_logo.svg"
+                  alt="Tower logo"
+                  width={48}
+                  height={48}
+                  className="object-contain"
+                />
+              </motion.div>
+
+              {/* Quick Prompts */}
+              <div className="space-y-3 max-w-md">
+                {quickPrompts.map((prompt, index) => (
+                  <motion.button
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1, duration: 0.3 }}
+                    whileHover={{ x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full text-left px-5 py-3.5 rounded-full border border-blue-500/30 hover:border-blue-500/50 transition-all text-gray-300 bg-transparent"
+                    onClick={() => handlePromptClick(prompt)}
+                  >
+                    <span className="text-sm">{prompt}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="relative">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask Tower anything..."
+              className="w-full px-5 py-3.5 pr-12 rounded-full bg-transparent border border-zinc-700/50 focus:border-zinc-600/50 outline-none text-white placeholder-gray-500 text-sm transition-all"
+            />
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleSendMessage(message)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center"
             >
-              <Image
-                src="/assets/chat_logo.svg"
-                alt="Tower logo"
-                width={48}
-                height={48}
-                className="object-contain"
-              />
-            </motion.div>
-
-            {/* Quick Prompts */}
-            <div className="space-y-3 max-w-md">
-              {quickPrompts.map((prompt, index) => (
-                <motion.button
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.3 }}
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full text-left px-5 py-3.5 rounded-full border border-blue-500/30 hover:border-blue-500/50 transition-all text-gray-300 bg-transparent"
-                  onClick={() => handlePromptClick(prompt)}
-                >
-                  <span className="text-sm">{prompt}</span>
-                </motion.button>
-              ))}
+              <ArrowUp className="w-4 h-4 text-black" />
+            </motion.button>
             </div>
           </div>
-        )}
-
-        {/* Input */}
-        <div className="relative">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask Tower anything..."
-            className="w-full px-5 py-3.5 pr-12 rounded-full bg-transparent border border-zinc-700/50 focus:border-zinc-600/50 outline-none text-white placeholder-gray-500 text-sm transition-all"
-          />
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleSendMessage(message)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center"
-          >
-            <ArrowUp className="w-4 h-4 text-black" />
-          </motion.button>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };

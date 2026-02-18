@@ -2,6 +2,8 @@
  * AI Agent Service - Handles communication with the Vercel AI agent endpoint
  */
 
+import { supabase } from "./supabase";
+
 export interface AIAgentRequest {
   message: string;
   userid: string;
@@ -18,6 +20,15 @@ export interface AIAgentError {
   error: string;
   code: string;
   message: string;
+}
+
+export interface ChatHistoryItem {
+  id: number;
+  created_at: string;
+  user_query: string | null;
+  ai_response: string | null;
+  session_id: string | null;
+  user_id: string | null;
 }
 
 // Use local Next.js API proxy routes to avoid CORS issues
@@ -121,36 +132,62 @@ export const sendMessageToAIAgentStream = async (
 };
 
 /**
- * Get conversation history from the AI agent
- * Note: This endpoint may not be available in the current API version
+ * Get conversation history from Supabase
  */
 export const getConversationHistory = async (
   sessionId: string,
-  walletAddress: string
-): Promise<AIAgentResponse[]> => {
-  const baseUrl = getAPIBaseURL();
-  const url = `${baseUrl}${HISTORY_ENDPOINT}`;
-
+  userId: string
+): Promise<{ user_query: string | null; ai_response: string | null }[]> => {
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Session-ID": sessionId,
-        "X-Wallet-Address": walletAddress,
-      },
-    });
+    const { data, error } = await supabase
+      .from("ai_db")
+      .select("user_query, ai_response")
+      .eq("session_id", sessionId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
 
-    if (!response.ok) {
-      console.warn("History endpoint not available:", response.status);
+    if (error) {
+      console.warn("Error fetching chat history from Supabase:", error);
       return [];
     }
 
-    const data = (await response.json()) as AIAgentResponse[];
-    return data;
+    return (data as { user_query: string | null; ai_response: string | null }[]) || [];
   } catch (error) {
-    console.warn("History endpoint not available:", error);
+    console.warn("Error fetching conversation history:", error);
     return [];
+  }
+};
+
+/**
+ * Save chat message to Supabase
+ */
+export const saveChatMessageToHistory = async (
+  userId: string,
+  sessionId: string,
+  userQuery: string,
+  aiResponse: string
+): Promise<ChatHistoryItem | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("ai_db")
+      .insert({
+        user_id: userId,
+        session_id: sessionId,
+        user_query: userQuery,
+        ai_response: aiResponse,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving chat to Supabase:", error);
+      return null;
+    }
+
+    return data as ChatHistoryItem;
+  } catch (error) {
+    console.error("Error saving chat message:", error);
+    return null;
   }
 };
 
