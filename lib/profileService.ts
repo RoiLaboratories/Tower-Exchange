@@ -121,17 +121,58 @@ export const saveProfileData = (walletAddress: string, profilePictureUrl: string
 };
 
 /**
- * Load profile data from local storage
+ * Load profile data from local storage or fetch from Supabase
  * @param walletAddress - The user's wallet address
  */
-export const loadProfileData = (walletAddress: string): string | null => {
+export const loadProfileData = async (walletAddress: string): Promise<string | null> => {
   try {
+    // First try to load from localStorage
     const data = localStorage.getItem(`tower-finance-profile-${walletAddress}`);
     if (data) {
       const profileData = JSON.parse(data);
-      return profileData.profilePictureUrl || null;
+      if (profileData.profilePictureUrl) {
+        return profileData.profilePictureUrl;
+      }
     }
-    return null;
+
+    // If not in localStorage, fetch from Supabase Storage
+    const { data: files, error } = await supabase.storage
+      .from("profile-pictures")
+      .list("", {
+        limit: 100,
+      });
+
+    if (error || !files || files.length === 0) {
+      return null;
+    }
+
+    // Find the most recent profile picture for this wallet
+    const userFiles = files.filter((f) =>
+      f.name.startsWith(`${walletAddress}-`)
+    );
+
+    if (userFiles.length === 0) {
+      return null;
+    }
+
+    // Sort by creation time and get the most recent
+    userFiles.sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      return timeB - timeA;
+    });
+
+    const latestFile = userFiles[0];
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("profile-pictures")
+      .getPublicUrl(latestFile.name);
+
+    // Cache it in localStorage for next time
+    saveProfileData(walletAddress, publicUrl);
+
+    return publicUrl;
   } catch (error) {
     console.error("Error loading profile data:", error);
     return null;

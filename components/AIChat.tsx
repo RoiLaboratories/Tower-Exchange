@@ -161,8 +161,8 @@ export const AIChat = () => {
       if (!user?.wallet?.address) return;
 
       try {
-        // Load profile picture from localStorage
-        const profilePicUrl = loadProfileData(user.wallet.address);
+        // Load profile picture from localStorage or fetch from Supabase
+        const profilePicUrl = await loadProfileData(user.wallet.address);
         setProfilePictureUrl(profilePicUrl);
 
         // Load all sessions for this user
