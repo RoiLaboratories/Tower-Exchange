@@ -1,0 +1,23 @@
+{
+  "name": "@tower-finance/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "deploy:testnet": "hardhat run scripts/deploy.ts --network arc-testnet",
+    "register-routers": "hardhat run scripts/register-routers.ts --network arc-testnet",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@types/node": "^18",
+    "dotenv": "^16.0.0",
+    "ethers": "^6.7.0",
+    "hardhat": "^2.19.0",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.0"
+  }
+}

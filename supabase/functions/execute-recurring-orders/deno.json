@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.39.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"]
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env index.ts",
+    "deploy": "supabase functions deploy execute-recurring-orders"
+  }
+}
