@@ -40,7 +40,7 @@ export const AIChat = () => {
   const [error, setError] = useState<string | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Load sessions from localStorage
   const loadSessions = (walletAddress: string): ChatSession[] => {
