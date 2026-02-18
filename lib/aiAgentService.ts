@@ -21,7 +21,16 @@ export interface AIAgentError {
 }
 
 // Use local Next.js API proxy routes to avoid CORS issues
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URI || "http://localhost:3000";
+// In the browser, use the current origin (works in both dev and production)
+const getAPIBaseURL = () => {
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  // Server-side fallback
+  return process.env.NEXT_PUBLIC_API_URI || "http://localhost:3000";
+};
+
+const API_BASE_URL = getAPIBaseURL();
 const CHAT_ENDPOINT = "/api/ai/chat";
 const SESSION_ENDPOINT = "/api/ai/session";
 const HISTORY_ENDPOINT = "/api/ai/history";
@@ -32,7 +41,8 @@ const HISTORY_ENDPOINT = "/api/ai/history";
 export const sendMessageToAIAgent = async (
   request: AIAgentRequest
 ): Promise<AIAgentResponse> => {
-  const url = `${API_BASE_URL}${CHAT_ENDPOINT}`;
+  const baseUrl = getAPIBaseURL();
+  const url = `${baseUrl}${CHAT_ENDPOINT}`;
 
   try {
     const response = await fetch(url, {
@@ -67,7 +77,8 @@ export const sendMessageToAIAgentStream = async (
   onComplete: () => void,
   onError: (error: Error) => void
 ): Promise<void> => {
-  const url = `${API_BASE_URL}${CHAT_ENDPOINT}`;
+  const baseUrl = getAPIBaseURL();
+  const url = `${baseUrl}${CHAT_ENDPOINT}`;
 
   try {
     const response = await fetch(url, {
@@ -117,7 +128,8 @@ export const getConversationHistory = async (
   sessionId: string,
   walletAddress: string
 ): Promise<AIAgentResponse[]> => {
-  const url = `${API_BASE_URL}${HISTORY_ENDPOINT}`;
+  const baseUrl = getAPIBaseURL();
+  const url = `${baseUrl}${HISTORY_ENDPOINT}`;
 
   try {
     const response = await fetch(url, {
