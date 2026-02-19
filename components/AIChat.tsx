@@ -342,7 +342,7 @@ export const AIChat = () => {
         {/* New Chat Button */}
         <button
           onClick={startNewChat}
-          className="m-4 flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 font-medium transition-colors"
+          className="m-4 flex items-center gap-2 rounded-lg bg-[#7BB8FF] hover:bg-[#6AABFF] text-white px-4 py-2.5 font-medium transition-colors"
         >
           <Plus size={18} />
           New Chat
@@ -457,10 +457,9 @@ export const AIChat = () => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  onClick={msg.isUser ? handleReset : undefined}
                   className={`max-w-[80%] ${
                     msg.isUser
-                      ? "bg-[#7BB8FF] text-white rounded-2xl px-5 py-3 cursor-pointer  transition-colors"
+                      ? "bg-[#7BB8FF] text-white rounded-2xl px-5 py-3 transition-colors"
                       : msg.text === "Trading Volume"
                       ? "bg-zinc-900/50 text-white rounded-xl p-4 backdrop-blur-sm"
                       : "bg-zinc-900/50 text-white rounded-xl px-5 py-3 backdrop-blur-sm"
@@ -506,7 +505,7 @@ export const AIChat = () => {
                 </motion.div>
 
                 {msg.isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-[#7BB8FF]">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
                     {profilePictureUrl ? (
                       <Image
                         src={profilePictureUrl}
