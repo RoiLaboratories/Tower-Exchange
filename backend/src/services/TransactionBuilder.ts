@@ -510,20 +510,26 @@ export class TransactionBuilder {
     const isNativeUSDC = quote.inputToken.toLowerCase() === NATIVE_USDC.toLowerCase();
 
     // Determine spender address
-    // For native USDC: approve the DEX router directly (not TowerRouter)
+    // For native USDC and XyloNet swaps: approve the DEX router directly (not TowerRouter)
     // For other tokens: approve TowerRouter which will handle the transfer
     let spenderAddress = this.config.towerRouterAddress;
     
-    if (isNativeUSDC) {
-      // For native USDC, approve the DEX router directly
-      const hopData = quote.route.hops[0];
-      if (!hopData) {
-        throw new Error('No routing information for native USDC swap');
-      }
+    // Check if this is a XyloNet swap (should call DEX router directly)
+    const hopData = quote.route.hops[0];
+    if (!hopData) {
+      throw new Error('No routing information in quote');
+    }
+    
+    const isXyloNetSwap = hopData.dexName?.toLowerCase().includes('xylonet') || 
+                          hopData.dexRouter.toLowerCase() === '0x73742278c31a76dBb0D2587d03ef92E6E2141023'.toLowerCase();
+    
+    if (isNativeUSDC || isXyloNetSwap) {
+      // For native USDC or XyloNet swaps, approve the DEX router directly
       spenderAddress = hopData.dexRouter;
-      console.log('[TransactionBuilder] Native USDC detected - approving DEX router instead of TowerRouter:', {
+      console.log('[TransactionBuilder] ' + (isXyloNetSwap ? 'XyloNet detected' : 'Native USDC detected') + ' - approving DEX router directly:', {
         inputToken: quote.inputToken,
         dexRouter: spenderAddress,
+        dexName: hopData.dexName,
       });
     }
 
