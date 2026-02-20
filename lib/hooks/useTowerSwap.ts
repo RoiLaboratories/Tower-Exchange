@@ -31,6 +31,7 @@ export interface SwapTransaction {
   chainId: number;
   platformFeeAmount?: string; // Platform fee in output token (native decimals, only for native USDC)
   expectedUserOutput?: string; // Expected output after fee deduction (native decimals, only for native USDC)
+  expectedFeeCollectorOutput?: string; // Full expected output that FeeCollector receives (before fee split)
 }
 
 export interface ApprovalTransaction {

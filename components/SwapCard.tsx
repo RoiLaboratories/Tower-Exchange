@@ -1164,14 +1164,17 @@ const SwapCard = () => {
       setSwapState("success");
       setNotification("success");
 
-      // Step 8: Submit platform fee if applicable (for native USDC swaps)
-      const platformFeeAmount = swapTx?.platformFeeAmount;
-      if (platformFeeAmount && platformFeeAmount !== "0") {
+      // Step 8: Submit platform fee with atomic distribution through FeeCollector
+      // Swap output went to FeeCollector, now execute atomic fee split
+      const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
+      if (feeCollectorOutput && feeCollectorOutput !== "0") {
         const outputTokenForFee = tokenOutAddress || quote.outputToken;
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        console.log("Submitting platform fee for native USDC swap:", {
+        
+        console.log("Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
-          platformFeeAmount,
+          totalAmount: feeCollectorOutput,
+          userAddress: userAddress,
           backendUrl,
         });
         
@@ -1181,7 +1184,9 @@ const SwapCard = () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               outputToken: outputTokenForFee,
-              feeAmount: platformFeeAmount,
+              totalAmount: feeCollectorOutput,  // Full amount that FeeCollector received
+              userAddress: userAddress,           // User address to receive (amount - fee)
+              feeBps: 25,                        // 0.25% = 25 basis points
             }),
           });
 
@@ -1193,17 +1198,17 @@ const SwapCard = () => {
             });
           } else {
             const feeResult = await feeResponse.json();
-            console.log("Platform fee submitted successfully:", {
+            console.log("Atomic fee collection and distribution successful:", {
               transactionHash: feeResult.transactionHash,
               outputToken: feeResult.outputToken,
               feeAmount: feeResult.feeAmount,
             });
           }
         } catch (feeError: unknown) {
-          console.error("Error submitting platform fee:", {
+          console.error("Error submitting fee with atomic distribution:", {
             message: feeError instanceof Error ? feeError.message : String(feeError),
-            outputToken: tokenOutAddress || quote.outputToken,
-            feeAmount: platformFeeAmount,
+            outputToken: outputTokenForFee,
+            totalAmount: feeCollectorOutput,
           });
           // Don't throw - fee submission failure shouldn't block the swap success
         }

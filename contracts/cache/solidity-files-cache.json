@@ -506,8 +506,8 @@
       ]
     },
     "C:\\Users\\Chidozie Collins\\Documents\\GitHub\\Tower-Finance\\contracts\\contracts\\FeeCollector.sol": {
-      "lastModificationDate": 1771569149691,
-      "contentHash": "1d266e99410e744ee686dd34cd46fdb6",
+      "lastModificationDate": 1771590325225,
+      "contentHash": "513ec75e5624982c72514d59840c54e4",
       "sourceName": "contracts/FeeCollector.sol",
       "solcConfig": {
         "version": "0.8.24",

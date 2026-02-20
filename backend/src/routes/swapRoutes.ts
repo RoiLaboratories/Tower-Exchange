@@ -358,15 +358,17 @@ export class SwapRoutes {
 
   /**
    * POST /submit-fee
-   * Submit platform fee for native USDC swaps to FeeCollector contract
+   * Submit platform fee with atomic distribution through FeeCollector
+   * Routes swap output through FeeCollector for atomic fee deduction
    */
   private async handleSubmitFee(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { outputToken, feeAmount } = req.body;
+      // Accept both new atomic format and legacy format for backward compatibility
+      const { outputToken, totalAmount, userAddress, feeBps, feeAmount } = req.body;
 
-      // Validate input
-      if (!outputToken || !feeAmount) {
-        res.status(400).json({ error: 'Missing required fields: outputToken, feeAmount' });
+      // Validate output token
+      if (!outputToken) {
+        res.status(400).json({ error: 'Missing required field: outputToken' });
         return;
       }
 
@@ -375,7 +377,7 @@ export class SwapRoutes {
         return;
       }
 
-      // Check if fee collection service is available
+      // Check fee collection service availability
       if (!this.feeCollectionService.isAvailable()) {
         res.status(503).json({
           error: 'Fee collection service not available',
@@ -384,35 +386,92 @@ export class SwapRoutes {
         return;
       }
 
-      console.log('[SwapRoutes] Submitting platform fee:', {
-        outputToken,
-        feeAmount,
-        backendAddress: this.feeCollectionService.getBackendAddress(),
-      });
+      // Use new atomic format if provided, otherwise fall back to legacy
+      if (totalAmount && userAddress) {
+        // New atomic collectFeeAndDistribute format
+        if (!ethers.utils.isAddress(userAddress)) {
+          res.status(400).json({ error: 'Invalid user address' });
+          return;
+        }
 
-      // Submit the fee
-      const result = await this.feeCollectionService.submitFee(outputToken, feeAmount);
+        const feeBpsNum = feeBps || 25; // Default to 0.25%
 
-      if (!result.success) {
-        res.status(500).json({
-          error: 'Failed to submit fee',
-          details: result.error,
+        console.log('[SwapRoutes] Submitting fee with atomic distribution:', {
+          outputToken,
+          totalAmount,
+          userAddress,
+          feeBps: feeBpsNum,
+          backendAddress: this.feeCollectionService.getBackendAddress(),
         });
-        return;
+
+        const result = await this.feeCollectionService.submitFee(
+          outputToken,
+          totalAmount,
+          feeBpsNum,
+          userAddress
+        );
+
+        if (!result.success) {
+          res.status(500).json({
+            error: 'Failed to submit fee with atomic distribution',
+            details: result.error,
+          });
+          return;
+        }
+
+        console.log('[SwapRoutes] Atomic fee collection successful:', result);
+
+        res.json({
+          success: true,
+          data: {
+            transactionHash: result.transactionHash,
+            outputToken: result.outputToken,
+            feeAmount: result.feeAmount,
+            blockNumber: result.blockNumber,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } else if (feeAmount) {
+        // Legacy format for backward compatibility
+        if (!feeAmount) {
+          res.status(400).json({ error: 'Missing required fields: either (totalAmount + userAddress) or feeAmount' });
+          return;
+        }
+
+        console.log('[SwapRoutes] Submitting platform fee (legacy mode):', {
+          outputToken,
+          feeAmount,
+          backendAddress: this.feeCollectionService.getBackendAddress(),
+        });
+
+        const result = await this.feeCollectionService.submitFee(outputToken, feeAmount);
+
+        if (!result.success) {
+          res.status(500).json({
+            error: 'Failed to submit fee',
+            details: result.error,
+          });
+          return;
+        }
+
+        console.log('[SwapRoutes] Fee submitted successfully (legacy):', result);
+
+        res.json({
+          success: true,
+          data: {
+            transactionHash: result.transactionHash,
+            outputToken: result.outputToken,
+            feeAmount: result.feeAmount,
+            blockNumber: result.blockNumber,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        res.status(400).json({ 
+          error: 'Missing required fields',
+          details: 'Provide either (totalAmount + userAddress + feeBps) for atomic distribution, or (feeAmount) for legacy collection'
+        });
       }
-
-      console.log('[SwapRoutes] Fee submitted successfully:', result);
-
-      res.json({
-        success: true,
-        data: {
-          transactionHash: result.transactionHash,
-          outputToken: result.outputToken,
-          feeAmount: result.feeAmount,
-          blockNumber: result.blockNumber,
-        },
-        timestamp: new Date().toISOString(),
-      });
     } catch (error) {
       console.error('[SwapRoutes] Error in handleSubmitFee:', error);
       next(error);

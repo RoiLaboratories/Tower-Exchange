@@ -43,7 +43,7 @@ async function deployFeeCollector() {
     owner: OWNER_ADDRESS,
     deployer: deployer.address,
     timestamp: new Date().toISOString(),
-    blockExplorerUrl: `https://arc-testnet.arcscan.io/address/${feeCollectorAddress}`,
+    blockExplorerUrl: `https://testnet.arcscan.app/address/${feeCollectorAddress}`,
   };
 
   console.log("\n📋 Deployment Summary:");
