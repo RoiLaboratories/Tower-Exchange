@@ -2,6 +2,7 @@ import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
+import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import swprcLogo from "@/public/assets/swapr_logo.png";
 import qtmLogo from "@/public/assets/quantum-logo.png";
 
@@ -77,6 +78,16 @@ export const tokens: Token[] = [
     change24h: "+0.2%",
     marketCap: "$100M",
     chartData: [0.99, 0.995, 1.0, 1.0, 1.0, 1.001, 1.0, 1.0, 1.0],
+  },
+  {
+    symbol: "USYC",
+    price: "$1.05",
+    change: "+2.3%",
+    icon: usycLogo,
+    color: "text-success",
+    change24h: "+2.3%",
+    marketCap: "$150M",
+    chartData: [1.01, 1.02, 1.03, 1.02, 1.03, 1.04, 1.05, 1.04, 1.05],
   },
 ];
 

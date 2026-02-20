@@ -61,6 +61,12 @@ exports.arcTestnetTokens = {
         decimals: 6,
         name: 'Swaparc Token',
     },
+    '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c': {
+        symbol: 'USYC',
+        address: '0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C',
+        decimals: 6,
+        name: 'USD Yield Coin',
+    },
 };
 /**
  * Get token info by address

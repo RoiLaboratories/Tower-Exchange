@@ -51,6 +51,7 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
   WUSDC: "0xD40fCAa5d2cE963c5dABC2bf59E268489ad7BcE4",
   QTM: "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+  USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
@@ -67,15 +68,16 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
 export const NATIVE_TOKENS = ["USDC"];
 
 // Tokens that are regular ERC-20 (require approval)
-export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USDT", "SYN", "SWPRC", "UNI", "HYPE"];
+export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USYC", "USDT", "SYN", "SWPRC", "UNI", "HYPE"];
 
 // Token Decimals Configuration
-// Note: USDC has 6 decimals on Arc Testnet (like EURC and SWPRC)
+// Note: USDC, EURC, SWPRC, and USYC have 6 decimals on Arc Testnet
 export const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 6,
   WUSDC: 18,
   QTM: 18,
   EURC: 6,
+  USYC: 6,
   USDT: 18,
   SWPRC: 6,
   SYN: 18,

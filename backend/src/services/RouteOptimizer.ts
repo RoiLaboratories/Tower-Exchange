@@ -120,10 +120,34 @@ export class RouteOptimizer {
     try {
       const supportedDexes = this.dexService.getDexesSupportingPair(inputToken, outputToken);
 
+      // For EURC<->USDC and USDC<->USYC and EURC<->USYC swaps, use XyloNet exclusively (skip Synthra)
+      const normalizedInput = inputToken.toLowerCase();
+      const normalizedOutput = outputToken.toLowerCase();
+      const eurc = '0x89b50855aa3be2f677cd6303cec089b5f319d72a'.toLowerCase();
+      const usdc = '0x3600000000000000000000000000000000000000'.toLowerCase();
+      const usyc = '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c'.toLowerCase();
+      
+      const isEurcUsdcSwap = 
+        (normalizedInput === eurc && normalizedOutput === usdc) ||
+        (normalizedInput === usdc && normalizedOutput === eurc);
+      
+      const isUsdcUsycSwap = 
+        (normalizedInput === usdc && normalizedOutput === usyc) ||
+        (normalizedInput === usyc && normalizedOutput === usdc);
+      
+      const isEurcUsycSwap = 
+        (normalizedInput === eurc && normalizedOutput === usyc) ||
+        (normalizedInput === usyc && normalizedOutput === eurc);
+
+      // Filter DEXes: if XyloNet-specific pair, only use XyloNet
+      const dexesToCheck = (isEurcUsdcSwap || isUsdcUsycSwap || isEurcUsycSwap)
+        ? supportedDexes.filter(d => d.id === 'xylonet-adapter')
+        : supportedDexes;
+
       let bestQuote: Quote | null = null;
       let bestOutputAmount = BigNumber.from(0);
 
-      for (const dex of supportedDexes) {
+      for (const dex of dexesToCheck) {
         let amountOut: string;
         let priceImpact = 50; // Default 0.5%
         let isRealQuote = false; // Track if this is a real quote or mock

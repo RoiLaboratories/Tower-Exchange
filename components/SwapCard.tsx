@@ -33,6 +33,7 @@ import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
+import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import swprcLogo from "@/public/assets/swapr_logo.png";
 import syntharaLogo from "@/public/assets/synthra logo.png";
 import quantumLogo from "@/public/assets/quantum-logo.png";
@@ -48,6 +49,7 @@ const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
   { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
   { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
+  { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
   { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
   { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
   { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
@@ -216,6 +218,7 @@ const SwapCard = () => {
     WUSDC: 0,
     USDT: 0,
     EURC: 0,
+    USYC: 0,
     SYN: 0,
     SWPRC: 0,
     QTM: 0,
@@ -360,6 +363,29 @@ const SwapCard = () => {
             }));
           } catch (e) {
             console.error("Error converting USDT balance:", e);
+          }
+        }
+      }
+
+      // Fetch USYC balance
+      if (TOKEN_CONTRACTS.USYC) {
+        console.log("Fetching USYC balance from:", TOKEN_CONTRACTS.USYC);
+        const usycBalanceWei = await fetchERC20Balance(
+          user.wallet.address,
+          TOKEN_CONTRACTS.USYC
+        );
+        console.log("USYC balance (wei):", usycBalanceWei);
+        if (usycBalanceWei && usycBalanceWei !== "0x0") {
+          try {
+            const usycBalanceBigInt = BigInt(usycBalanceWei || "0");
+            const usycBalance = Number(usycBalanceBigInt) / 10 ** (TOKEN_DECIMALS.USYC || 6);
+            console.log("USYC balance (converted):", usycBalance);
+            setTokenBalances((prev) => ({
+              ...prev,
+              USYC: usycBalance,
+            }));
+          } catch (e) {
+            console.error("Error converting USYC balance:", e);
           }
         }
       }
