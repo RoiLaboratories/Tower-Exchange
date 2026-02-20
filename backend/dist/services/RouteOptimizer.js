@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RouteOptimizer = void 0;
 const ethers_1 = require("ethers");
 const SynthraV3PoolService_1 = require("./SynthraV3PoolService");
+const XyloNetPoolService_1 = require("./XyloNetPoolService");
 const helpers_1 = require("../utils/helpers");
 const SynthraPoolRegistry_1 = require("../utils/SynthraPoolRegistry");
 const tokenRegistry_1 = require("../utils/tokenRegistry");
@@ -26,6 +27,7 @@ class RouteOptimizer {
             blockTime: 12,
         };
         this.synthraPoolService = new SynthraV3PoolService_1.SynthraV3PoolService(this.arcConfig.rpcUrl);
+        this.xyloNetPoolService = new XyloNetPoolService_1.XyloNetPoolService(this.arcConfig.rpcUrl);
     }
     /**
      * Get best quote for a token swap
@@ -76,6 +78,7 @@ class RouteOptimizer {
             for (const dex of supportedDexes) {
                 let amountOut;
                 let priceImpact = 50; // Default 0.5%
+                let isRealQuote = false; // Track if this is a real quote or mock
                 // Fetch real pool data for Synthra
                 if (dex.id === 'synthra') {
                     const poolInfo = (0, SynthraPoolRegistry_1.getSynthraPoolForPair)(inputToken, outputToken);
@@ -93,20 +96,52 @@ class RouteOptimizer {
                     }
                     amountOut = simulation.amountOut;
                     priceImpact = simulation.priceImpact;
+                    isRealQuote = true;
                     console.log(`[Synthra Quote] ${inputAmount} -> ${amountOut}`, {
                         pool: poolInfo.symbol,
                         priceImpact: (priceImpact / 100).toFixed(2) + '%',
                         executionPrice: simulation.executionPrice.toFixed(6),
                     });
                 }
+                else if (dex.id === 'xylonet-adapter') {
+                    // Fetch real quote from XyloNet, fallback to mock if pool doesn't exist
+                    console.log(`[XyloNet] Fetching quote for ${inputToken} -> ${outputToken}...`);
+                    const simulation = await this.xyloNetPoolService.simulateSwap(inputToken, outputToken, inputAmount, (0, tokenRegistry_1.getTokenByAddress)(inputToken)?.decimals || 18, (0, tokenRegistry_1.getTokenByAddress)(outputToken)?.decimals || 18);
+                    if (simulation) {
+                        // Real pool exists and quote succeeded
+                        amountOut = simulation.amountOut;
+                        priceImpact = simulation.priceImpact;
+                        isRealQuote = true;
+                    }
+                    else {
+                        // No real pool found, use mock quote as fallback
+                        const mockOutput = ethers_1.BigNumber.from(inputAmount).mul(95).div(100);
+                        amountOut = mockOutput.toString();
+                        isRealQuote = false;
+                        console.log(`[XyloNet - Fallback Mock] Using mock quote for ${inputAmount} -> ${amountOut}`);
+                    }
+                }
                 else {
                     // Mock data for other DEXes (Swaparc, QuantumExchange)
                     const mockOutput = ethers_1.BigNumber.from(inputAmount).mul(95).div(100); // Assume 5% slippage
                     amountOut = mockOutput.toString();
+                    isRealQuote = false;
                     console.log(`[${dex.name} - Mock] Using mock quote for ${inputAmount} -> ${amountOut}`);
                 }
                 const outputBn = ethers_1.BigNumber.from(amountOut);
-                if (outputBn.gt(bestOutputAmount)) {
+                // Determine if current best quote is real
+                const bestQuoteIsReal = bestQuote !== null && bestQuote.route.hops[0].dexId !== undefined
+                    ? ['synthra', 'xylonet-adapter'].includes(bestQuote.route.hops[0].dexId)
+                    : false;
+                // Selection logic: prefer real quotes, then higher amounts
+                const isXyloNet = dex.id === 'xylonet-adapter';
+                const isBetter = outputBn.gt(bestOutputAmount);
+                const isTieWithXyloNet = outputBn.eq(bestOutputAmount) && isXyloNet;
+                // Prefer real over mock: if current is real and best wasn't, or if both real/mock and current is better
+                const shouldSelect = !bestQuote ||
+                    (isRealQuote && !bestQuoteIsReal) || // Real > Mock
+                    (isRealQuote === bestQuoteIsReal && (isBetter || isTieWithXyloNet)); // Same type: better amount or tie with preference
+                if (shouldSelect) {
                     bestOutputAmount = outputBn;
                     const hop = {
                         dexId: dex.id,

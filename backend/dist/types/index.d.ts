@@ -6,7 +6,7 @@ export interface DexInfo {
     name: string;
     routerAddress: string;
     factoryAddress: string;
-    type: 'v2' | 'v3' | 'stable';
+    type: 'v2' | 'v3' | 'stable' | 'pool-based';
     chainId: number;
     enabled: boolean;
     supportedTokens: string[];
@@ -67,6 +67,8 @@ export interface SwapTransaction {
     from: string;
     gasLimit: string;
     chainId: number;
+    platformFeeAmount?: string;
+    expectedUserOutput?: string;
 }
 export interface ApprovalTransaction {
     to: string;
@@ -110,7 +112,16 @@ export interface ArcTestnetConfig {
     chainId: number;
     rpcUrl: string;
     towerRouterAddress: string;
+    feeCollectorAddress?: string;
     explorerUrl: string;
     blockTime: number;
+}
+export interface FeeCollectionResult {
+    success: boolean;
+    transactionHash?: string;
+    outputToken: string;
+    feeAmount: string;
+    blockNumber?: number;
+    error?: string;
 }
 //# sourceMappingURL=index.d.ts.map

@@ -40,6 +40,8 @@ export interface SwapTransaction {
   from: string;
   gasLimit: string;
   chainId: number;
+  platformFeeAmount?: string; // Platform fee in output token (native decimals, only for native USDC)
+  expectedUserOutput?: string; // Expected output after fee deduction (native decimals, only for native USDC)
 }
 
 export interface ApprovalTransaction {

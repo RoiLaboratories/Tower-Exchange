@@ -58,7 +58,17 @@ export declare class EncodingUtils {
     /**
      * Encode TowerRouter swap call
      */
-    static encodeTowerRouterSwap(amountIn: string, minAmountOut: string, path: string[], to: string, deadline: number, router: string, referrer: string): string;
+    static encodeTowerRouterSwap(amountIn: string, minAmountOut: string, path: string[], to: string, deadline: number, router: string): string;
+    /**
+     * Encode IDexRouter swap call (for direct DEX router calls like XyloNet)
+     * Used when DEX router is called directly instead of through TowerRouter
+     */
+    static encodeIDexRouterSwap(tokenIn: string, tokenOut: string, amountIn: string, minAmountOut: string, recipient: string, deadline: number): string;
+    /**
+     * Encode XyloRouter swap call with tuple params
+     * XyloRouter.swap expects: tuple(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address to, uint256 deadline)
+     */
+    static encodeXyloRouterSwap(tokenIn: string, tokenOut: string, amountIn: string, minAmountOut: string, recipient: string, deadline: number): string;
     /**
      * Encode StableSwapPool swap call
      * @param i Token index to send (input token index in the pool)

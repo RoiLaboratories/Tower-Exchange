@@ -16,7 +16,7 @@ export const arcTestnetTokens: Record<string, TokenInfo> = {
   '0x3600000000000000000000000000000000000000': {
     symbol: 'USDC',
     address: '0x3600000000000000000000000000000000000000',
-    decimals: 18,
+    decimals: 6,
     name: 'USD Coin (Native)',
   },
   '0xd40fcaa5d2ce963c5dabc2bf59e268489ad7bce4': {

@@ -112,8 +112,7 @@ describe('EncodingUtils', () => {
             const to = '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC';
             const deadline = Math.floor(Date.now() / 1000) + 30 * 60;
             const router = '0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD';
-            const referrer = '0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE';
-            const encoded = helpers_1.EncodingUtils.encodeTowerRouterSwap(amountIn, minAmountOut, path, to, deadline, router, referrer);
+            const encoded = helpers_1.EncodingUtils.encodeTowerRouterSwap(amountIn, minAmountOut, path, to, deadline, router);
             expect(encoded).toMatch(/^0x[0-9a-f]+$/i);
             expect(encoded.length).toBeGreaterThan(100);
         });

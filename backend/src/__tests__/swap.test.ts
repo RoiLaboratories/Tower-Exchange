@@ -140,7 +140,6 @@ describe('EncodingUtils', () => {
       const to = '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC';
       const deadline = Math.floor(Date.now() / 1000) + 30 * 60;
       const router = '0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD';
-      const referrer = '0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE';
 
       const encoded = EncodingUtils.encodeTowerRouterSwap(
         amountIn,
@@ -149,7 +148,6 @@ describe('EncodingUtils', () => {
         to,
         deadline,
         router,
-        referrer
       );
 
       expect(encoded).toMatch(/^0x[0-9a-f]+$/i);

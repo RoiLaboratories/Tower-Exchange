@@ -19,6 +19,7 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
 
     // Constants
     address public constant NATIVE_TOKEN = address(0);
+    address public constant NATIVE_USDC = 0x3600000000000000000000000000000000000000;
     uint256 public constant MAX_HOPS = 5;
     uint256 public constant BASIS_POINTS = 10000;
 
@@ -31,6 +32,7 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
 
     // Registered DEX routers
     mapping(address => bool) public registeredRouters;
+    mapping(address => bool) public usesIDexRouterInterface; // Track if router uses IDexRouter interface
     address[] public routers;
 
     // Events
@@ -63,12 +65,15 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
 
     /**
      * @dev Register a new DEX router
+     * @param router Address of the router to register
+     * @param usesIDexInterface Whether the router implements IDexRouter interface (true for XyloNetAdapter, false for Uniswap V2)
      */
-    function registerRouter(address router) external onlyOwner {
+    function registerRouter(address router, bool usesIDexInterface) external onlyOwner {
         require(router != address(0), "Invalid router address");
         require(!registeredRouters[router], "Router already registered");
 
         registeredRouters[router] = true;
+        usesIDexRouterInterface[router] = usesIDexInterface;
         routers.push(router);
 
         emit RouterRegistered(router);
@@ -126,6 +131,12 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
 
     /**
      * @dev Single-hop swap: tokenIn -> tokenOut
+     * Special handling for native USDC which doesn't support standard ERC20 transferFrom
+     * 
+     * For native USDC (0x3600...):
+     * - User must approve the DEX router directly (not TowerRouter)
+     * - TowerRouter passes the swap to the router without intermediating the transfer
+     * - No platform fees are collected for native USDC swaps
      */
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -145,30 +156,54 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
         address tokenIn = path[0];
         address tokenOut = path[path.length - 1];
 
-        // Transfer tokens from user to this contract
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
+        uint256 feeAmount = 0;
+        uint256 swapAmount = amountIn;
 
-        // Calculate and deduct platform fee
-        uint256 feeAmount = amountIn.calculateFee(platformFee);
-        uint256 swapAmount = amountIn - feeAmount;
+        // Special handling for native USDC - cannot use standard transferFrom flow
+        // Native USDC requires special handling (may require ETH or alternative transfer method)
+        // For now, we pass it directly to the registered router
+        if (tokenIn == NATIVE_USDC) {
+            // Native USDC bypasses fee collection due to transfer limitations
+            // Router is responsible for handling the token transfer from user
+            // User must approve router (not TowerRouter) for this to work
+            
+            // Call router directly without transfer through TowerRouter
+            amountOut = _executeMultiHopSwap(
+                router,
+                amountIn,
+                minAmountOut,
+                path,
+                to,
+                deadline
+            );
+        } else {
+            // Normal flow for other tokens - transfer to TowerRouter first
+            IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
 
-        // Approve router
-        IERC20(tokenIn).safeApprove(router, swapAmount);
+            // Calculate and deduct platform fee
+            feeAmount = amountIn.calculateFee(platformFee);
+            swapAmount = amountIn - feeAmount;
 
-        // Execute swap
-        amountOut = _executeMultiHopSwap(
-            router,
-            swapAmount,
-            minAmountOut,
-            path,
-            address(this),
-            deadline
-        );
+            // Approve router
+            IERC20(tokenIn).safeApprove(router, swapAmount);
+
+            // Execute swap
+            amountOut = _executeMultiHopSwap(
+                router,
+                swapAmount,
+                minAmountOut,
+                path,
+                to,
+                deadline
+            );
+
+            // Handle fees
+            if (feeAmount > 0) {
+                _handleFees(tokenIn, feeAmount);
+            }
+        }
 
         require(amountOut >= minAmountOut, "Insufficient output amount");
-
-        // Transfer output to recipient
-        IERC20(tokenOut).safeTransfer(to, amountOut);
 
         // Handle fees
         if (feeAmount > 0) {
@@ -289,6 +324,7 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
 
     /**
      * @dev Internal function to execute multi-hop swap
+     * Supports both IDexRouter interface (e.g., XyloNetAdapter) and Uniswap V2 style routers
      */
     function _executeMultiHopSwap(
         address router,
@@ -298,17 +334,32 @@ contract TowerRouter is ReentrancyGuard, Ownable, Pausable {
         address recipient,
         uint256 deadline
     ) internal returns (uint256 amountOut) {
-        // For now, using IUniswapV2Router interface as it's most common
-        // Can be extended to support other DEX types
-        uint256[] memory amounts = IUniswapV2Router(router).swapExactTokensForTokens(
-            amountIn,
-            minAmountOut,
-            path,
-            recipient,
-            deadline
-        );
+        require(path.length >= 2, "Invalid path");
 
-        amountOut = amounts[amounts.length - 1];
+        if (usesIDexRouterInterface[router]) {
+            // Use IDexRouter interface for adapters like XyloNetAdapter
+            require(path.length == 2, "IDexRouter only supports 2-hop swaps");
+            
+            amountOut = IDexRouter(router).swap(
+                path[0],
+                path[1],
+                amountIn,
+                minAmountOut,
+                recipient,
+                deadline
+            );
+        } else {
+            // Use Uniswap V2 interface for traditional routers
+            uint256[] memory amounts = IUniswapV2Router(router).swapExactTokensForTokens(
+                amountIn,
+                minAmountOut,
+                path,
+                recipient,
+                deadline
+            );
+
+            amountOut = amounts[amounts.length - 1];
+        }
     }
 
     /**

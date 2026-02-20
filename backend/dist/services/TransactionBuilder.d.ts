@@ -9,17 +9,9 @@ export declare class TransactionBuilder {
     private provider;
     constructor(config: ArcTestnetConfig, provider: ethers.providers.Provider);
     /**
-     * Check if a router is Synthra UniversalRouter
-     */
-    private isSynthraRouter;
-    /**
-     * Check if a router is Swaparc StableSwapPool
-     */
-    private isSwaparcRouter;
-    /**
      * Build swap transaction from a quote
      */
-    buildSwapTransaction(quote: Quote, userAddress: string, referrer?: string): Promise<SwapTransaction>;
+    buildSwapTransaction(quote: Quote, userAddress: string): Promise<SwapTransaction>;
     /**
      * Build approval transaction for a token
      */
@@ -40,16 +32,6 @@ export declare class TransactionBuilder {
      * Encode split swap transaction
      */
     private _encodeSplitSwap;
-    /**
-     * Encode Swaparc StableSwapPool swap
-     */
-    /**
-     * Encode Synthra UniversalRouter swap call
-     * For Synthra, we return minimal encoded data since the frontend will handle the actual swap
-     * For now, we create a simple placeholder that encodes input/output for validation
-     */
-    private _encodeSynthraSwap;
-    private _encodeSwaparcSwap;
     /**
      * Estimate gas for a transaction
      */
@@ -84,7 +66,7 @@ export declare class TransactionBuilder {
     /**
      * Build swap transaction with automatic approval if needed
      */
-    buildSwapTransactionWithApproval(quote: Quote, userAddress: string, referrer?: string): Promise<{
+    buildSwapTransactionWithApproval(quote: Quote, userAddress: string): Promise<{
         approval?: ApprovalTransaction;
         swap: SwapTransaction;
     }>;

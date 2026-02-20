@@ -64,6 +64,22 @@ class DexDiscoveryService {
                     '0xcd304d2a421bfed31d45f0054af8e8a6a4cf3eae', // QTM
                 ],
             },
+            {
+                id: 'xylonet-adapter',
+                name: 'XyloNet Adapter',
+                routerAddress: '0x73742278c31a76dBb0D2587d03ef92E6E2141023', // XyloRouter (not adapter)
+                factoryAddress: '0x60EDeFB094B84BBC6430cc130B358A43Ba1979e2', // XyloNet factory
+                type: 'pool-based',
+                chainId: 5042002,
+                enabled: true,
+                // Support USDC, EURC, and USYC pools
+                supportedTokens: [
+                    '0x3600000000000000000000000000000000000000', // USDC (native)
+                    '0xd40fcaa5d2ce963c5dabc2bf59e268489ad7bce4', // WUSDC
+                    '0x89b50855aa3be2f677cd6303cec089b5f319d72a', // EURC
+                    '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c', // USYC
+                ],
+            },
         ];
         this.initializeDexes();
     }

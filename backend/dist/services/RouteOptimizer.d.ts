@@ -9,6 +9,7 @@ export declare class RouteOptimizer {
     private config;
     private arcConfig;
     private synthraPoolService;
+    private xyloNetPoolService;
     private performanceMetrics;
     constructor(dexService: DexDiscoveryService, config: RouteOptimizerConfig, arcConfig?: ArcTestnetConfig);
     /**

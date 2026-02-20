@@ -11,6 +11,7 @@ import {
 import { DexDiscoveryService } from './services/DexDiscoveryService';
 import { RouteOptimizer } from './services/RouteOptimizer';
 import { TransactionBuilder } from './services/TransactionBuilder';
+import { FeeCollectionService } from './services/FeeCollectionService';
 import { ArcTestnetConfig, RouteOptimizerConfig } from './types';
 
 dotenv.config();
@@ -29,6 +30,7 @@ const arcConfig: ArcTestnetConfig = {
   chainId: 5042002,
   rpcUrl: process.env.ARC_TESTNET_RPC_URL || 'https://rpc.testnet.arc.network',
   towerRouterAddress: process.env.TOWER_ROUTER_ADDRESS || '0x0000000000000000000000000000000000000000',
+  feeCollectorAddress: process.env.FEE_COLLECTOR_ADDRESS,
   explorerUrl: 'https://testnet.arcscan.app',
   blockTime: 2000, // 2 seconds (example)
 };
@@ -50,12 +52,13 @@ const optimizerConfig: RouteOptimizerConfig = {
 let dexService: DexDiscoveryService;
 let routeOptimizer: RouteOptimizer;
 let txBuilder: TransactionBuilder;
+let feeCollectionService: FeeCollectionService;
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    service: 'Tower Finance DEX Aggregator',
+    service: 'Tower Exchange DEX Aggregator',
     chainId: arcConfig.chainId,
     timestamp: new Date().toISOString(),
   });
@@ -78,8 +81,16 @@ async function initializeServices() {
     txBuilder = new TransactionBuilder(arcConfig, provider);
     console.log('✓ Transaction Builder initialized');
 
+    // Initialize Fee Collection Service
+    feeCollectionService = new FeeCollectionService(arcConfig, provider);
+    if (feeCollectionService.isAvailable()) {
+      console.log(`✓ Fee Collection Service initialized (Backend: ${feeCollectionService.getBackendAddress()})`);
+    } else {
+      console.warn('⚠ Fee Collection Service not available - check FEE_COLLECTOR_ADDRESS and BACKEND_PRIVATE_KEY');
+    }
+
     // Setup swap routes
-    const swapRoutes = new SwapRoutes(routeOptimizer, txBuilder, dexService, arcConfig);
+    const swapRoutes = new SwapRoutes(routeOptimizer, txBuilder, feeCollectionService, dexService, arcConfig);
     app.use('/api/swap', swapRoutes.getRouter());
 
     // Error handler (must be last)
@@ -98,7 +109,7 @@ async function start() {
     await initializeServices();
 
     app.listen(port, () => {
-      console.log(`🚀 Tower Finance DEX Aggregator running on port ${port}`);
+      console.log(`🚀 Tower Exchange DEX Aggregator running on port ${port}`);
       console.log(`📍 Arc Testnet RPC: ${arcConfig.rpcUrl}`);
       console.log(`🔄 Tower Router: ${arcConfig.towerRouterAddress}`);
       console.log(`\n📚 API Documentation:`);

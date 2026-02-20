@@ -7,7 +7,7 @@ export interface DexInfo {
   name: string;
   routerAddress: string;
   factoryAddress: string;
-  type: 'v2' | 'v3' | 'stable';
+  type: 'v2' | 'v3' | 'stable' | 'pool-based';
   chainId: number;
   enabled: boolean;
   supportedTokens: string[];
@@ -68,12 +68,14 @@ export interface SplitRoute {
 }
 
 export interface SwapTransaction {
-  to: string; // TowerRouter address
+  to: string; // TowerRouter address or DEX router for native USDC
   data: string; // Encoded function call
   value: string; // ETH value (0 for ERC20)
   from: string;
   gasLimit: string;
   chainId: number;
+  platformFeeAmount?: string; // Platform fee in output token (native decimals, only for native USDC)
+  expectedUserOutput?: string; // Expected output after fee deduction (native decimals, only for native USDC)
 }
 
 export interface ApprovalTransaction {
@@ -124,6 +126,16 @@ export interface ArcTestnetConfig {
   chainId: number;
   rpcUrl: string;
   towerRouterAddress: string;
+  feeCollectorAddress?: string; // Optional: FeeCollector contract for native USDC swaps
   explorerUrl: string;
   blockTime: number;
+}
+
+export interface FeeCollectionResult {
+  success: boolean;
+  transactionHash?: string;
+  outputToken: string;
+  feeAmount: string; // In native token decimals
+  blockNumber?: number;
+  error?: string;
 }

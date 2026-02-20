@@ -1,9 +1,8 @@
 import { ethers } from 'ethers';
 import { Quote, SwapTransaction, ApprovalTransaction, ArcTestnetConfig } from '../types';
 import { EncodingUtils, AddressUtils } from '../utils/helpers';
-
-// Swaparc StableSwapPool address
-const SWAPARC_ADDRESS = '0x2F4490e7c6F3DaC23ffEe6e71bFcb5d1CCd7d4eC';
+import { getTokenByAddress } from '../utils/tokenRegistry';
+import { getPlatformFeeBps } from '../config/platformFeeConfig';
 
 // ERC20 ABI for allowance and approval
 const ERC20_ABI = [
@@ -25,49 +24,57 @@ export class TransactionBuilder {
   }
 
   /**
-   * Check if a router is Synthra UniversalRouter
-   */
-  private isSynthraRouter(routerAddress: string): boolean {
-    try {
-      return (
-        AddressUtils.toChecksum(routerAddress) ===
-        AddressUtils.toChecksum('0xbf4479c07dc6fdc6daa764a0cca06969e894275f')
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Check if a router is Swaparc StableSwapPool
-   */
-  private isSwaparcRouter(routerAddress: string): boolean {
-    try {
-      return (
-        AddressUtils.toChecksum(routerAddress) ===
-        AddressUtils.toChecksum(SWAPARC_ADDRESS)
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * Build swap transaction from a quote
    */
   async buildSwapTransaction(
     quote: Quote,
-    userAddress: string,
-    referrer?: string
+    userAddress: string
   ): Promise<SwapTransaction> {
     try {
       AddressUtils.toChecksum(userAddress);
-      const normalizedReferrer = referrer ? AddressUtils.toChecksum(referrer) : ethers.constants.AddressZero;
 
       const deadline = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes
 
+      // Convert amounts from 18 decimals to native token decimals
+      const inputTokenInfo = getTokenByAddress(quote.inputToken);
+      const outputTokenInfo = getTokenByAddress(quote.outputToken);
+      const inputDecimals = inputTokenInfo?.decimals || 18;
+      const outputDecimals = outputTokenInfo?.decimals || 18;
+
+      // Convert inputAmount from 18 decimals to native decimals
+      const inputAmountBN = ethers.BigNumber.from(quote.inputAmount);
+      const decimalsMultiplierIn = 18 - inputDecimals;
+      const nativeInputAmount = decimalsMultiplierIn > 0 
+        ? inputAmountBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplierIn)).toString()
+        : inputAmountBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierIn)).toString();
+
+      // Convert minOut from 18 decimals to native decimals
+      const minOutBN = ethers.BigNumber.from(quote.minOut);
+      const decimalsMultiplierOut = 18 - outputDecimals;
+      const nativeMinOut = decimalsMultiplierOut > 0 
+        ? minOutBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+        : minOutBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierOut)).toString();
+
+      console.log('[TransactionBuilder] Converted amounts to native decimals:', {
+        inputToken: quote.inputToken,
+        inputDecimals,
+        inputAmount18: quote.inputAmount,
+        inputAmountNative: nativeInputAmount,
+        outputToken: quote.outputToken,
+        outputDecimals,
+        minOut18: quote.minOut,
+        minOutNative: nativeMinOut,
+      });
+
       // Encode the swap call based on route type
       let data: string;
+      let targetAddress: string;
+      let platformFeeAmount: string | undefined;
+      let expectedUserOutput: string | undefined;
+      
+      // Check if input is native USDC - requires direct DEX call (no TowerRouter intermediary)
+      const NATIVE_USDC = '0x3600000000000000000000000000000000000000';
+      const isNativeUSDC = quote.inputToken.toLowerCase() === NATIVE_USDC.toLowerCase();
 
       if (quote.route.type === 'single' || quote.route.type === 'multi') {
         const hopData = quote.route.hops[0];
@@ -81,37 +88,83 @@ export class TransactionBuilder {
           inputToken: quote.inputToken,
           outputToken: quote.outputToken,
           route_type: quote.route.type,
+          isNativeUSDC,
         });
 
-        // Check if using Synthra UniversalRouter
-        if (this.isSynthraRouter(hopData.dexRouter)) {
-          console.log('[TransactionBuilder] Using Synthra UniversalRouter (direct route)');
-          // For Synthra, we encode a direct call to the UniversalRouter
-          // For now, return the minimal data to allow the frontend to handle it
-          data = this._encodeSynthraSwap(
-            quote,
-            userAddress
-          );
-        } else if (this.isSwaparcRouter(hopData.dexRouter)) {
-          console.log('[TransactionBuilder] Using Swaparc encoding');
-          data = await this._encodeSwaparcSwap(
-            quote,
-            hopData.dexRouter,
-            userAddress,
-            normalizedReferrer
-          );
+        if (isNativeUSDC) {
+          // For native USDC: encode direct DEX router call (user approved DEX router directly)
+          // Platform fee is collected from output after swap executes
+          console.log('[TransactionBuilder] Native USDC detected - calling DEX router directly (no TowerRouter)');
+          
+          // Calculate platform fee based on configured fee percentage (default 0.25%)
+          const expectedOutputBN = ethers.BigNumber.from(quote.outputAmount);
+          const platformFeeBps = getPlatformFeeBps();
+          const platformFee18 = expectedOutputBN.mul(platformFeeBps).div(10000);
+          
+          // Convert fee to native decimals for tracking
+          platformFeeAmount = decimalsMultiplierOut > 0 
+            ? platformFee18.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+            : platformFee18.toString();
+          
+          // Calculate expected user output after fee (in 18 decimals)
+          const expectedUserOutput18 = expectedOutputBN.sub(platformFee18);
+          
+          // Convert to native decimals
+          expectedUserOutput = decimalsMultiplierOut > 0 
+            ? expectedUserOutput18.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+            : expectedUserOutput18.toString();
+          
+          // For DEX router calls, encode based on DEX type
+          const path = quote.route.hops.map(h => h.path).flat();
+          targetAddress = hopData.dexRouter;
+          
+          // XyloNet uses tuple-based swap interface: swap(tuple(address, address, uint256, uint256, address, uint256))
+          const isXyloNet = hopData.dexName?.toLowerCase().includes('xylonet') || 
+                            targetAddress.toLowerCase() === '0x73742278c31a76dBb0D2587d03ef92E6E2141023'.toLowerCase();
+          
+          if (isXyloNet) {
+            console.log('[TransactionBuilder] Detected XyloNet - using tuple-based swap encoding');
+            data = EncodingUtils.encodeXyloRouterSwap(
+              path[0],      // tokenIn
+              path[path.length - 1],  // tokenOut
+              nativeInputAmount,
+              nativeMinOut,
+              userAddress,
+              deadline
+            );
+          } else {
+            // Other DEXes use standard IDexRouter interface: swap(address, address, uint256, uint256, address, uint256)
+            data = EncodingUtils.encodeIDexRouterSwap(
+              path[0],      // tokenIn
+              path[path.length - 1],  // tokenOut
+              nativeInputAmount,
+              nativeMinOut,
+              userAddress,
+              deadline
+            );
+          }
+          
+          // Store fee info to be included in transaction return
+          console.log('[TransactionBuilder] Native USDC platform fee:', {
+            expectedOutput18: quote.outputAmount,
+            expectedOutputNative: nativeMinOut,
+            platformFee18: platformFee18.toString(),
+            platformFeeAmount,
+            expectedUserOutput18: expectedUserOutput18.toString(),
+            expectedUserOutput,
+          });
         } else {
-          // Standard DEX router encoding
-          console.log('[TransactionBuilder] Using standard router encoding');
+          // For other tokens: route through TowerRouter for fee collection
+          console.log('[TransactionBuilder] Routing through TowerRouter for fee collection');
           data = EncodingUtils.encodeTowerRouterSwap(
-            quote.inputAmount,
-            quote.minOut,
+            nativeInputAmount,
+            nativeMinOut,
             quote.route.hops.map(h => h.path).flat(), // Flattened path
             userAddress,
             deadline,
-            hopData.dexRouter,
-            normalizedReferrer
+            hopData.dexRouter // Pass the actual DEX router to TowerRouter
           );
+          targetAddress = this.config.towerRouterAddress;
         }
       } else {
         // Split route handling
@@ -119,21 +172,14 @@ export class TransactionBuilder {
         data = this._encodeSplitSwap(
           quote,
           userAddress,
-          deadline,
-          normalizedReferrer
+          deadline
         );
+        targetAddress = this.config.towerRouterAddress;
       }
 
-      // Determine target address based on router type (BEFORE gas estimation)
-      let targetAddress = this.config.towerRouterAddress; // Default to Tower Router
-
-      // For Synthra, use the UniversalRouter as the target
-      if (quote.route.type === 'single' || quote.route.type === 'multi') {
-        const hopData = quote.route.hops[0];
-        if (hopData && this.isSynthraRouter(hopData.dexRouter)) {
-          targetAddress = hopData.dexRouter;
-        }
-      }
+      // Always send to determined target address
+      // For native USDC: this is the DEX router
+      // For others: this is TowerRouter
 
       // Estimate gas based on CORRECT target router
       const gasEstimate = await this._estimateGas(
@@ -148,6 +194,8 @@ export class TransactionBuilder {
         from: userAddress,
         gasLimit: gasEstimate.toString(),
         chainId: this.config.chainId,
+        ...(platformFeeAmount && { platformFeeAmount }),
+        ...(expectedUserOutput && { expectedUserOutput }),
       };
 
       console.log('[TransactionBuilder] Built swap transaction:', {
@@ -252,8 +300,7 @@ export class TransactionBuilder {
   private _encodeSplitSwap(
     quote: Quote,
     userAddress: string,
-    deadline: number,
-    referrer: string
+    deadline: number
   ): string {
     // For split swaps, we encode a special call to TowerRouter.swapWithSplit
     const iface = new ethers.utils.Interface([
@@ -262,8 +309,7 @@ export class TransactionBuilder {
         address tokenOut,
         uint256 minAmountOut,
         address to,
-        uint256 deadline,
-        address referrer
+        uint256 deadline
       ) returns (uint256)`,
     ]);
 
@@ -283,84 +329,7 @@ export class TransactionBuilder {
       quote.minOut,
       userAddress,
       deadline,
-      referrer,
     ]);
-  }
-
-  /**
-   * Encode Swaparc StableSwapPool swap
-   */
-  /**
-   * Encode Synthra UniversalRouter swap call
-   * For Synthra, we return minimal encoded data since the frontend will handle the actual swap
-   * For now, we create a simple placeholder that encodes input/output for validation
-   */
-  private _encodeSynthraSwap(
-    quote: Quote,
-    userAddress: string
-  ): string {
-    // Synthra swaps use the UniversalRouter directly
-    // ABI: function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
-    const deadlineTimestamp = Math.floor(Date.now() / 1000) + 30 * 60;
-    
-    // Build the path, checking if USDC needs to be wrapped to WUSDC
-    const USDC = '0x3600000000000000000000000000000000000000'.toLowerCase();
-    const WUSDC = '0x911b4000D3422F482F4062a913885f7b035382Df'.toLowerCase();
-    const SYN = '0xC5124C846c6e6307986988dFb7e743327aA05F19'.toLowerCase();
-    
-    let path: string[];
-    const inputLower = quote.inputToken.toLowerCase();
-    const outputLower = quote.outputToken.toLowerCase();
-    
-    console.log(`[TransactionBuilder] Encoding Synthra swap: ${inputLower} → ${outputLower}`);
-    
-    // If input is USDC and output is SYN, use multi-hop: USDC → WUSDC → SYN
-    if (inputLower === USDC && outputLower === SYN) {
-      console.log(`[TransactionBuilder] USDC → SYN detected, using multi-hop path: USDC → WUSDC → SYN`);
-      path = [quote.inputToken, WUSDC, quote.outputToken];
-    } else {
-      // Direct swap
-      path = [quote.inputToken, quote.outputToken];
-    }
-
-    const iface = new ethers.utils.Interface([
-      'function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)',
-    ]);
-
-    console.log(`[TransactionBuilder] Synthra swap path: ${path.join(' → ')}`);
-
-    return iface.encodeFunctionData('swapExactTokensForTokens', [
-      quote.inputAmount,
-      quote.minOut,
-      path,
-      userAddress,
-      deadlineTimestamp,
-    ]);
-  }
-
-  private async _encodeSwaparcSwap(
-    quote: Quote,
-    poolAddress: string,
-    userAddress: string,
-    referrer: string
-  ): Promise<string> {
-    const inputToken = quote.inputToken;
-    const outputToken = quote.outputToken;
-
-    // For Swaparc, we still call TowerRouter, but the router is the StableSwapPool
-    // The path becomes [inputToken, outputToken] or similar based on the pool structure
-    // We encode using the standard TowerRouter interface, passing the pool as the router
-    const path = [inputToken, outputToken];
-
-    return EncodingUtils.encodeTowerRouterSwap(
-      quote.inputAmount,
-      quote.minOut,
-      path,
-      userAddress,
-      Math.floor(Date.now() / 1000) + 30 * 60,
-      poolAddress,
-      referrer
-    );
   }
 
   /**
@@ -507,20 +476,28 @@ export class TransactionBuilder {
    */
   async buildSwapTransactionWithApproval(
     quote: Quote,
-    userAddress: string,
-    referrer?: string
+    userAddress: string
   ): Promise<{ approval?: ApprovalTransaction; swap: SwapTransaction }> {
-    // Determine the spender address (router that will spend the tokens)
-    let spenderAddress: string;
-    if (quote.route.type === 'single' || quote.route.type === 'multi') {
+    // Check if input is native USDC - requires special handling
+    const NATIVE_USDC = '0x3600000000000000000000000000000000000000';
+    const isNativeUSDC = quote.inputToken.toLowerCase() === NATIVE_USDC.toLowerCase();
+
+    // Determine spender address
+    // For native USDC: approve the DEX router directly (not TowerRouter)
+    // For other tokens: approve TowerRouter which will handle the transfer
+    let spenderAddress = this.config.towerRouterAddress;
+    
+    if (isNativeUSDC) {
+      // For native USDC, approve the DEX router directly
       const hopData = quote.route.hops[0];
-      if (hopData && this.isSynthraRouter(hopData.dexRouter)) {
-        spenderAddress = hopData.dexRouter; // Synthra UniversalRouter
-      } else {
-        spenderAddress = this.config.towerRouterAddress; // Default Tower Router
+      if (!hopData) {
+        throw new Error('No routing information for native USDC swap');
       }
-    } else {
-      spenderAddress = this.config.towerRouterAddress;
+      spenderAddress = hopData.dexRouter;
+      console.log('[TransactionBuilder] Native USDC detected - approving DEX router instead of TowerRouter:', {
+        inputToken: quote.inputToken,
+        dexRouter: spenderAddress,
+      });
     }
 
     // Check current allowance FIRST, before attempting gas estimation
@@ -530,13 +507,23 @@ export class TransactionBuilder {
       spenderAddress
     );
 
-    const needsApproval = ethers.BigNumber.from(currentAllowance).lt(quote.inputAmount);
+    // Convert quote.inputAmount from 18 decimals to native decimals for comparison
+    const inputTokenInfo = getTokenByAddress(quote.inputToken);
+    const inputDecimals = inputTokenInfo?.decimals || 18;
+    const inputAmountBN = ethers.BigNumber.from(quote.inputAmount);
+    const decimalsMultiplier = 18 - inputDecimals;
+    const nativeInputAmount = decimalsMultiplier > 0 
+      ? inputAmountBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplier)).toString()
+      : inputAmountBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplier)).toString();
+
+    const needsApproval = ethers.BigNumber.from(currentAllowance).lt(nativeInputAmount);
 
     console.log(`[TransactionBuilder] Checking allowance for ${quote.inputToken}:`, {
       owner: userAddress,
       spender: spenderAddress,
       currentAllowance,
-      requiredAmount: quote.inputAmount,
+      requiredAmountNative: nativeInputAmount,
+      requiredAmount18: quote.inputAmount,
       needsApproval,
     });
 
@@ -545,10 +532,10 @@ export class TransactionBuilder {
     let swapTx: SwapTransaction;
     if (needsApproval) {
       console.log(`[TransactionBuilder] Approval needed - skipping gas estimation, using default`);
-      swapTx = await this._buildSwapTransactionWithoutGasEstimation(quote, userAddress, referrer);
+      swapTx = await this._buildSwapTransactionWithoutGasEstimation(quote, userAddress);
     } else {
       console.log(`[TransactionBuilder] Approval exists - performing gas estimation`);
-      swapTx = await this.buildSwapTransaction(quote, userAddress, referrer);
+      swapTx = await this.buildSwapTransaction(quote, userAddress);
     }
 
     // If allowance is insufficient, build approval transaction
@@ -579,14 +566,32 @@ export class TransactionBuilder {
    */
   private async _buildSwapTransactionWithoutGasEstimation(
     quote: Quote,
-    userAddress: string,
-    referrer?: string
+    userAddress: string
   ): Promise<SwapTransaction> {
     try {
       AddressUtils.toChecksum(userAddress);
-      const normalizedReferrer = referrer ? AddressUtils.toChecksum(referrer) : ethers.constants.AddressZero;
 
       const deadline = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes
+
+      // Convert amounts from 18 decimals to native token decimals
+      const inputTokenInfo = getTokenByAddress(quote.inputToken);
+      const outputTokenInfo = getTokenByAddress(quote.outputToken);
+      const inputDecimals = inputTokenInfo?.decimals || 18;
+      const outputDecimals = outputTokenInfo?.decimals || 18;
+
+      // Convert inputAmount from 18 decimals to native decimals
+      const inputAmountBN = ethers.BigNumber.from(quote.inputAmount);
+      const decimalsMultiplierIn = 18 - inputDecimals;
+      const nativeInputAmount = decimalsMultiplierIn > 0 
+        ? inputAmountBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplierIn)).toString()
+        : inputAmountBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierIn)).toString();
+
+      // Convert minOut from 18 decimals to native decimals
+      const minOutBN = ethers.BigNumber.from(quote.minOut);
+      const decimalsMultiplierOut = 18 - outputDecimals;
+      const nativeMinOut = decimalsMultiplierOut > 0 
+        ? minOutBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+        : minOutBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierOut)).toString();
 
       // Encode the swap call based on route type
       let data: string;
@@ -597,41 +602,24 @@ export class TransactionBuilder {
           throw new Error('No hops found in route');
         }
 
-        // Check if using Synthra UniversalRouter
-        if (this.isSynthraRouter(hopData.dexRouter)) {
-          data = this._encodeSynthraSwap(quote, userAddress);
-        } else if (this.isSwaparcRouter(hopData.dexRouter)) {
-          data = await this._encodeSwaparcSwap(quote, hopData.dexRouter, userAddress, normalizedReferrer);
-        } else {
-          data = EncodingUtils.encodeTowerRouterSwap(
-            quote.inputAmount,
-            quote.minOut,
-            quote.route.hops.map(h => h.path).flat(),
-            userAddress,
-            deadline,
-            hopData.dexRouter,
-            normalizedReferrer
-          );
-        }
+        // All swaps route through TowerRouter for fee collection
+        data = EncodingUtils.encodeTowerRouterSwap(
+          nativeInputAmount,
+          nativeMinOut,
+          quote.route.hops.map(h => h.path).flat(),
+          userAddress,
+          deadline,
+          hopData.dexRouter // Pass the actual DEX router to TowerRouter
+        );
       } else {
-        data = this._encodeSplitSwap(quote, userAddress, deadline, normalizedReferrer);
+        data = this._encodeSplitSwap(quote, userAddress, deadline);
       }
 
-      // Determine target address based on router type
-      let targetAddress = this.config.towerRouterAddress;
-
-      if (quote.route.type === 'single' || quote.route.type === 'multi') {
-        const hopData = quote.route.hops[0];
-        if (hopData && this.isSynthraRouter(hopData.dexRouter)) {
-          targetAddress = hopData.dexRouter;
-        }
-      }
-
-      // Use default gas limit without estimation (approval will be pending)
+      // Always send to TowerRouter for fee collection
       const DEFAULT_SWAP_GAS = '500000';
 
       const tx: SwapTransaction = {
-        to: targetAddress,
+        to: this.config.towerRouterAddress,
         data,
         value: '0',
         from: userAddress,

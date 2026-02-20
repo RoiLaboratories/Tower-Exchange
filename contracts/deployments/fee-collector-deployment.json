@@ -1,0 +1,11 @@
+{
+  "contract": "FeeCollector",
+  "version": "1.0.0",
+  "network": "arc-testnet",
+  "feeCollector": "0x530D852ee79c83beabF6565D4475D8A59addbD5D",
+  "treasury": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "owner": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "timestamp": "2026-02-20T06:34:12.890Z",
+  "blockExplorerUrl": "https://testnet.arcscan.app/address/0x530D852ee79c83beabF6565D4475D8A59addbD5D"
+}

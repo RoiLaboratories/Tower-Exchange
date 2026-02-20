@@ -187,11 +187,10 @@ export class EncodingUtils {
     path: string[],
     to: string,
     deadline: number,
-    router: string,
-    referrer: string
+    router: string
   ): string {
     const iface = new ethers.utils.Interface([
-      'function swapExactTokensForTokens(uint256 amountIn, uint256 minAmountOut, address[] path, address to, uint256 deadline, address router, address referrer) returns (uint256)',
+      'function swapExactTokensForTokens(uint256 amountIn, uint256 minAmountOut, address[] path, address to, uint256 deadline, address router) returns (uint256)',
     ]);
 
     return iface.encodeFunctionData('swapExactTokensForTokens', [
@@ -201,7 +200,60 @@ export class EncodingUtils {
       to,
       deadline,
       router,
-      referrer,
+    ]);
+  }
+
+  /**
+   * Encode IDexRouter swap call (for direct DEX router calls like XyloNet)
+   * Used when DEX router is called directly instead of through TowerRouter
+   */
+  static encodeIDexRouterSwap(
+    tokenIn: string,
+    tokenOut: string,
+    amountIn: string,
+    minAmountOut: string,
+    recipient: string,
+    deadline: number
+  ): string {
+    const iface = new ethers.utils.Interface([
+      'function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address recipient, uint256 deadline) returns (uint256)',
+    ]);
+
+    return iface.encodeFunctionData('swap', [
+      tokenIn,
+      tokenOut,
+      amountIn,
+      minAmountOut,
+      recipient,
+      deadline,
+    ]);
+  }
+
+  /**
+   * Encode XyloRouter swap call with tuple params
+   * XyloRouter.swap expects: tuple(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address to, uint256 deadline)
+   */
+  static encodeXyloRouterSwap(
+    tokenIn: string,
+    tokenOut: string,
+    amountIn: string,
+    minAmountOut: string,
+    recipient: string,
+    deadline: number
+  ): string {
+    const iface = new ethers.utils.Interface([
+      'function swap(tuple(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, address to, uint256 deadline) params) external returns (uint256)',
+    ]);
+
+    return iface.encodeFunctionData('swap', [
+      {
+        tokenIn,
+        tokenOut,
+        amountIn,
+        minAmountOut,
+        to: recipient,
+        deadline,
+      },
     ]);
   }
 

@@ -70,9 +70,9 @@ export const NATIVE_TOKENS = ["USDC"];
 export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USDT", "SYN", "SWPRC", "UNI", "HYPE"];
 
 // Token Decimals Configuration
-// Note: USDC has 18 decimals on Arc Testnet, WUSDC has 6
+// Note: USDC has 6 decimals on Arc Testnet (like EURC and SWPRC)
 export const TOKEN_DECIMALS: Record<string, number> = {
-  USDC: 18,
+  USDC: 6,
   WUSDC: 18,
   QTM: 18,
   EURC: 6,

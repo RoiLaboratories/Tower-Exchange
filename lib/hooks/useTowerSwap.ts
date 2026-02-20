@@ -10,7 +10,10 @@ export interface SwapQuote {
   route: {
     type: 'single' | 'multi' | 'split';
     hops: Array<{
-      dex: string;
+      dexId: string; // DEX identifier from backend
+      dex?: string;
+      dexName?: string; // Router name (e.g., "XyloNet Adapter", "Synthra")
+      dexRouter?: string; // Router contract address
       path: string[];
       amountIn: string;
       amountOut: string;
@@ -26,6 +29,8 @@ export interface SwapTransaction {
   from: string;
   gasLimit: string;
   chainId: number;
+  platformFeeAmount?: string; // Platform fee in output token (native decimals, only for native USDC)
+  expectedUserOutput?: string; // Expected output after fee deduction (native decimals, only for native USDC)
 }
 
 export interface ApprovalTransaction {
@@ -42,7 +47,7 @@ interface UseTowerSwapOptions {
 const DEFAULT_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /**
- * Custom hook for interacting with Tower Finance DEX Aggregator backend
+ * Custom hook for interacting with Tower Exchange DEX Aggregator backend
  * Handles quote fetching, transaction building, and approvals
  */
 export function useTowerSwap(options: UseTowerSwapOptions = {}) {

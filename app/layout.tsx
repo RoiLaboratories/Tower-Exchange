@@ -27,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${sora.variable} ${cinzel.variable}  antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${sora.variable} ${cinzel.variable}  antialiased`} suppressHydrationWarning>
         <PrivyProvider>
           <div className="min-h-screen flex flex-col">
             <Header />

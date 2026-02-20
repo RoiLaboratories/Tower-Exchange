@@ -3,11 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRateLimiter = exports.validateJsonRequest = exports.errorHandler = exports.SwapRoutes = void 0;
 const express_1 = require("express");
 const ethers_1 = require("ethers");
+const tokenRegistry_1 = require("../utils/tokenRegistry");
 class SwapRoutes {
-    constructor(routeOptimizer, txBuilder, dexService, config) {
+    constructor(routeOptimizer, txBuilder, feeCollectionService, dexService, config) {
         this.router = (0, express_1.Router)();
         this.routeOptimizer = routeOptimizer;
         this.txBuilder = txBuilder;
+        this.feeCollectionService = feeCollectionService;
         this.dexService = dexService;
         this.config = config;
         this.initializeRoutes();
@@ -22,6 +24,10 @@ class SwapRoutes {
         this.router.post('/build-tx', this.handleBuildTx.bind(this));
         // POST /approval - Build approval transaction
         this.router.post('/approval', this.handleApproval.bind(this));
+        // POST /submit-fee - Submit platform fee for native USDC swaps
+        this.router.post('/submit-fee', this.handleSubmitFee.bind(this));
+        // GET /accumulated-fees - Get accumulated fees for a token
+        this.router.get('/accumulated-fees/:token', this.handleGetAccumulatedFees.bind(this));
         // GET /dexes - Get available DEXes
         this.router.get('/dexes', this.handleGetDexes.bind(this));
         // GET /price - Get current price
@@ -51,8 +57,23 @@ class SwapRoutes {
                 res.status(400).json({ error: 'Invalid input amount' });
                 return;
             }
-            // Get quote
-            const quote = await this.routeOptimizer.getQuote(inputToken, outputToken, inputAmount);
+            // Normalize inputAmount from native decimals to 18 decimals for internal processing
+            const tokenInfo = (0, tokenRegistry_1.getTokenByAddress)(inputToken);
+            const tokenDecimals = tokenInfo?.decimals || 18;
+            const amountInBN = ethers_1.ethers.BigNumber.from(inputAmount);
+            // Convert from native decimals to 18 decimals
+            const decimalsMultiplier = 18 - tokenDecimals;
+            const normalizedAmount = decimalsMultiplier > 0
+                ? amountInBN.mul(ethers_1.ethers.BigNumber.from(10).pow(decimalsMultiplier)).toString()
+                : amountInBN.div(ethers_1.ethers.BigNumber.from(10).pow(-decimalsMultiplier)).toString();
+            console.log(`[SwapRoutes] Normalized input amount:`, {
+                inputToken,
+                nativeDecimals: tokenDecimals,
+                originalAmount: inputAmount,
+                normalizedAmount,
+            });
+            // Get quote with normalized amount
+            const quote = await this.routeOptimizer.getQuote(inputToken, outputToken, normalizedAmount);
             if (!quote) {
                 res.status(404).json({ error: 'No route found for this swap' });
                 return;
@@ -73,7 +94,7 @@ class SwapRoutes {
      */
     async handleBuildTx(req, res, next) {
         try {
-            const { quote, userAddress, referrer } = req.body;
+            const { quote, userAddress } = req.body;
             // Validate input
             if (!quote || !userAddress) {
                 res.status(400).json({ error: 'Missing required fields: quote, userAddress' });
@@ -91,7 +112,7 @@ class SwapRoutes {
                 outputAmount: quote.outputAmount,
                 dex: quote.route?.hops?.[0]?.dexName,
             });
-            const { approval, swap: swapTx } = await this.txBuilder.buildSwapTransactionWithApproval(quote, userAddress, referrer);
+            const { approval, swap: swapTx } = await this.txBuilder.buildSwapTransactionWithApproval(quote, userAddress);
             console.log('[SwapRoutes] Built transactions:', {
                 hasApproval: !!approval,
                 swap: {
@@ -266,6 +287,103 @@ class SwapRoutes {
             });
         }
         catch (error) {
+            next(error);
+        }
+    }
+    /**
+     * POST /submit-fee
+     * Submit platform fee for native USDC swaps to FeeCollector contract
+     */
+    async handleSubmitFee(req, res, next) {
+        try {
+            const { outputToken, feeAmount } = req.body;
+            // Validate input
+            if (!outputToken || !feeAmount) {
+                res.status(400).json({ error: 'Missing required fields: outputToken, feeAmount' });
+                return;
+            }
+            if (!ethers_1.ethers.utils.isAddress(outputToken)) {
+                res.status(400).json({ error: 'Invalid output token address' });
+                return;
+            }
+            // Check if fee collection service is available
+            if (!this.feeCollectionService.isAvailable()) {
+                res.status(503).json({
+                    error: 'Fee collection service not available',
+                    details: 'FeeCollector contract not configured or backend wallet not initialized',
+                });
+                return;
+            }
+            console.log('[SwapRoutes] Submitting platform fee:', {
+                outputToken,
+                feeAmount,
+                backendAddress: this.feeCollectionService.getBackendAddress(),
+            });
+            // Submit the fee
+            const result = await this.feeCollectionService.submitFee(outputToken, feeAmount);
+            if (!result.success) {
+                res.status(500).json({
+                    error: 'Failed to submit fee',
+                    details: result.error,
+                });
+                return;
+            }
+            console.log('[SwapRoutes] Fee submitted successfully:', result);
+            res.json({
+                success: true,
+                data: {
+                    transactionHash: result.transactionHash,
+                    outputToken: result.outputToken,
+                    feeAmount: result.feeAmount,
+                    blockNumber: result.blockNumber,
+                },
+                timestamp: new Date().toISOString(),
+            });
+        }
+        catch (error) {
+            console.error('[SwapRoutes] Error in handleSubmitFee:', error);
+            next(error);
+        }
+    }
+    /**
+     * GET /accumulated-fees/:token
+     * Get accumulated fees for a specific token from FeeCollector
+     */
+    async handleGetAccumulatedFees(req, res, next) {
+        try {
+            const { token } = req.params;
+            // Validate token address
+            if (!ethers_1.ethers.utils.isAddress(token)) {
+                res.status(400).json({ error: 'Invalid token address' });
+                return;
+            }
+            // Check if fee collection service is available
+            if (!this.feeCollectionService.isAvailable()) {
+                res.status(503).json({
+                    error: 'Fee collection service not available',
+                    details: 'FeeCollector contract not configured',
+                });
+                return;
+            }
+            console.log('[SwapRoutes] Fetching accumulated fees for token:', token);
+            const accumulatedFees = await this.feeCollectionService.getAccumulatedFees(token);
+            const tokenInfo = (0, tokenRegistry_1.getTokenByAddress)(token);
+            const decimals = tokenInfo?.decimals || 18;
+            const symbol = tokenInfo?.symbol || 'UNKNOWN';
+            res.json({
+                success: true,
+                data: {
+                    token,
+                    symbol,
+                    decimals,
+                    accumulatedFees,
+                    accumulatedFeesFormatted: ethers_1.ethers.utils.formatUnits(accumulatedFees, decimals),
+                },
+                timestamp: new Date().toISOString(),
+            });
+        }
+        catch (error) {
+            console.error('[SwapRoutes] Error in handleGetAccumulatedFees:', error);
             next(error);
         }
     }

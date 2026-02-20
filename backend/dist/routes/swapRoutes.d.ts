@@ -1,15 +1,17 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { RouteOptimizer } from '../services/RouteOptimizer';
 import { TransactionBuilder } from '../services/TransactionBuilder';
+import { FeeCollectionService } from '../services/FeeCollectionService';
 import { DexDiscoveryService } from '../services/DexDiscoveryService';
 import { ArcTestnetConfig } from '../types';
 export declare class SwapRoutes {
     private router;
     private routeOptimizer;
     private txBuilder;
+    private feeCollectionService;
     private dexService;
     private config;
-    constructor(routeOptimizer: RouteOptimizer, txBuilder: TransactionBuilder, dexService: DexDiscoveryService, config: ArcTestnetConfig);
+    constructor(routeOptimizer: RouteOptimizer, txBuilder: TransactionBuilder, feeCollectionService: FeeCollectionService, dexService: DexDiscoveryService, config: ArcTestnetConfig);
     /**
      * Initialize all routes
      */
@@ -49,6 +51,16 @@ export declare class SwapRoutes {
      * Get router optimizer metrics
      */
     private handleGetMetrics;
+    /**
+     * POST /submit-fee
+     * Submit platform fee for native USDC swaps to FeeCollector contract
+     */
+    private handleSubmitFee;
+    /**
+     * GET /accumulated-fees/:token
+     * Get accumulated fees for a specific token from FeeCollector
+     */
+    private handleGetAccumulatedFees;
     /**
      * Get router instance
      */

@@ -1,5 +1,5 @@
 /**
- * Tower Finance DEX Aggregator SDK
+ * Tower Exchange DEX Aggregator SDK
  * Frontend integration layer for swap functionality
  */
 

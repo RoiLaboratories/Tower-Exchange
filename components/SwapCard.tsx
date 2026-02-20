@@ -41,29 +41,41 @@ import SettingsModal from "./SettingsModal";
 import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
+import RouterDisplay from "./RouterDisplay";
 
-// Tokens available on frontend (supported by Tower Finance DEX Aggregator)
+// Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "ETH", icon: ethLogo, name: "Ethereum", balance: 2.5 },
   { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
   { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
   { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
   { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  { symbol: "UNI", icon: uniLogo, name: "Uniswap", balance: 50 },
-  { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid", balance: 100 },
   { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
   { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
 ];
 
 interface TokenSelectorProps {
-  selected: (typeof tokens)[0];
+  selected: (typeof tokens)[0] | null;
   onSelect: (token: (typeof tokens)[0]) => void;
   excludeSymbol?: string;
   onOpenModal: () => void;
 }
 
 const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
+  if (!selected) {
+    return (
+      <motion.button
+        onClick={onOpenModal}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        <span className="font-medium text-muted-foreground">Select Token</span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      </motion.button>
+    );
+  }
+  
   return (
     <motion.button
       onClick={onOpenModal}
@@ -91,12 +103,13 @@ const SwapCard = () => {
   const { user, login, authenticated } = usePrivy();
   const { wallets } = useWallets();
   
-  // Tower Finance DEX Aggregator hook
+  // Tower Exchange DEX Aggregator hook
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [chainId, setChainId] = useState<string | null>(null);
+  const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(undefined);
   const [swapState, setSwapState] = useState<
     "idle" | "loading" | "success" | "failed"
   >("idle");
@@ -195,20 +208,17 @@ const SwapCard = () => {
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState(tokens[0]);
-  const [receiveToken, setReceiveToken] = useState(tokens[1]);
+  const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
 
   // Actual wallet balances
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
     USDC: 0,
     WUSDC: 0,
-    ETH: 0,
     USDT: 0,
     EURC: 0,
     SYN: 0,
     SWPRC: 0,
     QTM: 0,
-    UNI: 0,
-    HYPE: 0,
   });
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
@@ -422,6 +432,10 @@ const SwapCard = () => {
     receiveAmount !== "0.00";
 
   const handleSwapTokens = () => {
+    if (!receiveToken) {
+      // If receive token is not selected, just do nothing
+      return;
+    }
     const tempToken = sellToken;
     setSellToken(receiveToken);
     setReceiveToken(tempToken);
@@ -441,9 +455,15 @@ const SwapCard = () => {
     }
   };
 
-  // Get swap quote from Tower Finance backend
+  // Get swap quote from Tower Exchange backend
   const getQuoteForSwap = async (sellAmountValue: string) => {
     try {
+      // Check if both tokens are selected
+      if (!receiveToken) {
+        setReceiveAmount("0.00");
+        return;
+      }
+
       // Get token addresses for the swap
       let tokenInAddress: string | null = null;
       let tokenOutAddress: string | null = null;
@@ -495,9 +515,15 @@ const SwapCard = () => {
 
       console.log("Quote received from Tower Exchange:", quoteData);
 
+      // Auto-set router from backend response (use dexId to match routers list)
+      if (quoteData.route?.hops?.[0]?.dexId) {
+        setSelectedRouterId(quoteData.route.hops[0].dexId);
+        console.log("Auto-selected router from backend:", quoteData.route.hops[0].dexName, "ID:", quoteData.route.hops[0].dexId);
+      }
+
       // Convert quote back from wei using correct decimals for the receive token
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-      const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 10 ** receiveTokenDecimals;
+      const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 1e18;
       
       // Convert priceImpact from basis points to percentage (50 = 0.50%)
       const priceImpactPercent = typeof quoteData.priceImpact === 'number' 
@@ -507,13 +533,12 @@ const SwapCard = () => {
       // Debug logging with detailed breakdown
       console.log("Quote conversion details:", {
         outputAmount_wei: quoteData.outputAmount,
-        receiveTokenDecimals,
         quoteAmount_tokens: quoteAmount,
         priceImpact: priceImpactPercent,
-        calculation: `${quoteData.outputAmount} / 10^${receiveTokenDecimals} = ${quoteAmount}`,
+        calculation: `${quoteData.outputAmount} / 1e18 = ${quoteAmount}`,
       });
 
-      setReceiveAmount(quoteAmount.toString());
+      setReceiveAmount(quoteAmount.toFixed(receiveTokenDecimals));
     } catch (error) {
       console.error("Error getting swap quote:", error);
       // Fallback to mock calculation on error
@@ -622,6 +647,10 @@ const SwapCard = () => {
     try {
       if (!user?.wallet?.address) {
         throw new Error("Wallet not connected");
+      }
+
+      if (!receiveToken) {
+        throw new Error("Please select a receive token");
       }
 
       // Check if on correct network
@@ -1135,6 +1164,49 @@ const SwapCard = () => {
       setSwapState("success");
       setNotification("success");
 
+      // Step 8: Submit platform fee if applicable (for native USDC swaps)
+      const platformFeeAmount = swapTx?.platformFeeAmount;
+      if (platformFeeAmount && platformFeeAmount !== "0") {
+        const outputTokenForFee = tokenOutAddress || quote.outputToken;
+        console.log("Submitting platform fee for native USDC swap:", {
+          outputToken: outputTokenForFee,
+          platformFeeAmount,
+        });
+        
+        try {
+          const feeResponse = await fetch("/api/swap/submit-fee", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              outputToken: outputTokenForFee,
+              feeAmount: platformFeeAmount,
+            }),
+          });
+
+          if (!feeResponse.ok) {
+            const feeError = await feeResponse.text();
+            console.warn("Fee submission response not OK:", {
+              status: feeResponse.status,
+              error: feeError,
+            });
+          } else {
+            const feeResult = await feeResponse.json();
+            console.log("Platform fee submitted successfully:", {
+              transactionHash: feeResult.transactionHash,
+              outputToken: feeResult.outputToken,
+              feeAmount: feeResult.feeAmount,
+            });
+          }
+        } catch (feeError: unknown) {
+          console.error("Error submitting platform fee:", {
+            message: feeError instanceof Error ? feeError.message : String(feeError),
+            outputToken: tokenOutAddress || quote.outputToken,
+            feeAmount: platformFeeAmount,
+          });
+          // Don't throw - fee submission failure shouldn't block the swap success
+        }
+      }
+
       // Auto-dismiss notification after 5 seconds
       setTimeout(() => {
         setNotification(null);
@@ -1155,7 +1227,7 @@ const SwapCard = () => {
         context: "handleSwap",
         timestamp: new Date().toISOString(),
         sellToken: sellToken.symbol,
-        receiveToken: receiveToken.symbol,
+        receiveToken: receiveToken?.symbol || "Not Selected",
         sellAmount,
         revertReason: revertReason ?? undefined,
       };
@@ -1256,7 +1328,7 @@ const SwapCard = () => {
     <div className="flex gap-6 items-start w-full justify-center">
       {/* Swap Notification */}
       <AnimatePresence>
-        {notification && (
+        {notification && receiveToken && (
           <SwapNotification
             type={notification}
             sellAmount={sellAmount}
@@ -1339,7 +1411,7 @@ const SwapCard = () => {
               <TokenSelector
                 selected={sellToken}
                 onSelect={setSellToken}
-                excludeSymbol={receiveToken.symbol}
+                excludeSymbol={receiveToken?.symbol || ""}
                 onOpenModal={() => setIsSellTokenModalOpen(true)}
               />
               <TokenInput
@@ -1370,16 +1442,18 @@ const SwapCard = () => {
           <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Receive</span>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Wallet className="w-4 h-4" />
-                <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
-              </div>
+              {receiveToken && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Wallet className="w-4 h-4" />
+                  <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <TokenSelector
                 selected={receiveToken}
                 onSelect={setReceiveToken}
-                excludeSymbol={sellToken.symbol}
+                excludeSymbol={receiveToken?.symbol || sellToken.symbol}
                 onOpenModal={() => setIsReceiveTokenModalOpen(true)}
               />
               <TokenInput
@@ -1388,6 +1462,14 @@ const SwapCard = () => {
                 onClear={() => setReceiveAmount("0.00")}
               />
             </div>
+          </div>
+
+          {/* Router Display */}
+          <div className="mb-4">
+            <RouterDisplay 
+              selectedRouterId={selectedRouterId}
+              onRouterSelect={setSelectedRouterId}
+            />
           </div>
 
           {/* Action Button */}
@@ -1426,26 +1508,28 @@ const SwapCard = () => {
             </span>
             <span className="text-muted-foreground">$1</span>
           </motion.button>
-          <motion.button
-            onClick={() => setReceiveToken(receiveToken)}
-            className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
-              <Image
-                src={receiveToken.icon}
-                alt={`${receiveToken.symbol} logo`}
-                width={24}
-                height={24}
-                className="object-contain w-full h-full"
-              />
-            </div>
-            <span className="font-medium text-foreground">
-              {receiveToken.symbol}
-            </span>
-            <span className="text-muted-foreground">$1</span>
-          </motion.button>
+          {receiveToken && (
+            <motion.button
+              onClick={() => setReceiveToken(receiveToken)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+                <Image
+                  src={receiveToken.icon}
+                  alt={`${receiveToken.symbol} logo`}
+                  width={24}
+                  height={24}
+                  className="object-contain w-full h-full"
+                />
+              </div>
+              <span className="font-medium text-foreground">
+                {receiveToken.symbol}
+              </span>
+              <span className="text-muted-foreground">$1</span>
+            </motion.button>
+          )}
         </div>
 
         {/* Modals */}
@@ -1454,14 +1538,14 @@ const SwapCard = () => {
           onClose={() => setIsSellTokenModalOpen(false)}
           selected={sellToken}
           onSelect={setSellToken}
-          excludeSymbol={receiveToken.symbol}
+          excludeSymbol={receiveToken?.symbol || ""}
           tokenBalances={tokenBalances}
         />
 
         <TokenModal
           isOpen={isReceiveTokenModalOpen}
           onClose={() => setIsReceiveTokenModalOpen(false)}
-          selected={receiveToken}
+          selected={receiveToken || tokens[0]}
           onSelect={setReceiveToken}
           excludeSymbol={sellToken.symbol}
           tokenBalances={tokenBalances}
