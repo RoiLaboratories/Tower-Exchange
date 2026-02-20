@@ -95,10 +95,14 @@ export class TransactionBuilder {
           isNativeUSDC,
         });
 
-        if (isNativeUSDC) {
-          // For native USDC: encode direct DEX router call (user approved DEX router directly)
+        // Check if this is a XyloNet swap (should use DEX router directly)
+        const isXyloNetSwap = hopData.dexName?.toLowerCase().includes('xylonet') || 
+                              hopData.dexRouter.toLowerCase() === '0x73742278c31a76dBb0D2587d03ef92E6E2141023'.toLowerCase();
+
+        if (isNativeUSDC || isXyloNetSwap) {
+          // For native USDC or XyloNet: encode direct DEX router call
           // Platform fee is collected atomically through FeeCollector
-          console.log('[TransactionBuilder] Native USDC detected - calling DEX router directly (no TowerRouter)');
+          console.log('[TransactionBuilder] ' + (isXyloNetSwap ? 'XyloNet detected' : 'Native USDC detected') + ' - calling DEX router directly (no TowerRouter)');
           
           // Calculate platform fee based on configured fee percentage (default 0.25%)
           const expectedOutputBN = ethers.BigNumber.from(quote.outputAmount);
@@ -139,10 +143,7 @@ export class TransactionBuilder {
           });
           
           // XyloNet uses tuple-based swap interface: swap(tuple(address, address, uint256, uint256, address, uint256))
-          const isXyloNet = hopData.dexName?.toLowerCase().includes('xylonet') || 
-                            targetAddress.toLowerCase() === '0x73742278c31a76dBb0D2587d03ef92E6E2141023'.toLowerCase();
-          
-          if (isXyloNet) {
+          if (isXyloNetSwap) {
             console.log('[TransactionBuilder] Detected XyloNet - using tuple-based swap encoding');
             data = EncodingUtils.encodeXyloRouterSwap(
               path[0],      // tokenIn
@@ -165,16 +166,17 @@ export class TransactionBuilder {
           }
           
           // Store fee info to be included in transaction return
-          console.log('[TransactionBuilder] Native USDC platform fee:', {
+          console.log('[TransactionBuilder] Platform fee calculation:', {
+            dex: isXyloNetSwap ? 'XyloNet' : 'Other',
             expectedOutput18: quote.outputAmount,
-            expectedOutputNative: nativeMinOut,
+            expectedOutputNative: expectedFeeCollectorOutput,
             platformFee18: platformFee18.toString(),
             platformFeeAmount,
             expectedUserOutput18: expectedUserOutput18.toString(),
             expectedUserOutput,
           });
         } else {
-          // For other tokens: route through TowerRouter for fee collection
+          // For other tokens on other DEXes: route through TowerRouter for fee collection
           console.log('[TransactionBuilder] Routing through TowerRouter for fee collection');
           data = EncodingUtils.encodeTowerRouterSwap(
             nativeInputAmount,

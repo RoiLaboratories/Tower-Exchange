@@ -45,15 +45,17 @@ import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
+// Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
   { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
-  { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
-  { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
-  { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
-  { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
+  // TODO: Uncomment when DEX routes are integrated
+  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
+  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
+  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
+  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
+  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
+  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
 ];
 
 interface TokenSelectorProps {
@@ -121,7 +123,6 @@ const SwapCard = () => {
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [revertReason, setRevertReason] = useState<string | null>(null);
   const [slippageTolerance, setSlippageTolerance] = useState(1); // 1% default to reduce "execution reverted" from slippage
-  const [resetApprovalLoading, setResetApprovalLoading] = useState(false);
 
   // Monitor chain ID changes
   useEffect(() => {
@@ -212,16 +213,17 @@ const SwapCard = () => {
   const [sellToken, setSellToken] = useState(tokens[0]);
   const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
 
-  // Actual wallet balances
+  // Actual wallet balances - only for swappable tokens (currently USDC and EURC)
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
     USDC: 0,
-    WUSDC: 0,
-    USDT: 0,
     EURC: 0,
-    USYC: 0,
-    SYN: 0,
-    SWPRC: 0,
-    QTM: 0,
+    // TODO: Add when other DEX routes are integrated
+    // WUSDC: 0,
+    // USDT: 0,
+    // USYC: 0,
+    // SYN: 0,
+    // SWPRC: 0,
+    // QTM: 0,
   });
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
@@ -321,97 +323,42 @@ const SwapCard = () => {
         }
       }
 
-      // Fetch SWPRC balance
-      if (TOKEN_CONTRACTS.SWPRC) {
-        console.log("Fetching SWPRC balance from:", TOKEN_CONTRACTS.SWPRC);
-        const swprcBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.SWPRC
-        );
-        console.log("SWPRC balance (wei):", swprcBalanceWei);
-        if (swprcBalanceWei && swprcBalanceWei !== "0x0") {
-          try {
-            const swprcBalanceBigInt = BigInt(swprcBalanceWei || "0");
-            const swprcBalance = Number(swprcBalanceBigInt) / 10 ** (TOKEN_DECIMALS.SWPRC || 6);
-            console.log("SWPRC balance (converted):", swprcBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              SWPRC: swprcBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting SWPRC balance:", e);
-          }
-        }
-      }
+      // TODO: Uncomment balance fetching for other tokens when DEX routes are integrated
+      // // Fetch WUSDC balance
+      // if (TOKEN_CONTRACTS.WUSDC) {
+      //   console.log("Fetching WUSDC balance from:", TOKEN_CONTRACTS.WUSDC);
+      //   // ... balance fetching code ...
+      // }
 
-      // Fetch USDT balance
-      if (TOKEN_CONTRACTS.USDT) {
-        console.log("Fetching USDT balance from:", TOKEN_CONTRACTS.USDT);
-        const usdtBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.USDT
-        );
-        console.log("USDT balance (wei):", usdtBalanceWei);
-        if (usdtBalanceWei && usdtBalanceWei !== "0x0") {
-          try {
-            const usdtBalanceBigInt = BigInt(usdtBalanceWei || "0");
-            const usdtBalance = Number(usdtBalanceBigInt) / 10 ** (TOKEN_DECIMALS.USDT || 6);
-            console.log("USDT balance (converted):", usdtBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              USDT: usdtBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting USDT balance:", e);
-          }
-        }
-      }
+      // // Fetch QTM balance
+      // if (TOKEN_CONTRACTS.QTM) {
+      //   console.log("Fetching QTM balance from:", TOKEN_CONTRACTS.QTM);
+      //   // ... balance fetching code ...
+      // }
 
-      // Fetch USYC balance
-      if (TOKEN_CONTRACTS.USYC) {
-        console.log("Fetching USYC balance from:", TOKEN_CONTRACTS.USYC);
-        const usycBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.USYC
-        );
-        console.log("USYC balance (wei):", usycBalanceWei);
-        if (usycBalanceWei && usycBalanceWei !== "0x0") {
-          try {
-            const usycBalanceBigInt = BigInt(usycBalanceWei || "0");
-            const usycBalance = Number(usycBalanceBigInt) / 10 ** (TOKEN_DECIMALS.USYC || 6);
-            console.log("USYC balance (converted):", usycBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              USYC: usycBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting USYC balance:", e);
-          }
-        }
-      }
+      // // Fetch SWPRC balance
+      // if (TOKEN_CONTRACTS.SWPRC) {
+      //   console.log("Fetching SWPRC balance from:", TOKEN_CONTRACTS.SWPRC);
+      //   // ... balance fetching code ...
+      // }
 
-      // Fetch SYN balance
-      if (TOKEN_CONTRACTS.SYN) {
-        console.log("Fetching SYN balance from:", TOKEN_CONTRACTS.SYN);
-        const synBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.SYN
-        );
-        console.log("SYN balance (wei):", synBalanceWei);
-        if (synBalanceWei && synBalanceWei !== "0x0") {
-          try {
-            const synBalanceBigInt = BigInt(synBalanceWei || "0");
-            const synBalance = Number(synBalanceBigInt) / 10 ** (TOKEN_DECIMALS.SYN || 18);
-            console.log("SYN balance (converted):", synBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              SYN: synBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting SYN balance:", e);
-          }
-        }
-      }
+      // // Fetch USDT balance
+      // if (TOKEN_CONTRACTS.USDT) {
+      //   console.log("Fetching USDT balance from:", TOKEN_CONTRACTS.USDT);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch USYC balance
+      // if (TOKEN_CONTRACTS.USYC) {
+      //   console.log("Fetching USYC balance from:", TOKEN_CONTRACTS.USYC);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch SYN balance
+      // if (TOKEN_CONTRACTS.SYN) {
+      //   console.log("Fetching SYN balance from:", TOKEN_CONTRACTS.SYN);
+      //   // ... balance fetching code ...
+      // }
 
       // TODO: Fetch other token balances (ETH, UNI, HYPE)
       // Add token contract addresses to TOKEN_CONTRACTS and use fetchERC20Balance
@@ -431,15 +378,7 @@ const SwapCard = () => {
       setIsWalletConnected(false);
       setTokenBalances({
         USDC: 0,
-        WUSDC: 0,
-        ETH: 0,
-        USDT: 0,
         EURC: 0,
-        SYN: 0,
-        SWPRC: 0,
-        QTM: 0,
-        UNI: 0,
-        HYPE: 0,
       });
     }
   }, [authenticated, user, fetchUserBalances]);
@@ -626,44 +565,7 @@ const SwapCard = () => {
     }
   };
 
-  // Reset token approval for the swap router (sets allowance to 0 so next swap will ask for approval again)
-  const handleResetApproval = async () => {
-    if (!user?.wallet?.address || !TOKEN_CONTRACTS[sellToken.symbol]) return;
-    setResetApprovalLoading(true);
-    try {
-      const connectedWallet = wallets.find(
-        (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
-      );
-      if (!connectedWallet) throw new Error("Wallet not found");
-      const provider = await connectedWallet.getEthereumProvider();
-      if (!provider) throw new Error("Failed to get wallet provider");
-      const chainId = await provider.request({ method: "eth_chainId" });
-      if (chainId !== ARC_CHAIN_HEX) throw new Error("Switch to Arc Testnet first");
-      const tokenAddress = TOKEN_CONTRACTS[sellToken.symbol];
-      const spender = ARC_POOLS.routerQuantum;
-      const calldata = encodeErc20Approve(spender, "0");
-      const toHexQuantity = (n: number) => "0x" + n.toString(16);
-      await provider.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: user.wallet.address,
-          to: tokenAddress,
-          value: "0x0",
-          data: calldata,
-          gas: toHexQuantity(80000),
-        }],
-      });
-      fetchUserBalances();
-      alert("Approval reset for " + sellToken.symbol + ". Next swap will ask for approval again.");
-    } catch (e) {
-      console.error("Reset approval failed:", e);
-      setNotification("failed");
-      setRevertReason(e instanceof Error ? e.message : "Reset approval failed");
-      setTimeout(() => { setNotification(null); setRevertReason(null); }, 5000);
-    } finally {
-      setResetApprovalLoading(false);
-    }
-  };
+
 
   // Handle swap transaction
   const handleSwap = async () => {
@@ -1439,16 +1341,6 @@ const SwapCard = () => {
                 >
                   Max
                 </button>
-                {isWalletConnected && TOKEN_CONTRACTS[sellToken.symbol] && (
-                  <button
-                    type="button"
-                    onClick={handleResetApproval}
-                    disabled={resetApprovalLoading}
-                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                  >
-                    {resetApprovalLoading ? "Resetting…" : "Reset approval"}
-                  </button>
-                )}
               </div>
             </div>
             <div className="flex items-center justify-between">

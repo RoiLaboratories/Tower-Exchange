@@ -18,6 +18,7 @@ export interface Token {
   chartData?: number[];
 }
 
+// Currently only USDC and EURC are swappable via XyloNet
 export const tokens: Token[] = [
   {
     symbol: "USDC",
@@ -30,16 +31,6 @@ export const tokens: Token[] = [
     chartData: [2.8, 2.9, 2.85, 3.0, 2.95, 3.1, 3.05, 3.15, 3.21],
   },
   {
-    symbol: "USDT",
-    price: "$0.98",
-    change: "-2.1%",
-    icon: usdtLogo,
-    color: "text-destructive",
-    change24h: "-2.1%",
-    marketCap: "$95.5B",
-    chartData: [1.0, 0.99, 1.01, 0.985, 0.995, 0.98, 0.99, 0.982, 0.98],
-  },
-  {
     symbol: "EURC",
     price: "$1.02",
     change: "+0.8%",
@@ -49,46 +40,57 @@ export const tokens: Token[] = [
     marketCap: "$500M",
     chartData: [0.99, 1.0, 1.01, 1.0, 1.005, 1.015, 1.01, 1.02, 1.02],
   },
-  {
-    symbol: "SWPRC",
-    price: "$0.85",
-    change: "+3.5%",
-    icon: swprcLogo,
-    color: "text-success",
-    change24h: "+3.5%",
-    marketCap: "$250M",
-    chartData: [0.80, 0.81, 0.82, 0.83, 0.82, 0.84, 0.85, 0.845, 0.85],
-  },
-  {
-    symbol: "QTM",
-    price: "$2.45",
-    change: "+18.7%",
-    icon: qtmLogo,
-    color: "text-success",
-    change24h: "+18.7%",
-    marketCap: "$500M",
-    chartData: [1.95, 2.05, 2.10, 2.20, 2.30, 2.35, 2.40, 2.43, 2.45],
-  },
-  {
-    symbol: "WUSDC",
-    price: "$1.00",
-    change: "+0.2%",
-    icon: usdcLogo, // Use USDC logo
-    color: "text-primary",
-    change24h: "+0.2%",
-    marketCap: "$100M",
-    chartData: [0.99, 0.995, 1.0, 1.0, 1.0, 1.001, 1.0, 1.0, 1.0],
-  },
-  {
-    symbol: "USYC",
-    price: "$1.05",
-    change: "+2.3%",
-    icon: usycLogo,
-    color: "text-success",
-    change24h: "+2.3%",
-    marketCap: "$150M",
-    chartData: [1.01, 1.02, 1.03, 1.02, 1.03, 1.04, 1.05, 1.04, 1.05],
-  },
+  // TODO: Uncomment when DEX routes are integrated
+  // {
+  //   symbol: "USDT",
+  //   price: "$0.98",
+  //   change: "-2.1%",
+  //   icon: usdtLogo,
+  //   color: "text-destructive",
+  //   change24h: "-2.1%",
+  //   marketCap: "$95.5B",
+  //   chartData: [1.0, 0.99, 1.01, 0.985, 0.995, 0.98, 0.99, 0.982, 0.98],
+  // },
+  // {
+  //   symbol: "SWPRC",
+  //   price: "$0.85",
+  //   change: "+3.5%",
+  //   icon: swprcLogo,
+  //   color: "text-success",
+  //   change24h: "+3.5%",
+  //   marketCap: "$250M",
+  //   chartData: [0.80, 0.81, 0.82, 0.83, 0.82, 0.84, 0.85, 0.845, 0.85],
+  // },
+  // {
+  //   symbol: "QTM",
+  //   price: "$2.45",
+  //   change: "+18.7%",
+  //   icon: qtmLogo,
+  //   color: "text-success",
+  //   change24h: "+18.7%",
+  //   marketCap: "$500M",
+  //   chartData: [1.95, 2.05, 2.10, 2.20, 2.30, 2.35, 2.40, 2.43, 2.45],
+  // },
+  // {
+  //   symbol: "WUSDC",
+  //   price: "$1.00",
+  //   change: "+0.2%",
+  //   icon: usdcLogo, // Use USDC logo
+  //   color: "text-primary",
+  //   change24h: "+0.2%",
+  //   marketCap: "$100M",
+  //   chartData: [0.99, 0.995, 1.0, 1.0, 1.0, 1.001, 1.0, 1.0, 1.0],
+  // },
+  // {
+  //   symbol: "USYC",
+  //   price: "$1.05",
+  //   change: "+2.3%",
+  //   icon: usycLogo,
+  //   color: "text-success",
+  //   change24h: "+2.3%",
+  //   marketCap: "$150M",
+  //   chartData: [1.01, 1.02, 1.03, 1.02, 1.03, 1.04, 1.05, 1.04, 1.05],
+  // },
 ];
 
 export default tokens;
