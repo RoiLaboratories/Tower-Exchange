@@ -49,11 +49,13 @@ export class TransactionBuilder {
         : inputAmountBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierIn)).toString();
 
       // Convert minOut from 18 decimals to native decimals
+      // Add 2% buffer for FeeCollector routing execution variance and slippage
       const minOutBN = ethers.BigNumber.from(quote.minOut);
+      const minOutWithBuffer = minOutBN.mul(98).div(100); // Reduce by 2% for safety
       const decimalsMultiplierOut = 18 - outputDecimals;
       const nativeMinOut = decimalsMultiplierOut > 0 
-        ? minOutBN.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
-        : minOutBN.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierOut)).toString();
+        ? minOutWithBuffer.div(ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+        : minOutWithBuffer.mul(ethers.BigNumber.from(10).pow(-decimalsMultiplierOut)).toString();
 
       console.log('[TransactionBuilder] Converted amounts to native decimals:', {
         inputToken: quote.inputToken,
@@ -63,6 +65,7 @@ export class TransactionBuilder {
         outputToken: quote.outputToken,
         outputDecimals,
         minOut18: quote.minOut,
+        minOut18WithBuffer: minOutWithBuffer.toString(),
         minOutNative: nativeMinOut,
       });
 

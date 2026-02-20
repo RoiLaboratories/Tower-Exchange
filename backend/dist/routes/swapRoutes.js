@@ -299,17 +299,27 @@ class SwapRoutes {
         try {
             // Accept both new atomic format and legacy format for backward compatibility
             const { outputToken, totalAmount, userAddress, feeBps, feeAmount } = req.body;
+            console.log('[SwapRoutes] handleSubmitFee called with body:', {
+                outputToken,
+                totalAmount,
+                userAddress,
+                feeBps,
+                feeAmount,
+            });
             // Validate output token
             if (!outputToken) {
+                console.warn('[SwapRoutes] Missing outputToken');
                 res.status(400).json({ error: 'Missing required field: outputToken' });
                 return;
             }
             if (!ethers_1.ethers.utils.isAddress(outputToken)) {
+                console.warn('[SwapRoutes] Invalid outputToken address:', outputToken);
                 res.status(400).json({ error: 'Invalid output token address' });
                 return;
             }
             // Check fee collection service availability
             if (!this.feeCollectionService.isAvailable()) {
+                console.error('[SwapRoutes] Fee collection service not available');
                 res.status(503).json({
                     error: 'Fee collection service not available',
                     details: 'FeeCollector contract not configured or backend wallet not initialized',
@@ -320,19 +330,40 @@ class SwapRoutes {
             if (totalAmount && userAddress) {
                 // New atomic collectFeeAndDistribute format
                 if (!ethers_1.ethers.utils.isAddress(userAddress)) {
+                    console.warn('[SwapRoutes] Invalid userAddress:', userAddress);
                     res.status(400).json({ error: 'Invalid user address' });
                     return;
                 }
+                let submitAmount = totalAmount;
+                // If totalAmount is 0 or suspiciously small, try to get actual balance from FeeCollector
+                if (!totalAmount || ethers_1.ethers.BigNumber.from(totalAmount).isZero()) {
+                    console.log('[SwapRoutes] totalAmount is 0, checking FeeCollector balance...');
+                    const actualBalance = await this.feeCollectionService.getFeeCollectorBalance(outputToken);
+                    if (!ethers_1.ethers.BigNumber.from(actualBalance).isZero()) {
+                        console.log('[SwapRoutes] Using FeeCollector balance instead:', actualBalance);
+                        submitAmount = actualBalance;
+                    }
+                    else {
+                        console.warn('[SwapRoutes] FeeCollector has no balance for token:', outputToken);
+                        res.status(400).json({
+                            error: 'No tokens found in FeeCollector for fee split',
+                            details: 'FeeCollector received no output from swap or balance is 0',
+                        });
+                        return;
+                    }
+                }
                 const feeBpsNum = feeBps || 25; // Default to 0.25%
-                console.log('[SwapRoutes] Submitting fee with atomic distribution:', {
+                console.log('[SwapRoutes] Using atomic collectFeeAndDistribute format:', {
                     outputToken,
-                    totalAmount,
+                    submitAmount,
+                    totalAmountProvided: totalAmount,
                     userAddress,
                     feeBps: feeBpsNum,
                     backendAddress: this.feeCollectionService.getBackendAddress(),
                 });
-                const result = await this.feeCollectionService.submitFee(outputToken, totalAmount, feeBpsNum, userAddress);
+                const result = await this.feeCollectionService.submitFee(outputToken, submitAmount, feeBpsNum, userAddress);
                 if (!result.success) {
+                    console.error('[SwapRoutes] Atomic fee collection failed:', result.error);
                     res.status(500).json({
                         error: 'Failed to submit fee with atomic distribution',
                         details: result.error,
@@ -347,6 +378,7 @@ class SwapRoutes {
                         outputToken: result.outputToken,
                         feeAmount: result.feeAmount,
                         blockNumber: result.blockNumber,
+                        amountProcessed: submitAmount,
                     },
                     timestamp: new Date().toISOString(),
                 });
@@ -354,16 +386,18 @@ class SwapRoutes {
             else if (feeAmount) {
                 // Legacy format for backward compatibility
                 if (!feeAmount) {
+                    console.warn('[SwapRoutes] Missing feeAmount in legacy format');
                     res.status(400).json({ error: 'Missing required fields: either (totalAmount + userAddress) or feeAmount' });
                     return;
                 }
-                console.log('[SwapRoutes] Submitting platform fee (legacy mode):', {
+                console.log('[SwapRoutes] Using legacy collectFee format:', {
                     outputToken,
                     feeAmount,
                     backendAddress: this.feeCollectionService.getBackendAddress(),
                 });
                 const result = await this.feeCollectionService.submitFee(outputToken, feeAmount);
                 if (!result.success) {
+                    console.error('[SwapRoutes] Fee submission (legacy) failed:', result.error);
                     res.status(500).json({
                         error: 'Failed to submit fee',
                         details: result.error,
@@ -383,6 +417,7 @@ class SwapRoutes {
                 });
             }
             else {
+                console.warn('[SwapRoutes] Missing required fields for fee submission');
                 res.status(400).json({
                     error: 'Missing required fields',
                     details: 'Provide either (totalAmount + userAddress + feeBps) for atomic distribution, or (feeAmount) for legacy collection'
