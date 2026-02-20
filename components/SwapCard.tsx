@@ -1168,13 +1168,15 @@ const SwapCard = () => {
       const platformFeeAmount = swapTx?.platformFeeAmount;
       if (platformFeeAmount && platformFeeAmount !== "0") {
         const outputTokenForFee = tokenOutAddress || quote.outputToken;
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
         console.log("Submitting platform fee for native USDC swap:", {
           outputToken: outputTokenForFee,
           platformFeeAmount,
+          backendUrl,
         });
         
         try {
-          const feeResponse = await fetch("/api/swap/submit-fee", {
+          const feeResponse = await fetch(`${backendUrl}/api/swap/submit-fee`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

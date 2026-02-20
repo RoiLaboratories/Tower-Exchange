@@ -16,7 +16,20 @@ dotenv_1.default.config();
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
 // Middleware
-app.use((0, cors_1.default)());
+// Enhanced CORS configuration for production (Vercel) and local development
+app.use((0, cors_1.default)({
+    origin: [
+        'https://tower-exchange.vercel.app', // Production frontend
+        'http://localhost:3000', // Local development
+        'http://localhost:3001', // Local backend
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400, // 24 hours
+}));
+// Handle preflight requests explicitly
+app.options('*', (0, cors_1.default)());
 app.use(express_1.default.json());
 app.use(swapRoutes_1.validateJsonRequest);
 app.use((0, swapRoutes_1.createRateLimiter)(100, 60000)); // 100 requests per minute
