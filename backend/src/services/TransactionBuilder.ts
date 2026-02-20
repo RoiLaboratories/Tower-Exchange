@@ -216,12 +216,16 @@ export class TransactionBuilder {
         ...(expectedFeeCollectorOutput && { expectedFeeCollectorOutput }),
       };
 
-      console.log('[TransactionBuilder] Built swap transaction:', {
+      console.log('[TransactionBuilder] Built swap transaction with fee details:', {
         to: tx.to,
         from: tx.from,
         dataLength: tx.data?.length || 0,
         value: tx.value,
         gasLimit: tx.gasLimit,
+        platformFeeAmount: tx.platformFeeAmount,
+        expectedUserOutput: tx.expectedUserOutput,
+        expectedFeeCollectorOutput: tx.expectedFeeCollectorOutput,
+        isNativeUSDC,
       });
 
       return tx;

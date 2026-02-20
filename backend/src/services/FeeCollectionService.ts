@@ -244,6 +244,36 @@ export class FeeCollectionService {
   }
 
   /**
+   * Get current token balance in FeeCollector contract
+   * Useful for verifying tokens received and submitting fees
+   */
+  async getFeeCollectorBalance(token: string): Promise<string> {
+    try {
+      if (!this.config.feeCollectorAddress) {
+        throw new Error('FeeCollector address not configured');
+      }
+
+      const IERC20_ABI = ['function balanceOf(address account) view returns (uint256)'];
+      const tokenContract = new ethers.Contract(
+        token,
+        IERC20_ABI,
+        this.provider
+      );
+
+      const balance = await tokenContract.balanceOf(this.config.feeCollectorAddress);
+      console.log('[FeeCollectionService] FeeCollector balance for token:', {
+        token,
+        balance: balance.toString(),
+      });
+      return balance.toString();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[FeeCollectionService] Failed to get FeeCollector balance:', errorMessage);
+      return '0';
+    }
+  }
+
+  /**
    * Build a fee submission request (for manual submission later)
    * Useful for queuing fees and batch submitting
    *

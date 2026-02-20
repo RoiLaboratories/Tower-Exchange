@@ -58,6 +58,7 @@ class TransactionBuilder {
             let targetAddress;
             let platformFeeAmount;
             let expectedUserOutput;
+            let expectedFeeCollectorOutput; // Full output that FeeCollector receives
             // Check if input is native USDC - requires direct DEX call (no TowerRouter intermediary)
             const NATIVE_USDC = '0x3600000000000000000000000000000000000000';
             const isNativeUSDC = quote.inputToken.toLowerCase() === NATIVE_USDC.toLowerCase();
@@ -76,12 +77,16 @@ class TransactionBuilder {
                 });
                 if (isNativeUSDC) {
                     // For native USDC: encode direct DEX router call (user approved DEX router directly)
-                    // Platform fee is collected from output after swap executes
+                    // Platform fee is collected atomically through FeeCollector
                     console.log('[TransactionBuilder] Native USDC detected - calling DEX router directly (no TowerRouter)');
                     // Calculate platform fee based on configured fee percentage (default 0.25%)
                     const expectedOutputBN = ethers_1.ethers.BigNumber.from(quote.outputAmount);
                     const platformFeeBps = (0, platformFeeConfig_1.getPlatformFeeBps)();
                     const platformFee18 = expectedOutputBN.mul(platformFeeBps).div(10000);
+                    // Convert full output to native decimals (what FeeCollector receives)
+                    expectedFeeCollectorOutput = decimalsMultiplierOut > 0
+                        ? expectedOutputBN.div(ethers_1.ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
+                        : expectedOutputBN.toString();
                     // Convert fee to native decimals for tracking
                     platformFeeAmount = decimalsMultiplierOut > 0
                         ? platformFee18.div(ethers_1.ethers.BigNumber.from(10).pow(decimalsMultiplierOut)).toString()
@@ -95,6 +100,15 @@ class TransactionBuilder {
                     // For DEX router calls, encode based on DEX type
                     const path = quote.route.hops.map(h => h.path).flat();
                     targetAddress = hopData.dexRouter;
+                    // Route swap output to FeeCollector for atomic fee deduction
+                    const feeCollectorAddress = this.config.feeCollectorAddress;
+                    if (!feeCollectorAddress) {
+                        throw new Error('FeeCollector address not configured - cannot route fees atomically');
+                    }
+                    console.log('[TransactionBuilder] Routing output to FeeCollector for atomic fee deduction', {
+                        feeCollectorAddress,
+                        userAddress,
+                    });
                     // XyloNet uses tuple-based swap interface: swap(tuple(address, address, uint256, uint256, address, uint256))
                     const isXyloNet = hopData.dexName?.toLowerCase().includes('xylonet') ||
                         targetAddress.toLowerCase() === '0x73742278c31a76dBb0D2587d03ef92E6E2141023'.toLowerCase();
@@ -102,13 +116,15 @@ class TransactionBuilder {
                         console.log('[TransactionBuilder] Detected XyloNet - using tuple-based swap encoding');
                         data = helpers_1.EncodingUtils.encodeXyloRouterSwap(path[0], // tokenIn
                         path[path.length - 1], // tokenOut
-                        nativeInputAmount, nativeMinOut, userAddress, deadline);
+                        nativeInputAmount, nativeMinOut, feeCollectorAddress, // Route to FeeCollector, not user
+                        deadline);
                     }
                     else {
                         // Other DEXes use standard IDexRouter interface: swap(address, address, uint256, uint256, address, uint256)
                         data = helpers_1.EncodingUtils.encodeIDexRouterSwap(path[0], // tokenIn
                         path[path.length - 1], // tokenOut
-                        nativeInputAmount, nativeMinOut, userAddress, deadline);
+                        nativeInputAmount, nativeMinOut, feeCollectorAddress, // Route to FeeCollector, not user
+                        deadline);
                     }
                     // Store fee info to be included in transaction return
                     console.log('[TransactionBuilder] Native USDC platform fee:', {
@@ -149,6 +165,7 @@ class TransactionBuilder {
                 chainId: this.config.chainId,
                 ...(platformFeeAmount && { platformFeeAmount }),
                 ...(expectedUserOutput && { expectedUserOutput }),
+                ...(expectedFeeCollectorOutput && { expectedFeeCollectorOutput }),
             };
             console.log('[TransactionBuilder] Built swap transaction:', {
                 to: tx.to,

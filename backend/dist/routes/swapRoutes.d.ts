@@ -53,7 +53,8 @@ export declare class SwapRoutes {
     private handleGetMetrics;
     /**
      * POST /submit-fee
-     * Submit platform fee for native USDC swaps to FeeCollector contract
+     * Submit platform fee with atomic distribution through FeeCollector
+     * Routes swap output through FeeCollector for atomic fee deduction
      */
     private handleSubmitFee;
     /**

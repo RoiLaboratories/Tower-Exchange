@@ -69,6 +69,7 @@ export interface SwapTransaction {
     chainId: number;
     platformFeeAmount?: string;
     expectedUserOutput?: string;
+    expectedFeeCollectorOutput?: string;
 }
 export interface ApprovalTransaction {
     to: string;
