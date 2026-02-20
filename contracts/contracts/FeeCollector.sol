@@ -121,6 +121,49 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
     }
 
     /**
+     * @dev Split fees from tokens already in this contract
+     * Used when swap output was routed directly to FeeCollector
+     * (no transferFrom needed - tokens already here from swap)
+     * 
+     * @param token Address of the token to split
+     * @param feeBps Fee in basis points (e.g., 25 = 0.25%)
+     * @param recipient User address to receive (balance - fee)
+     */
+    function splitFeesInPlace(
+        address token,
+        uint256 feeBps,
+        address recipient
+    ) external nonReentrant {
+        require(authorizedCollectors[msg.sender], "Not authorized to collect fees");
+        require(token != address(0), "Invalid token address");
+        require(recipient != address(0), "Invalid recipient address");
+        require(feeBps <= 10000, "Invalid fee basis points"); // Max 100%
+
+        // Get current balance (tokens already in contract from swap)
+        IERC20 tokenContract = IERC20(token);
+        uint256 totalAmount = tokenContract.balanceOf(address(this));
+        require(totalAmount > 0, "No tokens to split");
+
+        // Calculate fee and user amount
+        uint256 feeAmount = (totalAmount * feeBps) / 10000;
+        uint256 userAmount = totalAmount - feeAmount;
+
+        // Track if this is a new fee token
+        if (!isTrackedToken[token]) {
+            isTrackedToken[token] = true;
+            feeTokens.push(token);
+        }
+
+        // Accumulate fee
+        accumulatedFees[token] += feeAmount;
+
+        // Send user portion to recipient
+        tokenContract.safeTransfer(recipient, userAmount);
+
+        emit FeeCollected(token, feeAmount, msg.sender);
+    }
+
+    /**
      * @dev Get accumulated fees for a specific token
      */
     function getAccumulatedFees(address token) external view returns (uint256) {

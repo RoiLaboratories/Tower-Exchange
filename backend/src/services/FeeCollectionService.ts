@@ -21,6 +21,7 @@ export class FeeCollectionService {
   // FeeCollector ABI for fee collection and distribution
   private readonly FEE_COLLECTOR_ABI = [
     'function collectFeeAndDistribute(address token, uint256 totalAmount, uint256 feeBps, address recipient) external',
+    'function splitFeesInPlace(address token, uint256 feeBps, address recipient) external',
     'function collectFee(address token, uint256 amount) external',
     'function getAccumulatedFees(address token) view returns (uint256)',
   ];
@@ -101,18 +102,17 @@ export class FeeCollectionService {
         this.backendWallet
       );
 
-      // If userAddress is provided, use atomic collectFeeAndDistribute
+      // If userAddress is provided, use atomic splitFeesInPlace
       if (userAddress && ethers.utils.isAddress(userAddress)) {
-        console.log('[FeeCollectionService] Using atomic collectFeeAndDistribute:', {
+        console.log('[FeeCollectionService] Using atomic splitFeesInPlace (tokens already in FeeCollector):', {
           outputToken,
-          totalAmount,
           feeBps,
           userAddress,
           feeCollectorAddress: this.config.feeCollectorAddress,
           backendAddress: this.backendWallet.address,
         });
 
-        // Calculate expected fee amount for logging
+        // Calculate expected fee for response and logging
         const feeAmountBN = totalAmountBN.mul(feeBps).div(10000);
         const userAmountBN = totalAmountBN.sub(feeAmountBN);
 
@@ -123,25 +123,25 @@ export class FeeCollectionService {
           feePercentage: (feeBps / 100).toFixed(2) + '%',
         });
 
-        // Submit atomic fee collection and distribution
-        console.log('[FeeCollectionService] Submitting collectFeeAndDistribute transaction...');
-        const collectFeeTx = await feeCollector.collectFeeAndDistribute(
+        // splitFeesInPlace expects tokens to already be in FeeCollector (from swap output routing)
+        // It calculates fee from current balance and splits accordingly
+        console.log('[FeeCollectionService] Submitting splitFeesInPlace transaction (tokens already in FeeCollector)...');
+        const splitFeeTx = await feeCollector.splitFeesInPlace(
           outputToken,
-          totalAmountBN,
           feeBps,
           userAddress
         );
-        console.log('[FeeCollectionService] collectFeeAndDistribute transaction sent:', collectFeeTx.hash);
+        console.log('[FeeCollectionService] splitFeesInPlace transaction sent:', splitFeeTx.hash);
 
         // Wait for confirmation
-        const receipt = await collectFeeTx.wait();
+        const receipt = await splitFeeTx.wait();
 
         if (!receipt || receipt.status !== 1) {
-          throw new Error('Fee collection and distribution transaction failed');
+          throw new Error('Fee splitting transaction failed');
         }
 
-        console.log('[FeeCollectionService] Atomic fee collection successful:', {
-          transactionHash: collectFeeTx.hash,
+        console.log('[FeeCollectionService] Atomic fee splitting successful:', {
+          transactionHash: splitFeeTx.hash,
           blockNumber: receipt.blockNumber,
           gasUsed: receipt.gasUsed.toString(),
           feeAmount: feeAmountBN.toString(),
@@ -149,7 +149,7 @@ export class FeeCollectionService {
 
         return {
           success: true,
-          transactionHash: collectFeeTx.hash,
+          transactionHash: splitFeeTx.hash,
           outputToken,
           feeAmount: feeAmountBN.toString(),
           blockNumber: receipt.blockNumber,
