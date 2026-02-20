@@ -1167,15 +1167,24 @@ const SwapCard = () => {
       // Step 8: Submit platform fee with atomic distribution through FeeCollector
       // Swap output went to FeeCollector, now execute atomic fee split
       const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
+      console.log('[SwapCard] Fee collection check:', {
+        hasExpectedFeeCollectorOutput: !!feeCollectorOutput,
+        feeCollectorOutput: feeCollectorOutput,
+        platformFeeAmount: swapTx?.platformFeeAmount,
+        expectedUserOutput: swapTx?.expectedUserOutput,
+        isNativeUSDC: sellToken.symbol === 'USDC',
+      });
+
       if (feeCollectorOutput && feeCollectorOutput !== "0") {
         const outputTokenForFee = tokenOutAddress || quote.outputToken;
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
         
-        console.log("Submitting fee with atomic distribution:", {
+        console.log("[SwapCard] Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
           totalAmount: feeCollectorOutput,
           userAddress: userAddress,
           backendUrl,
+          sellToken: sellToken.symbol,
         });
         
         try {
@@ -1192,26 +1201,28 @@ const SwapCard = () => {
 
           if (!feeResponse.ok) {
             const feeError = await feeResponse.text();
-            console.warn("Fee submission response not OK:", {
+            console.warn("[SwapCard] Fee submission response not OK:", {
               status: feeResponse.status,
               error: feeError,
             });
           } else {
             const feeResult = await feeResponse.json();
-            console.log("Atomic fee collection and distribution successful:", {
-              transactionHash: feeResult.transactionHash,
-              outputToken: feeResult.outputToken,
-              feeAmount: feeResult.feeAmount,
+            console.log("[SwapCard] Atomic fee collection and distribution successful:", {
+              transactionHash: feeResult.data?.transactionHash || feeResult.transactionHash,
+              outputToken: feeResult.data?.outputToken || feeResult.outputToken,
+              feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
             });
           }
         } catch (feeError: unknown) {
-          console.error("Error submitting fee with atomic distribution:", {
+          console.error("[SwapCard] Error submitting fee with atomic distribution:", {
             message: feeError instanceof Error ? feeError.message : String(feeError),
             outputToken: outputTokenForFee,
             totalAmount: feeCollectorOutput,
           });
           // Don't throw - fee submission failure shouldn't block the swap success
         }
+      } else {
+        console.warn('[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0');
       }
 
       // Auto-dismiss notification after 5 seconds
