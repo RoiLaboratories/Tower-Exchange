@@ -23,7 +23,8 @@ const port = process.env.PORT || 3001;
 // Enhanced CORS configuration for production (Vercel) and local development
 app.use(cors({
   origin: [
-    'https://tower-exchange.vercel.app',   // Production frontend
+    'https://www.tower.exchange',           // Production frontend custom domain
+    'https://tower-exchange.vercel.app',   // Production frontend (Vercel)
     'http://localhost:3000',                // Local development
     'http://localhost:3001',                // Local backend
   ],
