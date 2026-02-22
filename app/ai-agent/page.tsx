@@ -34,7 +34,7 @@ const AIAgentPage = () => {
       <TokenTicker />
 
       {/* Mobile Toggle Button - Only visible on mobile */}
-      <div className="lg:hidden fixed bottom-6 right-6 z-50">
+      <div className="lg:hidden fixed bottom-40 right-6 z-50">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
