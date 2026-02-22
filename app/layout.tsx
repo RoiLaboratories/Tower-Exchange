@@ -30,9 +30,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} ${cinzel.variable}  antialiased`} suppressHydrationWarning>
         <PrivyProvider>
-          <div className="min-h-screen flex flex-col">
+          <div className="h-screen flex flex-col relative">
             <Header />
-            {children}
+            <div className="flex-1 overflow-y-auto pt-20 pb-32">
+              {children}
+            </div>
             <Footer />
           </div>
         </PrivyProvider>

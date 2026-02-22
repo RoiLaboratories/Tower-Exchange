@@ -32,7 +32,7 @@ const Footer = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="relative flex items-center justify-between px-6 py-6 border-t border-border mt-auto bg-[#0C0C0D]"
+        className="fixed bottom-0 left-0 right-0 z-50 relative flex items-center justify-between px-6 py-6 border-t border-border bg-[#0C0C0D]"
       >
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">

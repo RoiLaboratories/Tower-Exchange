@@ -39,7 +39,7 @@ const AIAgentPage = () => {
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowRightPanel(!showRightPanel)}
-          className="w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center"
+          className="w-14 h-14 rounded-full bg-[#7BB8FF] text-white shadow-lg flex items-center justify-center"
         >
           {showRightPanel ? <X size={24} /> : <Plus size={24} />}
         </motion.button>
