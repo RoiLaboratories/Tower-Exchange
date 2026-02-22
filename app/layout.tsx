@@ -32,7 +32,7 @@ export default function RootLayout({
         <PrivyProvider>
           <div className="flex flex-col min-h-screen relative">
             <Header />
-            <div className="flex-1 pt-20 pb-32">
+            <div className="flex-1 pt-20">
               {children}
             </div>
             <Footer />
