@@ -126,25 +126,28 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
      * (no transferFrom needed - tokens already here from swap)
      * 
      * @param token Address of the token to split
+     * @param totalAmount The exact amount of tokens swapped (to correctly calculate fee)
      * @param feeBps Fee in basis points (e.g., 25 = 0.25%)
-     * @param recipient User address to receive (balance - fee)
+     * @param recipient User address to receive (totalAmount - fee)
      */
     function splitFeesInPlace(
         address token,
+        uint256 totalAmount,
         uint256 feeBps,
         address recipient
     ) external nonReentrant {
         require(authorizedCollectors[msg.sender], "Not authorized to collect fees");
         require(token != address(0), "Invalid token address");
+        require(totalAmount > 0, "Invalid amount");
         require(recipient != address(0), "Invalid recipient address");
         require(feeBps <= 10000, "Invalid fee basis points"); // Max 100%
 
-        // Get current balance (tokens already in contract from swap)
+        // Verify contract has at least the expected amount
         IERC20 tokenContract = IERC20(token);
-        uint256 totalAmount = tokenContract.balanceOf(address(this));
-        require(totalAmount > 0, "No tokens to split");
+        uint256 contractBalance = tokenContract.balanceOf(address(this));
+        require(contractBalance >= totalAmount, "Insufficient tokens in contract");
 
-        // Calculate fee and user amount
+        // Calculate fee and user amount from the swap output amount
         uint256 feeAmount = (totalAmount * feeBps) / 10000;
         uint256 userAmount = totalAmount - feeAmount;
 

@@ -2,10 +2,10 @@
   "contract": "FeeCollector",
   "version": "1.0.0",
   "network": "arc-testnet",
-  "feeCollector": "0xB9d35E1726Acc31434dd7c18FcF50b99f5931A2e",
+  "feeCollector": "0xE71e5baDb9528647F0dd42298bC543D493FC9E40",
   "treasury": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
   "owner": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
   "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
-  "timestamp": "2026-02-20T14:24:47.326Z",
-  "blockExplorerUrl": "https://testnet.arcscan.app/address/0xB9d35E1726Acc31434dd7c18FcF50b99f5931A2e"
+  "timestamp": "2026-02-22T01:06:07.327Z",
+  "blockExplorerUrl": "https://testnet.arcscan.app/address/0xE71e5baDb9528647F0dd42298bC543D493FC9E40"
 }

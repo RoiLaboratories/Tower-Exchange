@@ -21,7 +21,7 @@ export class FeeCollectionService {
   // FeeCollector ABI for fee collection and distribution
   private readonly FEE_COLLECTOR_ABI = [
     'function collectFeeAndDistribute(address token, uint256 totalAmount, uint256 feeBps, address recipient) external',
-    'function splitFeesInPlace(address token, uint256 feeBps, address recipient) external',
+    'function splitFeesInPlace(address token, uint256 totalAmount, uint256 feeBps, address recipient) external',
     'function collectFee(address token, uint256 amount) external',
     'function getAccumulatedFees(address token) view returns (uint256)',
   ];
@@ -124,10 +124,11 @@ export class FeeCollectionService {
         });
 
         // splitFeesInPlace expects tokens to already be in FeeCollector (from swap output routing)
-        // It calculates fee from current balance and splits accordingly
+        // It calculates fee from the provided totalAmount parameter
         console.log('[FeeCollectionService] Submitting splitFeesInPlace transaction (tokens already in FeeCollector)...');
         const splitFeeTx = await feeCollector.splitFeesInPlace(
           outputToken,
+          totalAmountBN,
           feeBps,
           userAddress
         );
