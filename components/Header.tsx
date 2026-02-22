@@ -272,7 +272,7 @@ const Header = () => {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed top-20 left-0 right-0 z-40 lg:hidden border-b border-border bg-card overflow-hidden"
+            className="lg:hidden border-b border-border bg-card overflow-hidden mt-20"
           >
             <nav className="flex flex-col p-4 gap-2">
               {navItems.map((item, index) => (
