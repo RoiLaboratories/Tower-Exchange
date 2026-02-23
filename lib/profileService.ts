@@ -34,19 +34,16 @@ export const uploadProfilePicture = async (
   }
 
   try {
-    // Create a unique filename
-    const timestamp = Date.now();
-    const fileName = `${walletAddress}-${timestamp}-${file.name}`;
-    const filePath = `${fileName}`;
+    // Use simpler path structure: {walletAddress}/profile.{ext}
+    const ext = file.type.split("/")[1]; // Get extension from mime type
+    const filePath = `${walletAddress}/profile.${ext}`;
 
     // Upload to Supabase storage
-    // Note: Make sure RLS is disabled on the profile-pictures bucket
-    // or create appropriate RLS policies for public uploads
     const { data, error } = await supabase.storage
       .from("profile-pictures")
       .upload(filePath, file, {
         cacheControl: "3600",
-        upsert: true, // Allow overwriting if file exists
+        upsert: true, // Overwrite existing profile picture
       });
 
     if (error) {
@@ -135,44 +132,32 @@ export const loadProfileData = async (walletAddress: string): Promise<string | n
       }
     }
 
-    // If not in localStorage, fetch from Supabase Storage
-    const { data: files, error } = await supabase.storage
-      .from("profile-pictures")
-      .list("", {
-        limit: 100,
-      });
-
-    if (error || !files || files.length === 0) {
-      return null;
+    // Try to load from a standard path in storage
+    // Use a simple naming convention: profile/{walletAddress}.jpg
+    const standardPaths = ["profile.jpg", "profile.png", "profile.webp"];
+    
+    for (const fileName of standardPaths) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage
+        .from("profile-pictures")
+        .getPublicUrl(`${walletAddress}/${fileName}`);
+      
+      // Check if file exists by fetching it with a HEAD request
+      try {
+        const response = await fetch(publicUrl, { method: "HEAD" });
+        if (response.ok) {
+          // Cache it in localStorage
+          saveProfileData(walletAddress, publicUrl);
+          return publicUrl;
+        }
+      } catch {
+        // File doesn't exist, try next path
+        continue;
+      }
     }
 
-    // Find the most recent profile picture for this wallet
-    const userFiles = files.filter((f) =>
-      f.name.startsWith(`${walletAddress}-`)
-    );
-
-    if (userFiles.length === 0) {
-      return null;
-    }
-
-    // Sort by creation time and get the most recent
-    userFiles.sort((a, b) => {
-      const timeA = new Date(a.created_at).getTime();
-      const timeB = new Date(b.created_at).getTime();
-      return timeB - timeA;
-    });
-
-    const latestFile = userFiles[0];
-    const {
-      data: { publicUrl },
-    } = supabase.storage
-      .from("profile-pictures")
-      .getPublicUrl(latestFile.name);
-
-    // Cache it in localStorage for next time
-    saveProfileData(walletAddress, publicUrl);
-
-    return publicUrl;
+    return null;
   } catch (error) {
     console.error("Error loading profile data:", error);
     return null;
