@@ -94,9 +94,9 @@ export const sendMessageToAIAgent = async (
     const payload = {
       ...request,
       chain_id: request.chain_id || 5042002, // Arc testnet
-      enable_wallet_access: request.enable_wallet_access !== false,
-      enable_swap_execution: request.enable_swap_execution || false,
-      enable_portfolio_analysis: request.enable_portfolio_analysis !== false,
+      enable_wallet_access: request.enable_wallet_access === true,
+      enable_swap_execution: request.enable_swap_execution === true,
+      enable_portfolio_analysis: request.enable_portfolio_analysis === true,
     };
 
     const response = await fetch(url, {

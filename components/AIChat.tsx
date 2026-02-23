@@ -255,15 +255,21 @@ export const AIChat = () => {
     setError(null);
 
     try {
+      // Detect user intent to enable appropriate features
+      const lowerMessage = text.toLowerCase();
+      const enableWalletAccess = /balance|holding|wallet|token|asset|portfolio|position/.test(lowerMessage);
+      const enablePortfolioAnalysis = /portfolio|performance|pnl|profit|loss|trading|volume|analysis/.test(lowerMessage);
+      const enableSwap = /swap|exchange|trade/.test(lowerMessage);
+
       const response = await sendMessageToAIAgent({
         message: text,
         userid: user.wallet.address,
         session_id: sessionId,
         wallet_address: user.wallet.address,
         chain_id: 5042002, // Arc testnet
-        enable_wallet_access: true,
-        enable_swap_execution: false,
-        enable_portfolio_analysis: true,
+        enable_wallet_access: enableWalletAccess,
+        enable_swap_execution: enableSwap,
+        enable_portfolio_analysis: enablePortfolioAnalysis,
       });
 
       console.log("AI Response received:", response);
