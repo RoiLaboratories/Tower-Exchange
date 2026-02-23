@@ -17,8 +17,8 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "Tower Finance - Cryptocurrency Trading Platform",
-  description: "Trade cryptocurrencies with ease on Tower Finance",
+  title: "Tower Exchange - An AI powered DEX aggregator and portfolio management tool",
+  description: "Trade cryptocurrencies with ease on Tower Exchange",
 };
 
 export default function RootLayout({
