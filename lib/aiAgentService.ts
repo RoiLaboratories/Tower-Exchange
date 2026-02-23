@@ -26,8 +26,6 @@ export interface AIAgentResponse {
       address: string;
       balance: string;
       formatted_balance: string;
-      price: string;
-      value: string;
     }>;
     positions?: Array<{
       token: string;

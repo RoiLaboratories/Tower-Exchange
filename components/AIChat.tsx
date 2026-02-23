@@ -266,12 +266,44 @@ export const AIChat = () => {
         enable_portfolio_analysis: true,
       });
 
+      console.log("AI Response received:", response);
+      console.log("Response data:", response.data);
+
       const aiResponse: Message = {
         id: Date.now() + 1,
         text: response.reply,
         isUser: false,
       };
       setMessages((prev) => [...prev, aiResponse]);
+
+      // If we have wallet data, create an additional message to display it
+      if (response.data && response.data.balances && response.data.balances.length > 0) {
+        let dataText = "💰 Wallet Balances:\n";
+        response.data.balances.forEach((balance) => {
+          dataText += `${balance.token}: ${balance.formatted_balance}\n`;
+        });
+        
+        const dataMessage: Message = {
+          id: Date.now() + 2,
+          text: dataText,
+          isUser: false,
+        };
+        setMessages((prev) => [...prev, dataMessage]);
+      }
+
+      if (response.data && response.data.positions && response.data.positions.length > 0) {
+        let posText = "📊 Portfolio Positions:\n";
+        response.data.positions.forEach((pos) => {
+          posText += `${pos.token}: ${pos.amount} ($${pos.value}) ${pos.change}\n`;
+        });
+        
+        const posMessage: Message = {
+          id: Date.now() + 3,
+          text: posText,
+          isUser: false,
+        };
+        setMessages((prev) => [...prev, posMessage]);
+      }
 
       // Save chat to Supabase
       await saveChatMessageToHistory(
