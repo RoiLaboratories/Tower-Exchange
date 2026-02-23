@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
       "Content-Type": "application/json",
     };
 
-    // Add API key using Bearer token format
+    // Add API key in the correct header
     if (API_KEY) {
-      headers["Authorization"] = `Bearer ${API_KEY}`;
+      headers["endpoint_auth"] = API_KEY;
     }
 
     const chatUrl = `${BACKEND_URL}/api/v1/chat`;
