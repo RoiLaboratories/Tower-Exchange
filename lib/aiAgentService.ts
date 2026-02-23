@@ -81,7 +81,7 @@ export interface ChatHistoryItem {
 }
 
 // Use Next.js API proxy route (keeps API key secret)
-const CHAT_ENDPOINT = "/api/v1/chat";
+const CHAT_ENDPOINT = "/api/ai/chat";
 
 /**
  * Send a message to the Tower AI Agent and get a response
