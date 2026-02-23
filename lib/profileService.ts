@@ -66,6 +66,9 @@ export const uploadProfilePicture = async (
       .from("profile-pictures")
       .getPublicUrl(data.path);
 
+    // Cache locally
+    saveProfileData(walletAddress, publicUrl);
+
     console.log("Profile picture uploaded successfully:", publicUrl);
     return publicUrl;
   } catch (error) {
@@ -118,7 +121,7 @@ export const saveProfileData = (walletAddress: string, profilePictureUrl: string
 };
 
 /**
- * Load profile data from local storage or fetch from Supabase
+ * Load profile data from local storage or fetch from Supabase Storage
  * @param walletAddress - The user's wallet address
  */
 export const loadProfileData = async (walletAddress: string): Promise<string | null> => {
@@ -132,27 +135,28 @@ export const loadProfileData = async (walletAddress: string): Promise<string | n
       }
     }
 
-    // Try to load from a standard path in storage
-    // Use a simple naming convention: profile/{walletAddress}.jpg
-    const standardPaths = ["profile.jpg", "profile.png", "profile.webp"];
+    // Try to get the profile picture from storage bucket
+    // Check common file extensions
+    const extensions = ["jpg", "jpeg", "png", "webp", "gif"];
     
-    for (const fileName of standardPaths) {
+    for (const ext of extensions) {
+      const filePath = `${walletAddress}/profile.${ext}`;
       const {
         data: { publicUrl },
       } = supabase.storage
         .from("profile-pictures")
-        .getPublicUrl(`${walletAddress}/${fileName}`);
-      
-      // Check if file exists by fetching it with a HEAD request
+        .getPublicUrl(filePath);
+
+      // Try to fetch to see if file exists
       try {
-        const response = await fetch(publicUrl, { method: "HEAD" });
+        const response = await fetch(publicUrl, { method: "GET" });
         if (response.ok) {
-          // Cache it in localStorage
+          // File exists, cache and return
           saveProfileData(walletAddress, publicUrl);
           return publicUrl;
         }
-      } catch {
-        // File doesn't exist, try next path
+      } catch (error) {
+        // File doesn't exist at this path, try next extension
         continue;
       }
     }
