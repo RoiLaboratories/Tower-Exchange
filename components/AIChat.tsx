@@ -39,6 +39,7 @@ export const AIChat = () => {
   const [sessionId, setSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [profileImageError, setProfileImageError] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -102,6 +103,7 @@ export const AIChat = () => {
       setMessages([]);
       setMessage("");
       setError(null);
+      setProfileImageError(false);
       setSidebarOpen(false); // Close sidebar after selecting a session
 
       // Load history for this session
@@ -163,7 +165,10 @@ export const AIChat = () => {
       try {
         // Load profile picture from localStorage or fetch from Supabase
         const profilePicUrl = await loadProfileData(user.wallet.address);
+        console.log("Profile picture URL loaded:", profilePicUrl ? "✓ URL exists" : "✗ No URL");
+        console.log("Profile URL:", profilePicUrl);
         setProfilePictureUrl(profilePicUrl);
+        setProfileImageError(false);
 
         // Load all sessions for this user
         const userSessions = loadSessions(user.wallet.address);
@@ -281,35 +286,6 @@ export const AIChat = () => {
         isUser: false,
       };
       setMessages((prev) => [...prev, aiResponse]);
-
-      // If we have wallet data, create an additional message to display it
-      if (response.data && response.data.balances && response.data.balances.length > 0) {
-        let dataText = "💰 Wallet Balances:\n";
-        response.data.balances.forEach((balance) => {
-          dataText += `${balance.token}: ${balance.formatted_balance}\n`;
-        });
-        
-        const dataMessage: Message = {
-          id: Date.now() + 2,
-          text: dataText,
-          isUser: false,
-        };
-        setMessages((prev) => [...prev, dataMessage]);
-      }
-
-      if (response.data && response.data.positions && response.data.positions.length > 0) {
-        let posText = "📊 Portfolio Positions:\n";
-        response.data.positions.forEach((pos) => {
-          posText += `${pos.token}: ${pos.amount} ($${pos.value}) ${pos.change}\n`;
-        });
-        
-        const posMessage: Message = {
-          id: Date.now() + 3,
-          text: posText,
-          isUser: false,
-        };
-        setMessages((prev) => [...prev, posMessage]);
-      }
 
       // Save chat to Supabase
       await saveChatMessageToHistory(
@@ -548,14 +524,19 @@ export const AIChat = () => {
                 </motion.div>
 
                 {msg.isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-                    {profilePictureUrl ? (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-gray-600">
+                    {profilePictureUrl && !profileImageError ? (
                       <Image
                         src={profilePictureUrl}
                         alt="User avatar"
                         width={32}
                         height={32}
                         className="object-cover w-full h-full"
+                        onError={() => {
+                          console.error("Failed to load profile image:", profilePictureUrl);
+                          setProfileImageError(true);
+                        }}
+                        unoptimized={true}
                       />
                     ) : (
                       <span className="text-white text-sm font-semibold">
