@@ -17,7 +17,7 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "Tower Exchange - An AI powered DEX aggregator and portfolio management tool",
+  title: "Tower Exchange - The AI powered DEX aggregator and portfolio management tool",
   description: "Trade cryptocurrencies with ease on Tower Exchange",
 };
 
