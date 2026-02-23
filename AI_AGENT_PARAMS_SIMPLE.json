@@ -1,0 +1,266 @@
+{
+  "api_endpoint": "https://tower-exchange-ai-production.up.railway.app/api/v1/chat",
+  "authentication": {
+    "header": "endpoint_auth",
+    "value": "from env: AI_AGENT_API_KEY"
+  },
+  "request_parameters": {
+    "core": {
+      "message": {
+        "type": "string",
+        "required": true,
+        "description": "User query/message"
+      },
+      "userid": {
+        "type": "string",
+        "required": true,
+        "description": "User identifier (wallet address)"
+      },
+      "session_id": {
+        "type": "string",
+        "required": true,
+        "description": "Chat session ID (UUID format)"
+      }
+    },
+    "wallet_context": {
+      "wallet_address": {
+        "type": "string",
+        "required": true,
+        "description": "User's wallet address for data access"
+      },
+      "chain_id": {
+        "type": "number",
+        "required": true,
+        "description": "Blockchain network ID",
+        "value": 5042002,
+        "note": "5042002 = Arc testnet"
+      }
+    },
+    "feature_flags": {
+      "enable_wallet_access": {
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "Enable wallet balance reading"
+      },
+      "enable_swap_execution": {
+        "type": "boolean",
+        "required": false,
+        "default": false,
+        "description": "Enable swap transaction building"
+      },
+      "enable_portfolio_analysis": {
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "Enable portfolio analysis"
+      }
+    },
+    "swap_intent": {
+      "type": "object",
+      "required": false,
+      "description": "Required if enable_swap_execution=true",
+      "properties": {
+        "inputToken": {
+          "type": "string",
+          "description": "Input token contract address"
+        },
+        "outputToken": {
+          "type": "string",
+          "description": "Output token contract address"
+        },
+        "inputAmount": {
+          "type": "string",
+          "description": "Amount in smallest unit (wei/6 decimals)"
+        },
+        "slippage": {
+          "type": "number",
+          "description": "Slippage tolerance (0.5 = 0.5%)"
+        },
+        "minOut": {
+          "type": "string",
+          "description": "Minimum output amount"
+        },
+        "referrer": {
+          "type": "string",
+          "required": false,
+          "description": "Optional referrer address"
+        }
+      }
+    },
+    "analysis_params": {
+      "type": "object",
+      "required": false,
+      "description": "Required if enable_portfolio_analysis=true",
+      "properties": {
+        "timeframe": {
+          "type": "string",
+          "enum": ["24H", "7D", "30D", "ALL"],
+          "default": "7D"
+        },
+        "include_positions": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_pnl": {
+          "type": "boolean",
+          "default": true
+        },
+        "include_volume": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  },
+  "response_structure": {
+    "core_response": {
+      "reply": {
+        "type": "string",
+        "description": "AI agent's text response"
+      },
+      "userid": {
+        "type": "string",
+        "description": "User ID echo"
+      },
+      "session_id": {
+        "type": "string",
+        "description": "Session ID echo"
+      }
+    },
+    "optional_data": {
+      "action": {
+        "type": "string",
+        "enum": ["chat", "swap", "analysis", "balance_check"],
+        "description": "Type of action performed"
+      },
+      "balances": {
+        "type": "array",
+        "description": "Wallet token balances",
+        "items": {
+          "token": "string",
+          "address": "string",
+          "balance": "string (raw)",
+          "formatted_balance": "string",
+          "price": "string",
+          "value": "string"
+        }
+      },
+      "positions": {
+        "type": "array",
+        "description": "Open trading positions",
+        "items": {
+          "token": "string",
+          "amount": "string",
+          "value": "string",
+          "change": "string"
+        }
+      },
+      "pnl": {
+        "type": "object",
+        "description": "Profit and loss metrics",
+        "properties": {
+          "total": "string",
+          "percentage": "number",
+          "timeframe": "string"
+        }
+      },
+      "volume": {
+        "type": "object",
+        "description": "Trading volume metrics",
+        "properties": {
+          "one_day": "string",
+          "seven_day": "string",
+          "thirty_day": "string"
+        }
+      },
+      "quote": {
+        "type": "object",
+        "description": "Swap quote information",
+        "properties": {
+          "inputToken": "string",
+          "outputToken": "string",
+          "inputAmount": "string",
+          "outputAmount": "string",
+          "priceImpact": "number",
+          "minOut": "string",
+          "route": "object"
+        }
+      },
+      "swap_tx": {
+        "type": "object",
+        "description": "Executable swap transaction",
+        "properties": {
+          "to": "string",
+          "data": "string",
+          "value": "string",
+          "from": "string",
+          "gasLimit": "string",
+          "chainId": "number"
+        }
+      }
+    }
+  },
+  "supported_tokens": {
+    "swap_enabled": [
+      {
+        "symbol": "USDC",
+        "address": "0x3600000000000000000000000000000000000000",
+        "decimals": 6
+      },
+      {
+        "symbol": "EURC",
+        "address": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+        "decimals": 6
+      }
+    ],
+    "portfolio_tracking": [
+      {
+        "symbol": "USDC",
+        "address": "0x3600000000000000000000000000000000000000",
+        "decimals": 6,
+        "swappable": true
+      },
+      {
+        "symbol": "EURC",
+        "address": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+        "decimals": 6,
+        "swappable": true
+      },
+      {
+        "symbol": "QTM",
+        "address": "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
+        "decimals": 18,
+        "swappable": false,
+        "status": "Coming soon"
+      },
+      {
+        "symbol": "SWPRC",
+        "address": "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
+        "decimals": 18,
+        "swappable": false,
+        "status": "Coming soon"
+      }
+    ]
+  },
+  "network": {
+    "chain": "Arc",
+    "testnet": {
+      "chain_id": 5042002,
+      "rpc_url": "https://arc-testnet-rpc.example.com"
+    }
+  },
+  "backend_required_capabilities": [
+    "getBalance(wallet_address, chain_id)",
+    "getTokenBalances(wallet_address, token_list, chain_id)",
+    "getPortfolioValue(wallet_address, chain_id)",
+    "getOpenPositions(wallet_address, chain_id)",
+    "getClosedPositions(wallet_address, chain_id)",
+    "getSwapQuote(inputToken, outputToken, inputAmount, chain_id)",
+    "buildSwapTransaction(quote, wallet_address, chain_id)",
+    "simulateSwap(quote, chain_id)",
+    "getGasEstimate(tx_data, chain_id)",
+    "calculatePnL(wallet_address, timeframe, chain_id)",
+    "getTradingVolume(wallet_address, timeframe, chain_id)"
+  ]
+}

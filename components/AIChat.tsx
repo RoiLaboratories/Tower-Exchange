@@ -259,6 +259,11 @@ export const AIChat = () => {
         message: text,
         userid: user.wallet.address,
         session_id: sessionId,
+        wallet_address: user.wallet.address,
+        chain_id: 5042002, // Arc testnet
+        enable_wallet_access: true,
+        enable_swap_execution: false,
+        enable_portfolio_analysis: true,
       });
 
       const aiResponse: Message = {

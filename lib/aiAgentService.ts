@@ -1,5 +1,5 @@
 /**
- * AI Agent Service - Handles communication with the Vercel AI agent endpoint
+ * AI Agent Service - Handles communication with Tower-Exchange-AI backend
  */
 
 import { supabase } from "./supabase";
@@ -8,12 +8,61 @@ export interface AIAgentRequest {
   message: string;
   userid: string;
   session_id: string;
+  wallet_address?: string;
+  chain_id?: number;
+  enable_wallet_access?: boolean;
+  enable_swap_execution?: boolean;
+  enable_portfolio_analysis?: boolean;
 }
 
 export interface AIAgentResponse {
   reply: string;
   userid: string;
   session_id: string;
+  data?: {
+    action?: string;
+    balances?: Array<{
+      token: string;
+      address: string;
+      balance: string;
+      formatted_balance: string;
+      price: string;
+      value: string;
+    }>;
+    positions?: Array<{
+      token: string;
+      amount: string;
+      value: string;
+      change: string;
+    }>;
+    pnl?: {
+      total: string;
+      percentage: number;
+      timeframe: string;
+    };
+    volume?: {
+      one_day: string;
+      seven_day: string;
+      thirty_day: string;
+    };
+    quote?: {
+      inputToken: string;
+      outputToken: string;
+      inputAmount: string;
+      outputAmount: string;
+      priceImpact: number;
+      minOut: string;
+      route: any;
+    };
+    swap_tx?: {
+      to: string;
+      data: string;
+      value: string;
+      from_address: string;
+      gasLimit: string;
+      chainId: number;
+    };
+  };
 }
 
 export interface AIAgentError {
@@ -31,37 +80,33 @@ export interface ChatHistoryItem {
   user_id: string | null;
 }
 
-// Use local Next.js API proxy routes to avoid CORS issues
-// In the browser, use the current origin (works in both dev and production)
-const getAPIBaseURL = () => {
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  // Server-side fallback
-  return process.env.NEXT_PUBLIC_API_URI || "http://localhost:3000";
-};
-
-const API_BASE_URL = getAPIBaseURL();
-const CHAT_ENDPOINT = "/api/ai/chat";
-const SESSION_ENDPOINT = "/api/ai/session";
-const HISTORY_ENDPOINT = "/api/ai/history";
+// Use Next.js API proxy route (keeps API key secret)
+const CHAT_ENDPOINT = "/api/v1/chat";
 
 /**
- * Send a message to the AI agent and get a response
+ * Send a message to the Tower AI Agent and get a response
  */
 export const sendMessageToAIAgent = async (
   request: AIAgentRequest
 ): Promise<AIAgentResponse> => {
-  const baseUrl = getAPIBaseURL();
-  const url = `${baseUrl}${CHAT_ENDPOINT}`;
+  const url = CHAT_ENDPOINT;
 
   try {
+    // Prepare request with wallet context and defaults
+    const payload = {
+      ...request,
+      chain_id: request.chain_id || 5042002, // Arc testnet
+      enable_wallet_access: request.enable_wallet_access !== false,
+      enable_swap_execution: request.enable_swap_execution || false,
+      enable_portfolio_analysis: request.enable_portfolio_analysis !== false,
+    };
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -74,13 +119,14 @@ export const sendMessageToAIAgent = async (
     const data = (await response.json()) as AIAgentResponse;
     return data;
   } catch (error) {
-    console.error("Error communicating with AI agent:", error);
+    console.error("Error communicating with Tower AI agent:", error);
     throw error;
   }
 };
 
 /**
- * Send a streaming message to the AI agent (for real-time responses)
+ * Send a message to the Tower AI Agent (streaming support for future use)
+ * Currently uses regular response, will upgrade to streaming later
  */
 export const sendMessageToAIAgentStream = async (
   request: AIAgentRequest,
@@ -88,43 +134,11 @@ export const sendMessageToAIAgentStream = async (
   onComplete: () => void,
   onError: (error: Error) => void
 ): Promise<void> => {
-  const baseUrl = getAPIBaseURL();
-  const url = `${baseUrl}${CHAT_ENDPOINT}`;
-
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Response body is not readable");
-    }
-
-    const decoder = new TextDecoder();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          onComplete();
-          break;
-        }
-
-        const chunk = decoder.decode(value, { stream: true });
-        onChunk(chunk);
-      }
-    } finally {
-      reader.releaseLock();
-    }
+    const response = await sendMessageToAIAgent(request);
+    // Emit the complete response as a single chunk
+    onChunk(response.reply);
+    onComplete();
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     onError(err);

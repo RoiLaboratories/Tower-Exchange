@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_AI_AGENT_URL ||
-  "https://tower-exchange-ai-production.up.railway.app";
+  "https://tower-exchange-ai-production-5811.up.railway.app";
 const API_KEY = process.env.AI_AGENT_API_KEY || "";
 
 export async function POST(request: NextRequest) {
