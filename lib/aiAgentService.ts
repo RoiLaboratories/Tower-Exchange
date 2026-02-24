@@ -52,13 +52,24 @@ export interface AIAgentResponse {
       minOut: string;
       route: any;
     };
-    swap_tx?: {
-      to: string;
-      data: string;
-      value: string;
-      from_address: string;
-      gasLimit: string;
-      chainId: number;
+    swap_execution?: {
+      quote: {
+        inputToken: string;
+        outputToken: string;
+        inputAmount: string;
+        outputAmount: string;
+        priceImpact: number;
+        minOut: string;
+        route: any;
+      };
+      transaction: {
+        to: string;
+        data: string;
+        value: string;
+        from: string;
+        gasLimit: string;
+        chainId: number;
+      };
     };
   };
 }

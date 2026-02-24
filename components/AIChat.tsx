@@ -8,6 +8,8 @@ import { sendMessageToAIAgent, createAIAgentSession, saveChatMessageToHistory, g
 import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, MessageSquare, Trash2, Menu, X } from "lucide-react";
+import { useSwapExecution } from "@/lib/useSwapExecution";
+import { TransactionConfirmation } from "./TransactionConfirmation";
 
 interface Message {
   id: number;
@@ -32,6 +34,7 @@ const quickPrompts = [
 
 export const AIChat = () => {
   const { user } = usePrivy();
+  const swapExecution = useSwapExecution();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +45,8 @@ export const AIChat = () => {
   const [profileImageError, setProfileImageError] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [swapExecutionData, setSwapExecutionData] = useState<any>(null);
+  const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
 
   // Load sessions from localStorage
   const loadSessions = (walletAddress: string): ChatSession[] => {
@@ -286,6 +291,32 @@ export const AIChat = () => {
         isUser: false,
       };
       setMessages((prev) => [...prev, aiResponse]);
+
+      // Check if swap execution data is present
+      if (response.data?.swap_execution) {
+        console.log("Swap execution data detected:", response.data.swap_execution);
+        setSwapExecutionData(response.data.swap_execution);
+        setShowSwapConfirmation(true);
+
+        // Auto-trigger swap execution flow
+        if (user?.wallet?.address) {
+          try {
+            await swapExecution.executeSwap(
+              response.data.swap_execution.transaction,
+              user.wallet.address,
+              sessionId,
+              (confirmation) => {
+                // After successful confirmation, send message back to AI
+                console.log("Swap confirmed:", confirmation);
+                // This will be handled by the backend confirmation endpoint
+              }
+            );
+          } catch (swapError) {
+            console.error("Swap execution error:", swapError);
+            // Error is handled by the hook's state
+          }
+        }
+      }
 
       // Save chat to Supabase
       await saveChatMessageToHistory(
@@ -586,6 +617,23 @@ export const AIChat = () => {
 
         {/* Bottom Container: Logo, Prompts, and Input */}
         <div className="shrink-0 max-w-2xl mt-6">
+          {/* Transaction Confirmation Display */}
+          {showSwapConfirmation && (
+            <div className="mb-4">
+              <TransactionConfirmation
+                status={swapExecution.status as any}
+                statusMessage={swapExecution.statusMessage}
+                transactionHash={swapExecution.transactionHash}
+                blockNumber={swapExecution.blockNumber}
+                error={swapExecution.error}
+                onClose={() => {
+                  setShowSwapConfirmation(false);
+                  swapExecution.resetState();
+                }}
+              />
+            </div>
+          )}
+
           {/* Logo and Prompts - Only show when no messages */}
           {messages.length === 0 && (
             <div className="mb-6">
