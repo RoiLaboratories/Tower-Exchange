@@ -23,11 +23,11 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "Tower Exchange - AI-Powered DEX & Portfolio Management",
+    title: "Tower Exchange - AI-Powered DEX & Portfolio Manager",
     description: "Trade cryptocurrencies with ease on Tower Exchange. AI-powered DEX aggregator with portfolio management.",
     images: [
       {
-        url: "/og-image.svg",
+        url: "/assets/Tower Logo.png",
         width: 1200,
         height: 630,
         alt: "Tower Exchange",
