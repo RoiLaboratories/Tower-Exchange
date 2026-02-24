@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     description: "Trade cryptocurrencies with ease on Tower Exchange. AI-powered DEX aggregator with portfolio management.",
     images: [
       {
-        url: "/assets/Tower Logo.png",
+        url: "/assets/og-image.png",
         width: 1200,
         height: 630,
         alt: "Tower Exchange",
