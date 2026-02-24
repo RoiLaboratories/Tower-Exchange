@@ -22,6 +22,19 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
+  openGraph: {
+    title: "Tower Exchange - AI-Powered DEX & Portfolio Management",
+    description: "Trade cryptocurrencies with ease on Tower Exchange. AI-powered DEX aggregator with portfolio management.",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Tower Exchange",
+      },
+    ],
+    type: "website",
+  },
 };
 
 export default function RootLayout({
