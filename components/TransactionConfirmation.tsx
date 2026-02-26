@@ -117,11 +117,11 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
                     <Copy size={14} />
                   </button>
                   <a
-                    href={`https://arc.io/tx/${transactionHash}`}
+                    href={`https://testnet.arcscan.app/tx/${transactionHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1 hover:bg-white/10 rounded transition-colors"
-                    title="View on Arc Scanner"
+                    title="View on Arcscan Testnet"
                   >
                     <ExternalLink size={14} />
                   </a>
