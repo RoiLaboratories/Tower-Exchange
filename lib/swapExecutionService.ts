@@ -34,6 +34,52 @@ export interface ConfirmationResult {
 const ARC_RPC_URL = "https://rpc.testnet.arc.network";
 
 /**
+ * Arc testnet chain ID
+ */
+const ARC_CHAIN_ID = 5042002;
+
+/**
+ * Validate transaction object before signing
+ */
+const validateTransaction = (transaction: TransactionData, walletAddress: string): void => {
+  if (!transaction) {
+    throw new Error("Transaction object is missing");
+  }
+
+  if (!transaction.to || typeof transaction.to !== "string") {
+    throw new Error(`Invalid or missing 'to' address: ${transaction.to}. Expected hexadecimal address starting with 0x`);
+  }
+
+  if (!transaction.to.startsWith("0x") || transaction.to.length !== 42) {
+    throw new Error(`'to' address must be a valid 20-byte hex address (42 characters including 0x). Received: ${transaction.to}`);
+  }
+
+  if (!transaction.data || typeof transaction.data !== "string") {
+    throw new Error(`Invalid or missing 'data' field: ${transaction.data}. Expected hex string starting with 0x`);
+  }
+
+  if (!transaction.data.startsWith("0x")) {
+    throw new Error(`'data' field must start with 0x. Received: ${transaction.data.substring(0, 50)}...`);
+  }
+
+  if (typeof transaction.value !== "string") {
+    throw new Error(`Invalid 'value' field: ${transaction.value}. Expected string (wei amount)`);
+  }
+
+  if (!transaction.gasLimit || typeof transaction.gasLimit !== "string") {
+    throw new Error(`Invalid or missing 'gasLimit': ${transaction.gasLimit}. Expected string (wei amount)`);
+  }
+
+  if (!walletAddress || typeof walletAddress !== "string") {
+    throw new Error(`Invalid wallet address: ${walletAddress}`);
+  }
+
+  if (!walletAddress.startsWith("0x") || walletAddress.length !== 42) {
+    throw new Error(`Wallet address must be a valid 20-byte hex address. Received: ${walletAddress}`);
+  }
+};
+
+/**
  * Sign and send a transaction using Privy's embedded wallet
  * This uses window.ethereum provider which Privy injects
  */
@@ -42,9 +88,8 @@ export const signTransactionWithPrivy = async (
   walletAddress: string
 ): Promise<SignTransactionResult> => {
   try {
-    if (!walletAddress) {
-      throw new Error("Wallet address not available");
-    }
+    // Validate transaction object
+    validateTransaction(transaction, walletAddress);
 
     // Get the ethereum provider from window (injected by Privy)
     const provider = (window as any).ethereum;
@@ -52,13 +97,15 @@ export const signTransactionWithPrivy = async (
       throw new Error("Ethereum provider not available. Please ensure Privy wallet is connected.");
     }
 
-    console.log("Signing transaction with Privy wallet:", {
+    console.log("Validated transaction. Attempting to sign with Privy wallet:", {
       to: transaction.to,
-      from: transaction.from,
+      from: walletAddress,
+      data: `${transaction.data.substring(0, 66)}...`,
       value: transaction.value,
+      gasLimit: transaction.gasLimit,
     });
 
-    // Prepare the transaction object
+    // Prepare the transaction object for Privy
     const txObject = {
       to: transaction.to,
       from: walletAddress,
@@ -69,12 +116,21 @@ export const signTransactionWithPrivy = async (
 
     // Sign the transaction via eth_sendTransaction (Privy handles the UI)
     // This will show Privy's wallet confirmation screen
+    console.log("Sending transaction to Privy for signing...");
     const transactionHash = await provider.request({
       method: "eth_sendTransaction",
       params: [txObject],
     });
 
-    console.log("Transaction sent successfully:", transactionHash);
+    if (!transactionHash) {
+      throw new Error("No transaction hash returned from wallet. Transaction may have been rejected.");
+    }
+
+    if (typeof transactionHash !== "string" || !transactionHash.startsWith("0x")) {
+      throw new Error(`Invalid transaction hash returned: ${transactionHash}`);
+    }
+
+    console.log("✓ Transaction signed and sent successfully:", transactionHash);
 
     return {
       signedTx: transactionHash,
@@ -82,11 +138,21 @@ export const signTransactionWithPrivy = async (
     };
   } catch (error) {
     console.error("Error signing transaction with Privy:", error);
-    throw new Error(
-      `Failed to sign transaction: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
+    
+    let detailedMessage = "Failed to sign transaction";
+    if (error instanceof Error) {
+      detailedMessage = error.message;
+      // Check for common Privy/MetaMask error patterns
+      if (error.message.includes("Invalid \"to\" address")) {
+        detailedMessage = `Transaction rejected: Invalid router address. This may indicate the DEX router address is not properly configured on Arc testnet.`;
+      } else if (error.message.includes("insufficient funds")) {
+        detailedMessage = "Insufficient funds in wallet to pay for gas.";
+      } else if (error.message.includes("User rejected")) {
+        detailedMessage = "Transaction signing was cancelled by user.";
+      }
+    }
+    
+    throw new Error(detailedMessage);
   }
 };
 

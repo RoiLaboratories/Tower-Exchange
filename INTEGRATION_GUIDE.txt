@@ -1,0 +1,1447 @@
+================================================================================
+TOWER EXCHANGE - INTEGRATION GUIDE
+================================================================================
+
+Production-ready multi-layer integration for swap execution, AI agents, and blockchain interaction.
+
+Status: Ready for Integration
+Supported Networks: Arc Testnet (5042002)
+Live Demo: https://www.tower.exchange
+
+
+================================================================================
+PART 1: FRONTEND FRAMEWORKS & SDKS
+================================================================================
+
+Next.js 14+ with TypeScript and React 18
+
+Tower Exchange frontend is built with modern tooling for scalable web applications.
+
+INSTALLATION:
+npm install @privy-io/react-auth framer-motion lucide-react
+
+KEY INTEGRATION POINTS:
+
+React Hooks
+  - useSwapExecution() - Manages swap execution state and transaction flow
+  - usePrivy() - Access user authentication and wallet information
+  - Custom hooks for real-time transaction status updates
+
+Next.js App Router
+  - /app directory structure for file-based routing
+  - API routes at /api for backend communication
+  - Server-side rendering (SSR) disabled for wallet features
+  - Incremental Static Regeneration for performance
+
+Component Library
+  - AIChat component - Main conversation interface with AI agent
+  - TransactionConfirmation component - Real-time transaction status display
+  - SwapCard component - User-friendly swap interface
+  - Custom UI components built with Framer Motion
+
+Deployment
+  - Vercel integration for automatic deployments
+  - Environment variable management in Vercel dashboard
+  - Preview environments for every pull request
+  - Zero-configuration hosting
+
+TYPESCRIPT CONFIGURATION:
+
+The project uses strict TypeScript mode for type safety:
+  - compilerOptions include strict: true
+  - No implicit any types allowed
+  - Full type checking for components and hooks
+  - Type definitions for all external libraries
+
+EXAMPLE USAGE:
+
+In your React component:
+
+import { useSwapExecution } from '@/lib/useSwapExecution';
+import { TransactionConfirmation } from '@/components/TransactionConfirmation';
+
+export function SwapWidget() {
+  const swapExecution = useSwapExecution();
+  
+  // Auto-triggers when transaction ready from AI agent
+  const handleSwap = async (transaction, wallet) => {
+    await swapExecution.executeSwap(transaction, wallet, sessionId);
+  };
+  
+  return (
+    <div>
+      <AIChat onSwapReady={handleSwap} />
+      <TransactionConfirmation {...swapExecution} />
+    </div>
+  );
+}
+
+
+================================================================================
+PART 2: WALLET AUTHENTICATION & SIGNING
+================================================================================
+
+Privy Embedded Wallet System
+
+Tower Exchange uses Privy for both authentication and transaction signing.
+
+AUTHENTICATION FLOW:
+
+1. User lands on application
+2. Privy login modal appears (email or social login)
+3. Upon successful authentication, Privy creates or connects embedded wallet
+4. User wallet address is available immediately
+5. No additional setup required for wallet connection
+
+WALLET FEATURES:
+
+- Non-custodial: Users retain full private key control
+- Embedded: Wallet UI seamlessly integrated into app
+- Cross-chain: Supports multiple blockchain networks
+- Multi-backup: Hardware wallet and recovery phrase support
+- Session persistence: Authentication survives page refreshes
+- Automatic signing: Privy handles pop-up UX for transaction approval
+
+INTEGRATION CODE:
+
+Basic setup in _app.tsx or layout.tsx:
+
+import { PrivyProvider } from '@privy-io/react-auth';
+
+export default function RootLayout() {
+  return (
+    <PrivyProvider appId="YOUR_PRIVY_APP_ID" config={{
+      appearance: {
+        theme: 'dark',
+        accentColor: '#676FFF'
+      },
+      embeddedWallets: {
+        createOnLogin: 'users-without-wallets'
+      }
+    }}>
+      <YourApp />
+    </PrivyProvider>
+  );
+}
+
+ACCESSING USER WALLET:
+
+import { usePrivy } from '@privy-io/react-auth';
+
+export function MyComponent() {
+  const { user, ready } = usePrivy();
+  
+  if (!ready) return <div>Loading...</div>;
+  if (!user) return <div>Please log in</div>;
+  
+  const walletAddress = user.wallet?.address;
+  // Use walletAddress for transactions
+}
+
+TRANSACTION SIGNING:
+
+When transaction is ready, signing happens automatically:
+
+const txHash = await window.ethereum.request({
+  method: 'eth_sendTransaction',
+  params: [{
+    to: recipientAddress,
+    data: encodedSwapData,
+    from: userWalletAddress,
+    gasLimit: '300000',
+    value: '0'
+  }]
+});
+
+Privy automatically:
+  - Shows wallet popup for user confirmation
+  - Handles key management
+  - Returns transaction hash upon signing
+  - Manages gas payment
+
+SECURITY CONSIDERATIONS:
+
+- Private keys never leave user's device
+- Transactions signed client-side only
+- No server holds signing credentials
+- Session tokens expire automatically
+- Users can revoke wallet access anytime
+
+
+================================================================================
+PART 3: SMART CONTRACT INTERACTION & RPC
+================================================================================
+
+JSON-RPC Integration with Arc Blockchain
+
+Direct interaction with Arc testnet for transaction submission and confirmation.
+
+ARC RPC ENDPOINT:
+https://rpc.testnet.arc.network
+
+
+Use this endpoint for all blockchain interactions. Implement request retries for
+reliability and add exponential backoff for rate limiting.
+
+SUPPORTED RPC METHODS:
+
+eth_sendTransaction
+  Purpose: Broadcast signed transaction to network
+  Used for: Submitting swaps after user signs
+  Return: Transaction hash (0xabc123...)
+
+eth_getTransactionReceipt
+  Purpose: Retrieve transaction confirmation details
+  Used for: Polling transaction status until confirmed
+  Return: Receipt with block number, gas used, status
+
+eth_blockNumber
+  Purpose: Get current block height
+  Used for: Checking network sync status
+  Return: Block number in hex format
+
+eth_call
+  Purpose: Execute view functions on contracts
+  Used for: Reading token balances, checking allowances
+  Return: Contract function output (no state change)
+
+TRANSACTION POOLING LOGIC:
+
+After user signs transaction, implement polling:
+
+1. Start polling loop (every 1 second)
+2. Call eth_getTransactionReceipt with transaction hash
+3. Receipt is null if still pending (not in block yet)
+4. Continue until receipt is received
+5. Check receipt.status field (1 = success, 0 = failure)
+6. Timeout if no receipt after 30 seconds
+7. Return success/failure status to user
+
+EXAMPLE REQUEST/RESPONSE:
+
+POST request to Arc RPC:
+
+{
+  "jsonrpc": "2.0",
+  "method": "eth_getTransactionReceipt",
+  "params": ["0x1a2b3c..."],
+  "id": 1
+}
+
+Response when confirmed:
+
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "blockNumber": "0x12a4b5",
+    "transactionHash": "0x1a2b3c...",
+    "gasUsed": "0x23e5c",
+    "status": "0x1"
+  }
+}
+
+ROUTER CONTRACT INTEGRATION:
+
+The DEX Router contract receives swap instructions via encoded function calls.
+
+Transaction structure:
+  to: DEX Router contract address
+  data: ABI-encoded function call (generated by backend)
+  value: "0" (no ETH required for token swaps)
+  from: User wallet address
+  gasLimit: "300000" (calculated by backend for specific swap)
+
+Backend handles:
+  - Token approval checking (if needed)
+  - Optimal gas limit calculation
+  - Slippage protection (minimum output amount)
+  - Route optimization through multiple pools
+
+Frontend only needs to pass these values to wallet.
+
+
+================================================================================
+PART 4: BACKEND API & WEBHOOKS
+================================================================================
+
+REST API Endpoints for Chat and Transaction Management
+
+All backend endpoints require authentication via API key header.
+
+CHAT ENDPOINT
+
+POST /api/v1/chat
+
+Headers:
+  Content-Type: application/json
+  endpoint_auth: YOUR_API_KEY (for server-to-server calls)
+
+Request Payload:
+  
+  message (string, required)
+    User message to AI agent
+    Example: "Swap 1 USDC to EURC"
+    
+  userid (string, required)
+    Unique user identifier (wallet address)
+    
+  session_id (string, required)
+    Unique session identifier (maintains conversation context)
+    
+  wallet_address (string, required)
+    User's connected Privy wallet address
+    
+  enable_swap_execution (boolean, optional)
+    Set to true to allow AI to generate transactions
+    Default: false for read-only mode
+
+
+Response Payload:
+
+  reply (string)
+    Text response from AI agent with transaction details or errors
+    
+  userid (string)
+    Echo of request userid
+    
+  session_id (string)
+    Echo of request session_id
+    
+  data (object)
+    Optional object containing execution data
+    
+    swap_execution (object, optional)
+      Present when AI generated a swap transaction
+      
+      quote (object)
+        inputAmount (string): Amount of input token in wei
+        outputAmount (string): Expected amount of output token
+        priceImpact (string): Price impact percentage
+        minOut (string): Minimum output (slippage protection)
+        
+      transaction (object)
+        to (string): Router contract address
+        data (string): ABI-encoded function call
+        from (string): User wallet address
+        gasLimit (string): Calculated gas limit
+        value (string): "0" for token swaps
+        
+EXAMPLE CHAT REQUEST:
+
+POST /api/v1/chat
+Headers:
+  Content-Type: application/json
+  endpoint_auth: your_secret_key
+
+Body:
+{
+  "message": "Swap 1 USDC to EURC",
+  "userid": "0x57d4721c604635df57d9c33e7b0b0f5c5da27a67",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "wallet_address": "0x57d4721c604635df57d9c33e7b0b0f5c5da27a67",
+  "enable_swap_execution": true
+}
+
+EXAMPLE CHAT RESPONSE:
+
+{
+  "reply": "I'll swap 1 USDC to EURC for you. Transaction ready for signing.",
+  "userid": "0x57d4721c604635df57d9c33e7b0b0f5c5da27a67",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "data": {
+    "swap_execution": {
+      "quote": {
+        "inputAmount": "1000000",
+        "outputAmount": "1050000",
+        "priceImpact": "0.05",
+        "minOut": "1038750"
+      },
+      "transaction": {
+        "to": "0x7a6382...",
+        "data": "0xaa0e6a...",
+        "from": "0x57d4721...",
+        "gasLimit": "300000",
+        "value": "0"
+      }
+    }
+  }
+}
+
+
+TRANSACTION CONFIRMATION ENDPOINT
+
+POST /api/ai/confirm-transaction
+
+This endpoint is called by the frontend after transaction is confirmed on-chain.
+
+Request Payload:
+
+  wallet_address (string, required)
+    User's wallet address
+    
+  session_id (string, required)
+    Session identifier linking to chat conversation
+    
+  transaction_hash (string, required)
+    Hash of confirmed transaction (0xabc123...)
+    
+  block_number (integer, required)
+    Block number where transaction was included
+    
+  status (string, required)
+    "success" or "failed"
+    
+  gas_used (string, required)
+    Amount of gas consumed by transaction
+
+
+Response Payload:
+
+  success (boolean)
+    true if confirmation recorded successfully
+    
+  message (string)
+    "Transaction confirmation recorded"
+    
+  transaction_hash (string)
+    Echo of confirmed transaction hash
+
+
+EXAMPLE CONFIRMATION REQUEST:
+
+POST /api/ai/confirm-transaction
+Headers:
+  Content-Type: application/json
+
+Body:
+{
+  "wallet_address": "0x57d4721c604635df57d9c33e7b0b0f5c5da27a67",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "transaction_hash": "0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p",
+  "block_number": 12345678,
+  "status": "success",
+  "gas_used": "145230"
+}
+
+RESPONSE:
+
+{
+  "success": true,
+  "message": "Transaction confirmation recorded",
+  "transaction_hash": "0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p"
+}
+
+
+AI AGENT BACKEND ARCHITECTURE:
+
+Runtime Environment
+  Platform: Railway.app (production)
+  Local: localhost:8000 (development)
+  Framework: Python FastAPI + Uvicorn
+
+Core Components
+  LLM Agent: LangChain with OpenAI GPT-4o
+  Tool Calling: Automatic function invocation based on user intent
+  Memory: Conversation history stored in Supabase
+  Token Resolution: Mapping token symbols to contract addresses
+
+Tool Available
+  execute_swap: Generate transaction for swap
+  check_quote: Get current swap rates
+  get_balances: Fetch user token balances
+  get_portfolio_value: Calculate total portfolio value
+
+
+================================================================================
+PART 5: PAYMENT PROCESSING & USDC FLOWS
+================================================================================
+
+USDC Token and 8-Token Multi-Asset Support
+
+Tower Exchange supports stablecoin and major token swaps on Arc testnet.
+
+USDC TOKEN DETAILS:
+
+Contract Address: 0x3600000000000000000000000000000000000000
+Decimals: 6
+Symbol: USDC
+Balance: USD value (1 USDC = $1)
+Common Amounts:
+  1 USDC = 1,000,000 wei
+  100 USDC = 100,000,000 wei
+  1000 USDC = 1,000,000,000 wei
+
+SUPPORTED TOKENS (Arc Testnet):
+
+1. USDC
+   Address: 0x3600000000000000000000000000000000000000
+   Use: Primary stablecoin for swaps
+
+2. EURC
+   Address: 0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a
+   Use: Euro-denominated stablecoin
+
+3. QTM
+   Address: (from token registry)
+   Use: Native token swaps
+
+4. WUSDC
+   Address: (from token registry)
+   Use: Wrapped USDC variant
+
+5. USYC
+   Address: (from token registry)
+   Use: Higher precision stablecoin
+
+6. USDT
+   Address: (from token registry)
+   Use: USDT compatibility
+
+7. SYN
+   Address: (from token registry)
+   Use: Synthetic asset token
+
+8. SWPRC_SYNTHRA
+   Address: (from token registry)
+   Use: Synthra protocol token
+
+
+SWAP FLOW EXAMPLE:
+
+User Request: "Swap 1 USDC to EURC"
+
+Step 1: AI Agent receives message
+  Parses intent: inputToken=USDC, outputToken=EURC, inputAmount=1
+  Resolves: 1 USDC = 1,000,000 wei
+
+Step 2: Backend generates quote
+  Calls RouteOptimizer for best DEX path
+  Calculates: 1 USDC → ~1.05 EURC (example rate)
+  Applies slippage: minimum output = 1.04 EURC
+
+Step 3: Backend builds transaction
+  Encodes swap function call
+  Sets router contract as recipient (to)
+  Includes encoded data with swap parameters
+
+Step 4: Returns transaction to frontend
+  Includes full transaction object with to, data, value, from, gasLimit
+
+Step 5: User signs with Privy wallet
+  Wallet popup appears
+  User reviews transaction
+  User clicks confirm to sign
+
+Step 6: Frontend broadcasts transaction
+  Sends eth_sendTransaction with signed data
+  Privy wallet returns transaction hash
+
+Step 7: Frontend confirms on-chain
+  Polls Arc RPC every 1 second
+  Checks eth_getTransactionReceipt
+  Transaction confirmed in block
+
+Step 8: Confirmation recorded
+  Sends POST to /api/ai/confirm-transaction
+  Stores in Supabase transaction_confirmations table
+
+
+PAYMENT FLOWS SUPPORTED:
+
+Direct Token-to-Token Swaps
+  USDC → EURC
+  EURC → QTM
+  Any token → any token
+  Single transaction, no intermediate steps
+
+Multi-hop Swaps (when optimal)
+  USDC → QPair → QTM (best rate)
+  Backend automatically routes through multiple pools
+  Single transaction from user perspective
+
+Slippage Protection
+  Backend calculates minimum output
+  Set in transaction before signing
+  Protects user from price impact
+
+Gas Included
+  Backend includes optimal gas estimate
+  User pays gas cost + swap fee
+  No additional transaction needed
+
+
+TOKEN APPROVAL HANDLING:
+
+First-time swap for new token:
+  User may need to approve token spending
+  Backend checks if approval needed
+  Frontend displays approval step if required
+  User signs approval transaction first
+  Then signs actual swap transaction
+
+Subsequent swaps:
+  Token already approved
+  No additional approval needed
+  Direct swap transaction only
+
+
+================================================================================
+PART 6: INDEXING, ANALYTICS & DATA QUERYING
+================================================================================
+
+Supabase PostgreSQL Database and Analytics
+
+All transactions and conversation history stored in Supabase for audit trail
+and analytics.
+
+DATABASE SCHEMA:
+
+transaction_confirmations Table
+
+  Columns:
+    id (UUID primary key)
+    wallet_address (varchar)
+    session_id (varchar)
+    transaction_hash (varchar)
+    block_number (integer)
+    status (varchar) - "success" or "failed"
+    gas_used (varchar)
+    created_at (timestamp)
+    
+  Constraints:
+    - Immutable: No updates/deletes allowed after creation
+    - Row-Level Security: Users see only their own transactions
+    - Indexes on wallet_address and transaction_hash
+
+ai_db Table (Chat History)
+
+  Columns:
+    id (UUID primary key)
+    wallet_address (varchar)
+    session_id (varchar)
+    user_query (text)
+    ai_response (text)
+    created_at (timestamp)
+
+
+QUERY EXAMPLES:
+
+Get User Transaction History:
+
+SELECT 
+  transaction_hash,
+  status,
+  block_number,
+  gas_used,
+  created_at
+FROM transaction_confirmations
+WHERE wallet_address = '0x57d4721c604635df57d9c33e7b0b0f5c5da27a67'
+ORDER BY created_at DESC
+LIMIT 50;
+
+Calculate Success Rate:
+
+SELECT 
+  COUNT(*) as total_transactions,
+  COUNT(CASE WHEN status = 'success' THEN 1 END) as successful,
+  ROUND(100.0 * COUNT(CASE WHEN status = 'success' THEN 1 END) / 
+    COUNT(*), 2) as success_rate_percent
+FROM transaction_confirmations
+WHERE created_at > NOW() - INTERVAL '24 hours';
+
+Analyze Gas Costs:
+
+SELECT 
+  AVG(CAST(gas_used AS NUMERIC)) as average_gas,
+  SUM(CAST(gas_used AS NUMERIC)) as total_gas_consumed,
+  COUNT(*) as transaction_count,
+  DATE_TRUNC('hour', created_at) as hour
+FROM transaction_confirmations
+GROUP BY DATE_TRUNC('hour', created_at)
+ORDER BY hour DESC;
+
+Top Users by Activity:
+
+SELECT 
+  wallet_address,
+  COUNT(*) as swap_count,
+  MAX(created_at) as last_transaction,
+  COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_swaps
+FROM transaction_confirmations
+GROUP BY wallet_address
+ORDER BY swap_count DESC
+LIMIT 20;
+
+Join Chat History with Transactions:
+
+SELECT 
+  ai.user_query,
+  ai.ai_response,
+  tc.transaction_hash,
+  tc.status,
+  tc.block_number,
+  tc.created_at
+FROM ai_db ai
+LEFT JOIN transaction_confirmations tc
+  ON ai.session_id = tc.session_id
+WHERE ai.wallet_address = '0x57d4721...'
+ORDER BY ai.created_at DESC;
+
+
+REAL-TIME DATA ACCESS:
+
+Supabase Realtime Subscriptions
+  Listen for new transactions as they're confirmed
+  Use for live dashboards
+  React component integration available
+
+Example subscription:
+
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(url, key);
+
+supabase
+  .on('postgres_changes', 
+    { 
+      event: 'INSERT', 
+      schema: 'public', 
+      table: 'transaction_confirmations' 
+    },
+    (payload) => {
+      console.log('New transaction:', payload.new);
+    }
+  )
+  .subscribe();
+
+
+ROW-LEVEL SECURITY (RLS):
+
+All tables protected by RLS policies:
+  Users only access their own wallet_address records
+  Enforced at database level
+  No client-side filtering needed
+
+Analytics Dashboard Integration:
+  Supabase support for charts and visualization
+  Full-text search for transaction history
+  Export capabilities for external analysis
+
+DATA IMMUTABILITY:
+
+Transaction records never updated or deleted:
+  Maintains audit trail integrity
+  Compliance with financial regulations
+  Historical accuracy guaranteed
+  Append-only transaction log pattern
+
+
+================================================================================
+PART 7: CI/CD PIPELINES & DEPLOYMENT
+================================================================================
+
+Automated Deployment Infrastructure
+
+Tower Exchange uses Vercel and Railway for production deployment with automatic
+updates on code changes.
+
+FRONTEND DEPLOYMENT (Vercel)
+
+Connected Repository: Tower-Finance (GitHub)
+
+Auto-Deployment Setup
+  Branch: main
+  Trigger: Every push to main branch automatically deploys
+  Preview: Each pull request gets live preview environment
+  Status: Production live within seconds of merge
+
+Environment Variables (Vercel Dashboard):
+
+NEXT_PUBLIC_TOWER_AI_API
+  Value: https://tower-exchange-ai-production-5811.up.railway.app
+  Type: Public (accessible in browser)
+  Use: Endpoint for AI chat API
+
+TOWER_AI_API_KEY
+  Value: your_secret_api_key
+  Type: Secret (server-side only)
+  Use: Authentication for backend calls
+
+NEXT_PUBLIC_SUPABASE_URL
+  Value: your_supabase_project_url
+  Type: Public
+  Use: Database connection endpoint
+
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+  Value: your_supabase_anon_key
+  Type: Public
+  Use: Supabase client authentication
+
+NEXT_PUBLIC_PRIVY_APP_ID
+  Value: your_privy_app_id
+  Type: Public
+  Use: Privy wallet authentication
+
+Build Configuration
+  Framework: Next.js 14
+  Output: Static + Dynamic Hybrid
+  Caching: Automatic asset caching
+  Optimization: Image optimization enabled
+
+BACKEND DEPLOYMENT (Railway.app)
+
+Connected Repository: Tower-Exchange-AI (GitHub)
+
+Auto-Deployment Setup
+  Branch: main (production), dev (staging)
+  Trigger: Automatic redeploy on commit
+  Environment: Docker containerized
+  Status: Live within 2-3 minutes
+
+Environment Variables (Railway Dashboard):
+
+BACKEND_URL
+  Value: https://tower-backend.vercel.app
+  Use: URL for swap execution service
+
+OPENAI_API_KEY
+  Value: your_openai_key
+  Use: GPT-4o model access for AI agent
+
+SUPABASE_URL
+  Value: your_supabase_url
+  Use: Database connection
+
+SUPABASE_KEY
+  Value: your_supabase_key
+  Use: Database authentication
+
+Python Runtime
+  Version: 3.11
+  Framework: FastAPI
+  ASGI Server: Uvicorn
+  Concurrency: Handled automatically
+
+Docker Container
+  Base: Python 3.11 slim
+  Dependencies: pip install -r requirements.txt
+  Port: 8000 (internal)
+  Health Check: POST /api/v1/health
+
+TOWER-BACKEND DEPLOYMENT (Vercel)
+
+Connected Repository: Tower-Backend (GitHub)
+
+Auto-Deployment Setup
+  Branch: main
+  Trigger: Automatic on push
+  Language: TypeScript/Node.js
+  Status: Swap service live
+
+Environment Variables:
+NODE_ENV=production
+DEPLOYMENT_REGION=iad1 (configurable)
+
+Function: Serverless functions for swap quote/execution
+
+
+LOCAL DEVELOPMENT SETUP
+
+Frontend (Next.js)
+
+Setup:
+  cd Tower-Finance
+  npm install
+  npm run dev
+
+Development Server
+  URL: http://localhost:3000
+  Hot Reload: Automatic on file changes
+  Port: 3000 (configurable)
+
+Backend (Python)
+
+Setup:
+  cd Tower-Exchange-AI
+  python -m venv .venv
+  source .venv/bin/activate
+  (or .\.venv\Scripts\activate on Windows)
+  pip install -r requirements.txt
+
+Development Server:
+  uvicorn app.main:app --reload
+  URL: http://localhost:8000
+  Hot Reload: Automatic on Python file changes
+  Port: 8000
+
+Tower-Backend (TypeScript)
+
+Setup:
+  cd Tower-Backend
+  npm install
+  npm run dev
+
+Development Server:
+  URL: http://localhost:3001
+  Hot Reload: Automatic on changes
+  Port: 3001
+
+
+TESTING & QUALITY CHECKS
+
+TypeScript Type Checking
+  Command: npm run type-check
+  Checks: No implicit any, full type coverage
+  CI: Runs on every PR
+
+ESLint Code Quality
+  Command: npm run lint
+  Checks: Code style and best practices
+  CI: Fails PR if errors found
+
+Python Testing
+  Command: pytest
+  Coverage: Integration and unit tests
+  CI: Required before merge
+
+Docker Build Testing
+  Command: docker build -t tower:latest .
+  Checks: Containerization works
+  CI: Validates Docker compatibility
+
+
+API DOCUMENTATION
+
+Chat Endpoint: docs/API.md
+  Full OpenAPI specification
+  Example requests and responses
+
+Deployment Notes: DEPLOYMENT_CHECKLIST.md
+  Step-by-step deployment process
+  Environment variable checklist
+  Production readiness checklist
+
+
+================================================================================
+ARCHITECTURE OVERVIEW
+================================================================================
+
+System Architecture Diagram
+
+REQUEST FLOW:
+
+Client Browser (User)
+  |
+  | User says "Swap 1 USDC to EURC"
+  |
+  V
+Next.js Frontend (Vercel)
+  - AIChat component receives message
+  - Sends POST to /api/v1/chat
+  
+  |
+  | HTTP POST /api/v1/chat
+  | Body: message, userid, session_id, wallet_address
+  |
+  V
+FastAPI Backend (Railway)
+  - Receives chat request
+  - Passes to LangChain agent
+  - Agent invokes GPT-4o
+  
+  GPT-4o LLM
+    |
+    | Decision: This is a swap request
+    | Calls execute_swap tool
+    |
+    V
+  execute_swap Tool
+    - Queries token registry
+    - Calls RouteOptimizer
+    - Generates transaction
+    - Stores execution data
+    - Returns message
+    
+  |
+  | JSON Response
+  | Reply + swap_execution data
+  |
+  V
+Next.js Frontend (Vercel)
+  - Receives response
+  - Detects swap_execution
+  - Triggers TransactionConfirmation component
+  
+  |
+  | User clicks wallet sign button
+  |
+  V
+Privy Embedded Wallet
+  - Shows signing popup
+  - User reviews transaction
+  - User confirms sign
+  
+  |
+  | Signed transaction
+  |
+  V
+Next.js Frontend
+  - Calls window.ethereum.sendTransaction
+  - Gets transaction hash
+  - Starts polling loop
+  
+  |
+  | Poll Arc RPC
+  | eth_getTransactionReceipt every 1 second
+  |
+  V
+Arc Testnet Blockchain
+  - Transaction enters mempool
+  - Gets included in block
+  - Confirmed on-chain
+  
+  |
+  | Receipt received
+  |
+  V
+Next.js Frontend
+  - Gets block number, gas used
+  - Shows "Confirmed" with transaction link
+  - Calls /api/ai/confirm-transaction
+  
+  |
+  | POST confirmation
+  |
+  V
+Supabase PostgreSQL
+  - Inserted to transaction_confirmations
+  - Immutable audit trail created
+  - User can query history
+
+
+TECHNOLOGY STACK TABLE
+
+Layer               | Technology           | Purpose
+--------------------|----------------------|----------------------------------------------------------
+Frontend UI         | Next.js 14           | Web framework with App Router
+Frontend UI         | React 18             | Component library and state management
+Frontend UI         | TypeScript           | Type-safe JavaScript development
+Frontend UI         | Framer Motion        | Animation library
+Frontend UI         | Lucide React         | Icon library
+Authentication      | Privy                | Passwordless login + embedded wallet signing
+API Communication   | Next.js API Routes   | Backend proxy and middleware
+State Management    | React Hooks          | useSwapExecution, useEffect, useState
+AI Layer            | FastAPI              | Python web framework
+AI Layer            | LangChain            | LLM orchestration and tool calling
+AI Layer            | OpenAI GPT-4o        | Large language model
+AI Agent            | Python               | Agent implementation
+Blockchain RPC      | Arc RPC              | JSON-RPC endpoint
+Swap Execution      | TypeScript/Express   | Transaction building and routing
+Swap Execution      | RouteOptimizer       | Multi-hop swap optimization
+Swap Execution      | DEX Pools            | XyloNet, SynthraV3 liquidity access
+Database            | Supabase             | PostgreSQL hosting
+Database            | PostgreSQL           | Relational database engine
+Authentication DB   | Supabase Auth        | User accounts and sessions
+Real-time Updates   | Supabase Realtime    | WebSocket subscriptions
+Deployment Frontend | Vercel               | Next.js hosting and CDN
+Deployment Backend  | Railway.app          | Python app hosting
+Deployment Backend  | Docker               | Containerization
+Version Control     | GitHub               | Source code repository
+Analytics           | Supabase             | SQL queries and dashboards
+
+
+================================================================================
+INTEGRATION PATTERNS
+================================================================================
+
+Pattern 1: Embedded Chat Widget
+
+Drop the AIChat component directly into any Next.js application.
+
+Usage:
+  import { AIChat } from '@/components/AIChat';
+  
+  export default function Dashboard() {
+    return (
+      <div>
+        <h1>My Application</h1>
+        <AIChat />
+      </div>
+    );
+  }
+
+Features:
+  - Swap execution automatically triggered
+  - No additional configuration needed
+  - Wallet connection already handled by Privy
+  - TransactionConfirmation shown inline
+  - Real-time status updates
+  
+Best for:
+  - Quick integration
+  - Applications with simple UI
+  - Teams without blockchain expertise
+
+
+Pattern 2: Custom Swap Interface
+
+Use the useSwapExecution hook in your own components.
+
+Usage:
+  import { useSwapExecution } from '@/lib/useSwapExecution';
+  
+  export function CustomSwapUI() {
+    const swapExecution = useSwapExecution();
+    
+    const handleSwap = async (tokenIn, tokenOut, amount) => {
+      const transaction = await prepareTransaction(tokenIn, tokenOut, amount);
+      await swapExecution.executeSwap(transaction, wallet, sessionId);
+    };
+    
+    return (
+      <>
+        <SwapForm onSubmit={handleSwap} />
+        <TransactionStatus {...swapExecution} />
+      </>
+    );
+  }
+
+Features:
+  - Full control over UI/UX
+  - Custom styling and layout
+  - Conditional rendering options
+  - Integration with existing design systems
+  - Custom error handling
+
+Best for:
+  - Teams with design requirements
+  - Complex applications
+  - Custom transaction flows
+
+
+Pattern 3: Programmatic API
+
+Call the backend API directly from external applications.
+
+Usage:
+  const response = await fetch('/api/v1/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'endpoint_auth': 'your_api_key'
+    },
+    body: JSON.stringify({
+      message: 'Swap 100 USDC to EURC',
+      userid: walletAddress,
+      session_id: sessionId,
+      wallet_address: walletAddress,
+      enable_swap_execution: true
+    })
+  });
+  
+  const { data } = await response.json();
+  
+  if (data.swap_execution) {
+    // Implement your own signing/broadcasting logic
+    const txHash = await signAndBroadcast(data.swap_execution.transaction);
+  }
+
+Features:
+  - Language-agnostic (any HTTP client)
+  - No frontend framework required
+  - Full transaction data returned
+  - Custom execution logic possible
+  - Headless integration option
+
+Best for:
+  - Third-party integrations
+  - Non-Next.js applications
+  - Mobile apps
+  - Custom workflows
+
+
+================================================================================
+QUICK START GUIDES
+================================================================================
+
+For Frontend Developers (Next.js/React)
+
+Step 1: Install dependencies
+  npm install @privy-io/react-auth framer-motion lucide-react
+
+Step 2: Import and wrap your app with PrivyProvider
+  import { PrivyProvider } from '@privy-io/react-auth';
+  
+  export default function RootLayout({ children }) {
+    return (
+      <PrivyProvider appId="your_privy_app_id">
+        {children}
+      </PrivyProvider>
+    );
+  }
+
+Step 3: Add AIChat component to your page
+  import { AIChat } from '@/components/AIChat';
+  
+  export default function SwapPage() {
+    return <AIChat />;
+  }
+
+Step 4: Test in browser
+  npm run dev
+  Visit http://localhost:3000
+  Say "Swap 1 USDC to EURC"
+  Watch wallet popup appear
+
+That's it! Swap execution automatically works.
+
+
+For Backend Developers (Python/FastAPI)
+
+Step 1: Clone Tower-Exchange-AI repository
+  git clone https://github.com/your-org/Tower-Exchange-AI
+  cd Tower-Exchange-AI
+
+Step 2: Create virtual environment
+  python -m venv .venv
+  source .venv/bin/activate
+
+Step 3: Install dependencies
+  pip install -r requirements.txt
+
+Step 4: Set environment variables
+  Create .env file with:
+  OPENAI_API_KEY=your_key
+  SUPABASE_URL=your_url
+  SUPABASE_KEY=your_key
+
+Step 5: Run development server
+  uvicorn app.main:app --reload
+
+Step 6: Test with curl
+  curl -X POST http://localhost:8000/api/v1/chat \
+    -H "Content-Type: application/json" \
+    -d '{
+      "message": "What is my balance?",
+      "userid": "0x57d4721...",
+      "session_id": "uuid-123..."
+    }'
+
+Backend is now running and ready for integration.
+
+
+For Blockchain Developers (Web3/Arc)
+
+Step 1: Get transaction from API
+  response = await fetch(`${API_ENDPOINT}/api/v1/chat`, {
+    method: 'POST',
+    body: JSON.stringify({
+      message: 'Swap 1 USDC to EURC',
+      userid: userAddress,
+      session_id: sessionId,
+      wallet_address: userAddress,
+      enable_swap_execution: true
+    })
+  });
+  
+  transaction = response.data.swap_execution.transaction;
+
+Step 2: Sign transaction with Privy wallet
+  txHash = await window.ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [transaction]
+  });
+
+Step 3: Poll Arc RPC for confirmation
+  receipt = null;
+  for (let i = 0; i < 30; i++) {
+    receipt = await pollRPC('eth_getTransactionReceipt', [txHash]);
+    if (receipt) break;
+    await sleep(1000);
+  }
+
+Step 4: Record confirmation
+  await fetch(`${API_ENDPOINT}/api/ai/confirm-transaction`, {
+    method: 'POST',
+    body: JSON.stringify({
+      wallet_address: userAddress,
+      session_id: sessionId,
+      transaction_hash: txHash,
+      block_number: receipt.blockNumber,
+      status: receipt.status === '0x1' ? 'success' : 'failed',
+      gas_used: receipt.gasUsed
+    })
+  });
+
+Transaction flow complete and recorded!
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Wallet Popup Not Appearing
+
+Issue: AI returns swap message, but no wallet popup
+Solution:
+  1. Check browser console for errors
+  2. Verify Privy app ID is correct in environment variables
+  3. Ensure user is logged in (check usePrivy hook)
+  4. Confirm response.data.swap_execution is present (check network tab)
+  5. Check browser permissions for wallet popups
+
+Transaction Fails to Confirm
+
+Issue: Wallet signs transaction, but confirmation never arrives
+Solution:
+  1. Check Arc RPC endpoint is accessible
+  2. Verify transaction hash is correct format (0x...)
+  3. Check Arc scanner to see if transaction was included
+  4. If in mempool, try re-broadcasting
+  5. Check gas limit isn't too low
+
+Database Queries Slow
+
+Issue: Supabase queries returning slowly
+Solution:
+  1. Check if wallet_address index exists
+  2. Limit query results with LIMIT clause
+  3. Use materialized views for analytics
+  4. Enable query caching
+  5. Check database CPU/memory usage
+
+AI Agent Not Responding
+
+Issue: /api/v1/chat endpoint hangs or times out
+Solution:
+  1. Check Railway backend is running
+  2. Verify environment variables set in Railway
+  3. Check OpenAI API key is valid
+  4. Look at Railway logs for errors
+  5. Try restarting container
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Immediate Setup (Day 1):
+
+1. Clone all three repositories
+   Tower-Finance (frontend)
+   Tower-Exchange-AI (backend)
+   Tower-Backend (swap engine)
+
+2. Setup local development environment
+   Install Node.js and Python 3.11
+   Create virtual environments
+   Install all dependencies
+
+3. Create Supabase project
+   PostgreSQL database created
+   Environment variables configured
+   Tables created from SQL scripts
+
+4. Configure Privy account
+   Register developer account
+   Create app and get app ID
+   Add to environment variables
+
+5. Get OpenAI API key
+   Register at platform.openai.com
+   Create API key for project
+   Add to backend environment variables
+
+
+Testing Phase (Day 2-3):
+
+1. Run frontend locally
+   npm run dev in Tower-Finance
+   Login with Privy wallet
+   Test AI chat functionality
+
+2. Test backend locally
+   uvicorn in Tower-Exchange-AI
+   Send test requests via curl
+   Verify token resolution
+
+3. Test swaps in testnet
+   Connect to Arc testnet
+   Create test wallet with testnet funds
+   Execute sample swap
+   Verify transaction confirmation
+
+4. Integration testing
+   Combine all three services
+   Test end-to-end flow
+   Check database records
+
+
+Production Deployment (Day 4+):
+
+1. Push to GitHub main branch
+   Auto-deploy to Vercel (frontend)
+   Auto-deploy to Railway (backend)
+   Verify deployments successful
+
+2. Configure production environment variables
+   Add secrets in Vercel dashboard
+   Add secrets in Railway dashboard
+   Verify external dependencies
+
+3. Monitor production logs
+   Set up Vercel error tracking
+   Set up Railway log streaming
+   Create dashboards in Supabase
+
+4. Performance optimization
+   Enable caching on Vercel
+   Optimize database queries
+   Add CDN for static assets
+
+
+================================================================================
+ADDITIONAL RESOURCES
+================================================================================
+
+Documentation Files
+
+SWAP_EXECUTION_FRONTEND.md - Detailed swap execution implementation guide
+DEPLOYMENT_GUIDE.md - Step-by-step deployment instructions
+QUICK_START.md - Code examples and snippets
+VISUAL_SUMMARY.md - Architecture diagrams and flow charts
+
+External Links
+
+Vercel Documentation: https://vercel.com/docs
+Railway.app Documentation: https://railway.app/docs
+Privy Documentation: https://privy.com/docs
+Supabase Documentation: https://supabase.io/docs
+Next.js Documentation: https://nextjs.org/docs
+FastAPI Documentation: https://fastapi.tiangolo.com
+Arc Scanner: https://scan.arc.io
+
+GitHub Repositories
+
+Tower-Finance: https://github.com/your-org/Tower-Finance
+Tower-Exchange-AI: https://github.com/your-org/Tower-Exchange-AI
+Tower-Backend: https://github.com/your-org/Tower-Backend
+
+
+================================================================================
+SUPPORT
+================================================================================
+
+For questions or issues:
+
+1. Check documentation files in repository
+2. Review GitHub issues for similar problems
+3. Check deployed status on Vercel/Railway dashboards
+4. Review environment variables configuration
+5. Check browser console and network tabs for errors
+
+
+================================================================================
+Built with care for Tower Exchange
+Ready for production integration on Arc testnet
+================================================================================

@@ -295,14 +295,35 @@ export const AIChat = () => {
       // Check if swap execution data is present
       if (response.data?.swap_execution) {
         console.log("Swap execution data detected:", response.data.swap_execution);
+        
+        // Validate transaction structure
+        const txData = response.data.swap_execution.transaction;
+        if (txData) {
+          console.log("Transaction fields:", {
+            to: txData.to || "MISSING",
+            data: txData.data ? `${txData.data.substring(0, 66)}...` : "MISSING",
+            value: txData.value || "MISSING",
+            from: txData.from || "MISSING",
+            gasLimit: txData.gasLimit || "MISSING",
+          });
+        } else {
+          console.error("Transaction object is undefined in swap_execution data");
+        }
+
         setSwapExecutionData(response.data.swap_execution);
         setShowSwapConfirmation(true);
 
         // Auto-trigger swap execution flow
         if (user?.wallet?.address) {
           try {
+            if (!txData || !txData.to) {
+              throw new Error(
+                "Cannot execute swap: Transaction object missing or 'to' address is undefined. Backend may not have returned proper swap execution data."
+              );
+            }
+
             await swapExecution.executeSwap(
-              response.data.swap_execution.transaction,
+              txData,
               user.wallet.address,
               sessionId,
               (confirmation) => {
