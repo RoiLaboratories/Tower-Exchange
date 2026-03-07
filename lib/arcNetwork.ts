@@ -966,6 +966,9 @@ export async function getSwapQuoteFromQuantumExchange(
       toToken: tokenOutAddress,
       amount: amountIn,
       slippage: slippage.toString(),
+      ...(QUANTUM_EXCHANGE_CONFIG.chainId != null && {
+        chainId: String(QUANTUM_EXCHANGE_CONFIG.chainId),
+      }),
     });
 
     const url = `${QUANTUM_EXCHANGE_CONFIG.baseUrl}/quote?${params.toString()}`;
@@ -1030,13 +1033,16 @@ export async function getSwapTransactionFromQuantumExchange(
   approvalAmount: string | null;
 }> {
   try {
-    // Match QuantumExchange docs: only fromToken, toToken, amount, slippage, recipient (no deadline)
+    // Request swap data for our chain (API may default to another chain otherwise)
     const params = new URLSearchParams({
       fromToken: tokenInAddress,
       toToken: tokenOutAddress,
       amount: amountIn,
       slippage: slippage.toString(),
       recipient: recipient,
+      ...(QUANTUM_EXCHANGE_CONFIG.chainId != null && {
+        chainId: String(QUANTUM_EXCHANGE_CONFIG.chainId),
+      }),
     });
 
     const url = `${QUANTUM_EXCHANGE_CONFIG.baseUrl}/swap?${params.toString()}`;
