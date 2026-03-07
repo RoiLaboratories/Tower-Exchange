@@ -160,9 +160,8 @@ export const useWalletHoldings = (walletAddress: string | null) => {
         // Add ERC20 tokens
         tokenBalances.forEach(({ tokenName, balance }) => {
           if (balance > 0) {
-            // USDC, WUSDC, and EURC use 6 decimals; others use 18
-            const decimals =
-              tokenName === "USDC" || tokenName === "WUSDC" || tokenName === "EURC" ? 6 : 18;
+            // EURC and SWPRC use 6 decimals; others use 18
+            const decimals = tokenName === "EURC" || tokenName === "SWPRC" ? 6 : 18;
             const formattedBalance = balance / Math.pow(10, decimals);
             
             // Skip if balance is too small (dust)

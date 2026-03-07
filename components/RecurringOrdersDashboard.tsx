@@ -400,7 +400,7 @@ export const RecurringOrdersDashboard = () => {
 
                     {execution.transaction_hash && (
                       <a
-                        href={`https://testnet.arcscan.io/tx/${execution.transaction_hash}`}
+                        href={`https://testnet.arcscan.app/tx/${execution.transaction_hash}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-400 hover:text-blue-300 truncate block"

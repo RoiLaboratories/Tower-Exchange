@@ -30,24 +30,23 @@ const AIAgentPage = () => {
   ];
 
   return (
-    <div className="min-h-screen text-white">
+    <div className="min-h-screen text-white flex flex-col">
       <TokenTicker />
 
       {/* Mobile Toggle Button - Only visible on mobile */}
-      <div className="lg:hidden fixed bottom-6 right-6 z-50">
+      <div className="lg:hidden fixed bottom-40 right-6 z-50">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowRightPanel(!showRightPanel)}
-          className="w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center"
+          className="w-14 h-14 rounded-full bg-[#7BB8FF] text-white shadow-lg flex items-center justify-center"
         >
           {showRightPanel ? <X size={24} /> : <Plus size={24} />}
         </motion.button>
       </div>
 
       <div
-        className="flex flex-col lg:flex-row"
-        style={{ height: "calc(100vh - 64px)" }}
+        className="flex flex-col lg:flex-row flex-1 overflow-hidden"
       >
         {/* Left Side - AI Chat */}
         <motion.div

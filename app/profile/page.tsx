@@ -38,12 +38,16 @@ const Profile = () => {
 
   // Load profile picture when user address changes
   useEffect(() => {
-    if (user?.wallet?.address) {
-      const savedProfilePicture = loadProfileData(user.wallet.address);
-      if (savedProfilePicture) {
-        setProfilePictureUrl(savedProfilePicture);
+    const loadProfile = async () => {
+      if (user?.wallet?.address) {
+        const savedProfilePicture = await loadProfileData(user.wallet.address);
+        if (savedProfilePicture) {
+          setProfilePictureUrl(savedProfilePicture);
+        }
       }
-    }
+    };
+
+    loadProfile();
   }, [user?.wallet?.address]);
 
   const isOnArcTestnet = chainId === ARC_CHAIN_HEX;

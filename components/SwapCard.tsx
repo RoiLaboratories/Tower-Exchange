@@ -16,8 +16,6 @@ import {
   fetchERC20Balance,
   fetchERC20Allowance,
   formatBalance, 
-  getSwapQuoteFromQuantumExchange,
-  getSwapTransactionFromQuantumExchange,
   getRevertReasonViaPublicRpc,
   TOKEN_CONTRACTS,
   TOKEN_DECIMALS,
@@ -27,6 +25,7 @@ import {
   ARC_ADD_NETWORK_PARAMS,
   ARC_POOLS,
 } from "@/lib/arcNetwork";
+import { useTowerSwap } from "@/lib/hooks/useTowerSwap";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
@@ -34,35 +33,53 @@ import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
+import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import swprcLogo from "@/public/assets/swapr_logo.png";
+import syntharaLogo from "@/public/assets/synthra logo.png";
 import quantumLogo from "@/public/assets/quantum-logo.png";
 import TokenModal from "./TokenModal";
 import SettingsModal from "./SettingsModal";
 import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
+import RouterDisplay from "./RouterDisplay";
 
-// Tokens available on frontend (includes QuantumExchange supported tokens: USDC, WUSDC, QTM)
+// Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
+// Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "ETH", icon: ethLogo, name: "Ethereum", balance: 2.5 },
-  { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
   { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
-  { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  { symbol: "UNI", icon: uniLogo, name: "Uniswap", balance: 50 },
-  { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid", balance: 100 },
-  { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
-  { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
+  // TODO: Uncomment when DEX routes are integrated
+  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
+  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
+  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
+  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
+  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
+  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
 ];
 
 interface TokenSelectorProps {
-  selected: (typeof tokens)[0];
+  selected: (typeof tokens)[0] | null;
   onSelect: (token: (typeof tokens)[0]) => void;
   excludeSymbol?: string;
   onOpenModal: () => void;
 }
 
 const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
+  if (!selected) {
+    return (
+      <motion.button
+        onClick={onOpenModal}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
+        <span className="font-medium text-muted-foreground">Select Token</span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      </motion.button>
+    );
+  }
+  
   return (
     <motion.button
       onClick={onOpenModal}
@@ -89,10 +106,14 @@ const SwapCard = () => {
   // Privy hook
   const { user, login, authenticated } = usePrivy();
   const { wallets } = useWallets();
+  
+  // Tower Exchange DEX Aggregator hook
+  const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [chainId, setChainId] = useState<string | null>(null);
+  const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(undefined);
   const [swapState, setSwapState] = useState<
     "idle" | "loading" | "success" | "failed"
   >("idle");
@@ -102,7 +123,6 @@ const SwapCard = () => {
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [revertReason, setRevertReason] = useState<string | null>(null);
   const [slippageTolerance, setSlippageTolerance] = useState(1); // 1% default to reduce "execution reverted" from slippage
-  const [resetApprovalLoading, setResetApprovalLoading] = useState(false);
 
   // Monitor chain ID changes
   useEffect(() => {
@@ -191,17 +211,19 @@ const SwapCard = () => {
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState(tokens[0]);
-  const [receiveToken, setReceiveToken] = useState(tokens[1]);
+  const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
 
-  // Actual wallet balances
+  // Actual wallet balances - only for swappable tokens (currently USDC and EURC)
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
     USDC: 0,
-    ETH: 0,
-    USDT: 0,
     EURC: 0,
-    SWPRC: 0,
-    UNI: 0,
-    HYPE: 0,
+    // TODO: Add when other DEX routes are integrated
+    // WUSDC: 0,
+    // USDT: 0,
+    // USYC: 0,
+    // SYN: 0,
+    // SWPRC: 0,
+    // QTM: 0,
   });
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
@@ -241,13 +263,17 @@ const SwapCard = () => {
         );
         console.log("WUSDC balance (wei):", wusdcBalanceWei);
         if (wusdcBalanceWei && wusdcBalanceWei !== "0x0") {
-          const wusdcBalance =
-            parseInt(wusdcBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.WUSDC || 6);
-          console.log("WUSDC balance (converted):", wusdcBalance);
-          setTokenBalances((prev) => ({
-            ...prev,
-            WUSDC: wusdcBalance,
-          }));
+          try {
+            const wusdcBalanceBigInt = BigInt(wusdcBalanceWei || "0");
+            const wusdcBalance = Number(wusdcBalanceBigInt) / 10 ** (TOKEN_DECIMALS.WUSDC || 6);
+            console.log("WUSDC balance (converted):", wusdcBalance);
+            setTokenBalances((prev) => ({
+              ...prev,
+              WUSDC: wusdcBalance,
+            }));
+          } catch (e) {
+            console.error("Error converting WUSDC balance:", e);
+          }
         }
       }
 
@@ -260,13 +286,17 @@ const SwapCard = () => {
         );
         console.log("QTM balance (wei):", qtmBalanceWei);
         if (qtmBalanceWei && qtmBalanceWei !== "0x0") {
-          const qtmBalance =
-            parseInt(qtmBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.QTM || 18);
-          console.log("QTM balance (converted):", qtmBalance);
-          setTokenBalances((prev) => ({
-            ...prev,
-            QTM: qtmBalance,
-          }));
+          try {
+            const qtmBalanceBigInt = BigInt(qtmBalanceWei || "0");
+            const qtmBalance = Number(qtmBalanceBigInt) / 10 ** (TOKEN_DECIMALS.QTM || 18);
+            console.log("QTM balance (converted):", qtmBalance);
+            setTokenBalances((prev) => ({
+              ...prev,
+              QTM: qtmBalance,
+            }));
+          } catch (e) {
+            console.error("Error converting QTM balance:", e);
+          }
         }
       }
 
@@ -279,36 +309,58 @@ const SwapCard = () => {
         );
         console.log("EURC balance (wei):", eurcBalanceWei);
         if (eurcBalanceWei && eurcBalanceWei !== "0x0") {
-          const eurcBalance =
-            parseInt(eurcBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.EURC || 6);
-          console.log("EURC balance (converted):", eurcBalance);
-          setTokenBalances((prev) => ({
-            ...prev,
-            EURC: eurcBalance,
-          }));
+          try {
+            const eurcBalanceBigInt = BigInt(eurcBalanceWei || "0");
+            const eurcBalance = Number(eurcBalanceBigInt) / 10 ** (TOKEN_DECIMALS.EURC || 6);
+            console.log("EURC balance (converted):", eurcBalance);
+            setTokenBalances((prev) => ({
+              ...prev,
+              EURC: eurcBalance,
+            }));
+          } catch (e) {
+            console.error("Error converting EURC balance:", e);
+          }
         }
       }
 
-      // Fetch SWPRC balance
-      if (TOKEN_CONTRACTS.SWPRC) {
-        console.log("Fetching SWPRC balance from:", TOKEN_CONTRACTS.SWPRC);
-        const swprcBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.SWPRC
-        );
-        console.log("SWPRC balance (wei):", swprcBalanceWei);
-        if (swprcBalanceWei && swprcBalanceWei !== "0x0") {
-          const swprcBalance =
-            parseInt(swprcBalanceWei, 16) / 10 ** (TOKEN_DECIMALS.SWPRC || 6);
-          console.log("SWPRC balance (converted):", swprcBalance);
-          setTokenBalances((prev) => ({
-            ...prev,
-            SWPRC: swprcBalance,
-          }));
-        }
-      }
+      // TODO: Uncomment balance fetching for other tokens when DEX routes are integrated
+      // // Fetch WUSDC balance
+      // if (TOKEN_CONTRACTS.WUSDC) {
+      //   console.log("Fetching WUSDC balance from:", TOKEN_CONTRACTS.WUSDC);
+      //   // ... balance fetching code ...
+      // }
 
-      // TODO: Fetch other token balances (ETH, USDT, UNI, HYPE)
+      // // Fetch QTM balance
+      // if (TOKEN_CONTRACTS.QTM) {
+      //   console.log("Fetching QTM balance from:", TOKEN_CONTRACTS.QTM);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch SWPRC balance
+      // if (TOKEN_CONTRACTS.SWPRC) {
+      //   console.log("Fetching SWPRC balance from:", TOKEN_CONTRACTS.SWPRC);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch USDT balance
+      // if (TOKEN_CONTRACTS.USDT) {
+      //   console.log("Fetching USDT balance from:", TOKEN_CONTRACTS.USDT);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch USYC balance
+      // if (TOKEN_CONTRACTS.USYC) {
+      //   console.log("Fetching USYC balance from:", TOKEN_CONTRACTS.USYC);
+      //   // ... balance fetching code ...
+      // }
+
+      // // Fetch SYN balance
+      // if (TOKEN_CONTRACTS.SYN) {
+      //   console.log("Fetching SYN balance from:", TOKEN_CONTRACTS.SYN);
+      //   // ... balance fetching code ...
+      // }
+
+      // TODO: Fetch other token balances (ETH, UNI, HYPE)
       // Add token contract addresses to TOKEN_CONTRACTS and use fetchERC20Balance
     } catch (error) {
       console.error("Failed to fetch wallet balances:", error);
@@ -326,12 +378,7 @@ const SwapCard = () => {
       setIsWalletConnected(false);
       setTokenBalances({
         USDC: 0,
-        ETH: 0,
-        USDT: 0,
         EURC: 0,
-        SWPRC: 0,
-        UNI: 0,
-        HYPE: 0,
       });
     }
   }, [authenticated, user, fetchUserBalances]);
@@ -350,6 +397,10 @@ const SwapCard = () => {
     receiveAmount !== "0.00";
 
   const handleSwapTokens = () => {
+    if (!receiveToken) {
+      // If receive token is not selected, just do nothing
+      return;
+    }
     const tempToken = sellToken;
     setSellToken(receiveToken);
     setReceiveToken(tempToken);
@@ -369,9 +420,15 @@ const SwapCard = () => {
     }
   };
 
-  // Get swap quote from QuantumExchange API
+  // Get swap quote from Tower Exchange backend
   const getQuoteForSwap = async (sellAmountValue: string) => {
     try {
+      // Check if both tokens are selected
+      if (!receiveToken) {
+        setReceiveAmount("0.00");
+        return;
+      }
+
       // Get token addresses for the swap
       let tokenInAddress: string | null = null;
       let tokenOutAddress: string | null = null;
@@ -401,7 +458,7 @@ const SwapCard = () => {
         parseFloat(sellAmountValue) * 10 ** sellTokenDecimals
       ).toString();
 
-      console.log("Getting quote from QuantumExchange:", {
+      console.log("Getting quote from Tower Finance:", {
         sellToken: sellToken.symbol,
         receiveToken: receiveToken.symbol,
         tokenInAddress,
@@ -409,27 +466,44 @@ const SwapCard = () => {
         amountInWei,
       });
 
-      // Get quote from QuantumExchange API
-      const quoteData = await getSwapQuoteFromQuantumExchange(
+      // Get quote from Tower Exchange backend
+      const quoteData = await getQuote(
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
         slippageTolerance
       );
 
-      console.log("Quote received from QuantumExchange:", quoteData);
+      if (!quoteData) {
+        throw new Error(towerError || "Failed to get quote from Tower Exchange");
+      }
+
+      console.log("Quote received from Tower Exchange:", quoteData);
+
+      // Auto-set router from backend response (use dexId to match routers list)
+      if (quoteData.route?.hops?.[0]?.dexId) {
+        setSelectedRouterId(quoteData.route.hops[0].dexId);
+        console.log("Auto-selected router from backend:", quoteData.route.hops[0].dexName, "ID:", quoteData.route.hops[0].dexId);
+      }
 
       // Convert quote back from wei using correct decimals for the receive token
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-      const quoteAmount = parseFloat(quoteData.toAmount) / 10 ** receiveTokenDecimals;
+      const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 1e18;
+      
+      // Convert priceImpact from basis points to percentage (50 = 0.50%)
+      const priceImpactPercent = typeof quoteData.priceImpact === 'number' 
+        ? (quoteData.priceImpact / 100).toFixed(2)
+        : quoteData.priceImpact;
 
-      console.log("Quote converted:", {
-        receiveTokenDecimals,
-        quoteAmount,
-        priceImpact: quoteData.priceImpact,
+      // Debug logging with detailed breakdown
+      console.log("Quote conversion details:", {
+        outputAmount_wei: quoteData.outputAmount,
+        quoteAmount_tokens: quoteAmount,
+        priceImpact: priceImpactPercent,
+        calculation: `${quoteData.outputAmount} / 1e18 = ${quoteAmount}`,
       });
 
-      setReceiveAmount(quoteAmount.toFixed(2));
+      setReceiveAmount(quoteAmount.toFixed(receiveTokenDecimals));
     } catch (error) {
       console.error("Error getting swap quote:", error);
       // Fallback to mock calculation on error
@@ -491,44 +565,7 @@ const SwapCard = () => {
     }
   };
 
-  // Reset token approval for the swap router (sets allowance to 0 so next swap will ask for approval again)
-  const handleResetApproval = async () => {
-    if (!user?.wallet?.address || !TOKEN_CONTRACTS[sellToken.symbol]) return;
-    setResetApprovalLoading(true);
-    try {
-      const connectedWallet = wallets.find(
-        (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
-      );
-      if (!connectedWallet) throw new Error("Wallet not found");
-      const provider = await connectedWallet.getEthereumProvider();
-      if (!provider) throw new Error("Failed to get wallet provider");
-      const chainId = await provider.request({ method: "eth_chainId" });
-      if (chainId !== ARC_CHAIN_HEX) throw new Error("Switch to Arc Testnet first");
-      const tokenAddress = TOKEN_CONTRACTS[sellToken.symbol];
-      const spender = ARC_POOLS.routerQuantum;
-      const calldata = encodeErc20Approve(spender, "0");
-      const toHexQuantity = (n: number) => "0x" + n.toString(16);
-      await provider.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: user.wallet.address,
-          to: tokenAddress,
-          value: "0x0",
-          data: calldata,
-          gas: toHexQuantity(80000),
-        }],
-      });
-      fetchUserBalances();
-      alert("Approval reset for " + sellToken.symbol + ". Next swap will ask for approval again.");
-    } catch (e) {
-      console.error("Reset approval failed:", e);
-      setNotification("failed");
-      setRevertReason(e instanceof Error ? e.message : "Reset approval failed");
-      setTimeout(() => { setNotification(null); setRevertReason(null); }, 5000);
-    } finally {
-      setResetApprovalLoading(false);
-    }
-  };
+
 
   // Handle swap transaction
   const handleSwap = async () => {
@@ -538,6 +575,10 @@ const SwapCard = () => {
     try {
       if (!user?.wallet?.address) {
         throw new Error("Wallet not connected");
+      }
+
+      if (!receiveToken) {
+        throw new Error("Please select a receive token");
       }
 
       // Check if on correct network
@@ -702,7 +743,7 @@ const SwapCard = () => {
         Math.floor(sellAmountNum * 10 ** sellTokenDecimals)
       ).toString();
 
-      console.log("Preparing swap via QuantumExchange:", {
+      console.log("Preparing swap via Tower Exchange:", {
         sellToken: sellToken.symbol,
         receiveToken: receiveToken.symbol,
         tokenInAddress,
@@ -714,117 +755,51 @@ const SwapCard = () => {
         sellTokenDecimals,
       });
 
-      // Step 3: Get swap transaction data from QuantumExchange
-      const swapData = await getSwapTransactionFromQuantumExchange(
+      // Step 3: Get swap quote from Tower Finance backend
+      const quote = await getQuote(
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance,
-        user.wallet.address
+        slippageTolerance
       );
 
-      console.log("Swap transaction data received:", {
-        to: swapData.to,
-        value: swapData.value,
-        dataLength: swapData.data?.length,
-        gasLimit: swapData.gasLimit,
-        approvalAddress: swapData.approvalAddress,
-        approvalAmount: swapData.approvalAmount,
+      if (!quote) {
+        throw new Error(towerError || "Failed to get swap quote from Tower Exchange");
+      }
+
+      console.log("Swap quote received:", {
+        inputAmount: quote.inputAmount,
+        outputAmount: quote.outputAmount,
+        minOut: quote.minOut,
+        priceImpact: quote.priceImpact,
+        routeType: quote.route.type,
+        hopsCount: quote.route.hops.length,
       });
 
-      // Check for invalid ETH values in token-to-token swaps (will be corrected later)
-      const swapValueBigInt = BigInt(swapData.value || "0");
-      const isNativeInput = NATIVE_TOKENS.includes(sellToken.symbol);
-      const isNativeOutput = NATIVE_TOKENS.includes(receiveToken.symbol);
-      
-      // Native tokens (like USDC) are payable and SHOULD have a non-zero ETH value
-      // ERC-20 tokens should NOT have a non-zero ETH value
-      if (!isNativeInput && !isNativeOutput && swapValueBigInt > 0n) {
-        console.warn("WARNING: QuantumExchange returned non-zero ETH value for ERC-20 token swap", {
-          sellToken: sellToken.symbol,
-          receiveToken: receiveToken.symbol,
-          swapValue: swapData.value,
-          swapValueWei: swapValueBigInt.toString(),
-          note: "This will be corrected to 0x0 before sending",
-        });
-      } else if ((isNativeInput || isNativeOutput) && swapValueBigInt > 0n) {
-        console.log("Swap involves native token (requires ETH payment)", {
-          sellToken: sellToken.symbol,
-          receiveToken: receiveToken.symbol,
-          ethAmount: swapData.value,
-          ethInWei: swapValueBigInt.toString(),
-          ethInDecimal: (Number(swapValueBigInt) / 1e18).toFixed(6),
-        });
+      // Step 4: Get swap transaction (which includes approval if needed)
+      console.log("Building swap transaction with automatic approval detection...");
+      const transaction = await buildSwapTransaction(quote, user.wallet.address);
+
+      if (!transaction) {
+        throw new Error(towerError || "Failed to build swap transaction");
       }
 
-      // Step 4: Check current allowance and handle token approval if needed
-      // Native tokens (like USDC) don't need ERC-20 approval - they use payable functions
-      // Only ERC-20 tokens need approval
-      const needsApprovalCheck = ERC20_TOKENS.includes(sellToken.symbol);
-      
-      let needsApproval = false;
-      let spenderAddress = "";
-      let requiredAmount = "";
-      let currentAllowanceBigInt = BigInt(0);
-      
-      if (needsApprovalCheck) {
-        // The spender is the swap router (swapData.to) - this is who needs permission to spend tokens
-        spenderAddress = swapData.approvalAddress || swapData.to;
-        requiredAmount = swapData.approvalAmount || amountInWei;
-        
-        console.log("Checking token allowance for ERC-20 token:", {
-          token: sellToken.symbol,
-          tokenAddress: tokenInAddress,
-          owner: user.wallet.address,
-          spender: spenderAddress,
-          requiredAmount,
-        });
+      const { approval: approvalTx, swap: swapTx } = transaction;
 
-        // Check current allowance
-        const currentAllowance = await fetchERC20Allowance(
-          user.wallet.address,
-          spenderAddress,
-          tokenInAddress
-        );
-
-        currentAllowanceBigInt = currentAllowance ? BigInt(currentAllowance) : BigInt(0);
-        const requiredAmountBigInt = BigInt(requiredAmount);
-        needsApproval = currentAllowanceBigInt < requiredAmountBigInt;
-
-        console.log("Allowance check result:", {
-          currentAllowance: currentAllowanceBigInt.toString(),
-          requiredAmount: requiredAmountBigInt.toString(),
-          needsApproval,
-        });
-      } else {
-        console.log("Native token - skipping ERC-20 approval (uses payable function)", {
-          token: sellToken.symbol,
-        });
-      }
-
-      // Handle approval if needed
-      if (needsApproval) {
-        console.log("Token approval needed - requesting approval:", {
-          approvalAddress: spenderAddress,
-          approvalAmount: requiredAmount,
-          currentAllowance: currentAllowanceBigInt.toString(),
-        });
-
-        // Send approval transaction via provider
+      // Step 5: If approval is needed, submit approval transaction first
+      if (approvalTx) {
+        console.log("Approval required - submitting approval transaction...");
         try {
           console.log("Sending approval transaction to MetaMask...");
-          // Approve the router to spend the required amount
-          const approvalCalldata = encodeErc20Approve(
-            spenderAddress,
-            requiredAmount
+          const approveTxHash = await sendTransactionViaProvider(
+            {
+              to: approvalTx.to,
+              data: approvalTx.data,
+              value: "0x0",
+              gas: approvalTx.gasLimit,
+            },
+            "APPROVAL"
           );
-          const approveTxHash = await sendTransactionViaProvider({
-            to: tokenInAddress,
-            value: "0",
-            data: approvalCalldata,
-            // Wallets still estimate gas, but providing a buffer helps on some providers
-            gas: 120000,
-          }, "APPROVAL");
 
           console.log("Approval transaction sent:", approveTxHash);
 
@@ -832,18 +807,18 @@ const SwapCard = () => {
           let approvalReceipt = null;
           let approvalRetries = 0;
           const maxApprovalRetries = 30; // Wait up to 30 seconds
-          
+
           while (approvalReceipt === null && approvalRetries < maxApprovalRetries) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
-            
+
             try {
               approvalReceipt = await eip1193Provider.request({
-                method: 'eth_getTransactionReceipt',
+                method: "eth_getTransactionReceipt",
                 params: [approveTxHash],
               });
-              
+
               if (approvalReceipt) {
-                if (approvalReceipt.status === '0x0') {
+                if (approvalReceipt.status === "0x0") {
                   throw new Error("Approval transaction failed on-chain");
                 }
                 console.log("Approval transaction confirmed:", approvalReceipt);
@@ -852,26 +827,51 @@ const SwapCard = () => {
             } catch (err) {
               // Continue polling
             }
-            
+
             approvalRetries++;
           }
-          
+
           if (!approvalReceipt) {
             throw new Error("Approval transaction not confirmed after 30 seconds");
           }
-          
+
           // Additional wait to ensure block is finalized
           await new Promise((resolve) => setTimeout(resolve, 2000));
-          
+
           console.log("Approval transaction confirmed successfully!");
+          
+          // CRITICAL: Rebuild swap transaction after approval to get fresh deadline
+          // Using old swap data will cause "execution reverted" due to stale deadline
+          console.log("Rebuilding swap transaction with fresh deadline after approval...");
+          const freshQuote = await getQuote(
+            tokenInAddress,
+            tokenOutAddress,
+            amountInWei,
+            slippageTolerance
+          );
+
+          if (!freshQuote) {
+            throw new Error(towerError || "Failed to get fresh quote after approval");
+          }
+
+          const freshTransaction = await buildSwapTransaction(freshQuote, user.wallet.address);
+          if (!freshTransaction) {
+            throw new Error(towerError || "Failed to build fresh swap transaction after approval");
+          }
+
+          // Update swapTx to the fresh one with new deadline
+          Object.assign(swapTx, freshTransaction.swap);
+          
+          console.log("Fresh swap transaction ready:", {
+            to: swapTx.to,
+            dataLength: swapTx.data?.length,
+            gasLimit: swapTx.gasLimit,
+          });
         } catch (approvalError: unknown) {
-          // Better error serialization for approval errors
           let approvalErrorDetails: Record<string, unknown> = {
             context: "tokenApproval",
             timestamp: new Date().toISOString(),
             token: sellToken.symbol,
-            approvalAddress: spenderAddress,
-            approvalAmount: requiredAmount,
           };
 
           if (approvalError instanceof Error) {
@@ -887,35 +887,29 @@ const SwapCard = () => {
               message: err.message || err.reason || String(approvalError),
               code: err.code,
               data: err.data,
-              shortMessage: err.shortMessage,
-              cause: err.cause,
             };
           } else {
             approvalErrorDetails.message = String(approvalError);
           }
 
           console.error("Approval transaction error details:", approvalErrorDetails);
-          // Don't continue if approval failed - the swap will fail anyway
           throw new Error(
             `Token approval failed: ${approvalErrorDetails.message || "Unknown error"}. Please try again.`
           );
         }
       } else {
-        console.log("Sufficient allowance already exists - skipping approval");
+        console.log("No approval needed - proceeding with swap");
       }
 
-      // Re-fetch swap data so deadline and amountOutMin are fresh (avoids "execution reverted" from stale data)
-      console.log("Fetching fresh swap data before sending...");
-      const freshSwapData = await getSwapTransactionFromQuantumExchange(
-        tokenInAddress,
-        tokenOutAddress,
-        amountInWei,
-        slippageTolerance,
-        user.wallet.address
-      );
-      const swapDataToSend = freshSwapData;
+      // Step 6: Send swap transaction
+      const swapDataToSend = {
+        to: swapTx.to,
+        value: swapTx.value,
+        data: swapTx.data,
+        gasLimit: swapTx.gasLimit,
+      };
 
-      // Step 5: Send swap transaction via provider
+      // Step 7: Send swap transaction via provider
       console.log("Sending swap transaction...");
       console.log("Swap transaction data:", {
         to: swapDataToSend.to,
@@ -1008,7 +1002,7 @@ const SwapCard = () => {
           to: swapDataToSend.to,
           value: finalSwapValue,
           data: swapDataToSend.data,
-          // Per QuantumExchange docs, use the provided gasLimit when available
+          // Per Tower Router convention, use the provided gasLimit when available
           gas: swapDataToSend.gasLimit ?? undefined,
         },
         "SWAP"
@@ -1098,6 +1092,67 @@ const SwapCard = () => {
       setSwapState("success");
       setNotification("success");
 
+      // Step 8: Submit platform fee with atomic distribution through FeeCollector
+      // Swap output went to FeeCollector, now execute atomic fee split
+      const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
+      console.log('[SwapCard] Fee collection check:', {
+        hasExpectedFeeCollectorOutput: !!feeCollectorOutput,
+        feeCollectorOutput: feeCollectorOutput,
+        platformFeeAmount: swapTx?.platformFeeAmount,
+        expectedUserOutput: swapTx?.expectedUserOutput,
+        isNativeUSDC: sellToken.symbol === 'USDC',
+      });
+
+      if (feeCollectorOutput && feeCollectorOutput !== "0") {
+        const outputTokenForFee = tokenOutAddress || quote.outputToken;
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+        
+        console.log("[SwapCard] Submitting fee with atomic distribution:", {
+          outputToken: outputTokenForFee,
+          totalAmount: feeCollectorOutput,
+          userAddress: userAddress,
+          backendUrl,
+          sellToken: sellToken.symbol,
+        });
+        
+        try {
+          const feeResponse = await fetch(`${backendUrl}/api/swap/submit-fee`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              outputToken: outputTokenForFee,
+              totalAmount: feeCollectorOutput,  // Full amount that FeeCollector received
+              userAddress: userAddress,           // User address to receive (amount - fee)
+              feeBps: 25,                        // 0.25% = 25 basis points
+            }),
+          });
+
+          if (!feeResponse.ok) {
+            const feeError = await feeResponse.text();
+            console.warn("[SwapCard] Fee submission response not OK:", {
+              status: feeResponse.status,
+              error: feeError,
+            });
+          } else {
+            const feeResult = await feeResponse.json();
+            console.log("[SwapCard] Atomic fee collection and distribution successful:", {
+              transactionHash: feeResult.data?.transactionHash || feeResult.transactionHash,
+              outputToken: feeResult.data?.outputToken || feeResult.outputToken,
+              feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
+            });
+          }
+        } catch (feeError: unknown) {
+          console.error("[SwapCard] Error submitting fee with atomic distribution:", {
+            message: feeError instanceof Error ? feeError.message : String(feeError),
+            outputToken: outputTokenForFee,
+            totalAmount: feeCollectorOutput,
+          });
+          // Don't throw - fee submission failure shouldn't block the swap success
+        }
+      } else {
+        console.warn('[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0');
+      }
+
       // Auto-dismiss notification after 5 seconds
       setTimeout(() => {
         setNotification(null);
@@ -1118,7 +1173,7 @@ const SwapCard = () => {
         context: "handleSwap",
         timestamp: new Date().toISOString(),
         sellToken: sellToken.symbol,
-        receiveToken: receiveToken.symbol,
+        receiveToken: receiveToken?.symbol || "Not Selected",
         sellAmount,
         revertReason: revertReason ?? undefined,
       };
@@ -1219,7 +1274,7 @@ const SwapCard = () => {
     <div className="flex gap-6 items-start w-full justify-center">
       {/* Swap Notification */}
       <AnimatePresence>
-        {notification && (
+        {notification && receiveToken && (
           <SwapNotification
             type={notification}
             sellAmount={sellAmount}
@@ -1286,23 +1341,13 @@ const SwapCard = () => {
                 >
                   Max
                 </button>
-                {isWalletConnected && TOKEN_CONTRACTS[sellToken.symbol] && (
-                  <button
-                    type="button"
-                    onClick={handleResetApproval}
-                    disabled={resetApprovalLoading}
-                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                  >
-                    {resetApprovalLoading ? "Resetting…" : "Reset approval"}
-                  </button>
-                )}
               </div>
             </div>
             <div className="flex items-center justify-between">
               <TokenSelector
                 selected={sellToken}
                 onSelect={setSellToken}
-                excludeSymbol={receiveToken.symbol}
+                excludeSymbol={receiveToken?.symbol || ""}
                 onOpenModal={() => setIsSellTokenModalOpen(true)}
               />
               <TokenInput
@@ -1333,16 +1378,18 @@ const SwapCard = () => {
           <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Receive</span>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Wallet className="w-4 h-4" />
-                <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
-              </div>
+              {receiveToken && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Wallet className="w-4 h-4" />
+                  <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <TokenSelector
                 selected={receiveToken}
                 onSelect={setReceiveToken}
-                excludeSymbol={sellToken.symbol}
+                excludeSymbol={receiveToken?.symbol || sellToken.symbol}
                 onOpenModal={() => setIsReceiveTokenModalOpen(true)}
               />
               <TokenInput
@@ -1351,6 +1398,14 @@ const SwapCard = () => {
                 onClear={() => setReceiveAmount("0.00")}
               />
             </div>
+          </div>
+
+          {/* Router Display */}
+          <div className="mb-4">
+            <RouterDisplay 
+              selectedRouterId={selectedRouterId}
+              onRouterSelect={setSelectedRouterId}
+            />
           </div>
 
           {/* Action Button */}
@@ -1389,26 +1444,28 @@ const SwapCard = () => {
             </span>
             <span className="text-muted-foreground">$1</span>
           </motion.button>
-          <motion.button
-            onClick={() => setReceiveToken(receiveToken)}
-            className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
-              <Image
-                src={receiveToken.icon}
-                alt={`${receiveToken.symbol} logo`}
-                width={24}
-                height={24}
-                className="object-contain w-full h-full"
-              />
-            </div>
-            <span className="font-medium text-foreground">
-              {receiveToken.symbol}
-            </span>
-            <span className="text-muted-foreground">$1</span>
-          </motion.button>
+          {receiveToken && (
+            <motion.button
+              onClick={() => setReceiveToken(receiveToken)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+                <Image
+                  src={receiveToken.icon}
+                  alt={`${receiveToken.symbol} logo`}
+                  width={24}
+                  height={24}
+                  className="object-contain w-full h-full"
+                />
+              </div>
+              <span className="font-medium text-foreground">
+                {receiveToken.symbol}
+              </span>
+              <span className="text-muted-foreground">$1</span>
+            </motion.button>
+          )}
         </div>
 
         {/* Modals */}
@@ -1417,14 +1474,14 @@ const SwapCard = () => {
           onClose={() => setIsSellTokenModalOpen(false)}
           selected={sellToken}
           onSelect={setSellToken}
-          excludeSymbol={receiveToken.symbol}
+          excludeSymbol={receiveToken?.symbol || ""}
           tokenBalances={tokenBalances}
         />
 
         <TokenModal
           isOpen={isReceiveTokenModalOpen}
           onClose={() => setIsReceiveTokenModalOpen(false)}
-          selected={receiveToken}
+          selected={receiveToken || tokens[0]}
           onSelect={setReceiveToken}
           excludeSymbol={sellToken.symbol}
           tokenBalances={tokenBalances}

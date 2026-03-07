@@ -8,6 +8,11 @@ export const ARC_TESTNET_CONFIG = {
   faucetUrl: "https://faucet.circle.com",
 };
 
+// Smart Contract Addresses on Arc Testnet
+export const SMART_CONTRACTS = {
+  TOWER_ROUTER: process.env.NEXT_PUBLIC_TOWER_ROUTER_ADDRESS || "0x0ee3d301A9a2636f67C8705224fbc3319b4df949",
+};
+
 // Arc testnet network params for wallets (Metamask-compatible)
 export const ARC_CHAIN_HEX = "0x4cef52"; // 5042002 in hex
 export const ARC_ADD_NETWORK_PARAMS = [
@@ -40,14 +45,19 @@ export const QUANTUM_EXCHANGE_CONFIG = {
 // Note: Only USDC, WUSDC, QTM are supported by QuantumExchange API
 // IMPORTANT: USDC (0x3600...) is the NATIVE USDC (wrappable via wrapAndSwap, requires ETH payment)
 //            WUSDC (0xD40f...) is the ERC-20 wrapped version (ERC-20 approval required)
+//            WUSDC (0x911b...) is the Synthra WUSDC contract
 export const TOKEN_CONTRACTS: Record<string, string> = {
   USDC: "0x3600000000000000000000000000000000000000",
   WUSDC: "0xD40fCAa5d2cE963c5dABC2bf59E268489ad7BcE4",
   QTM: "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+  USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
+  USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
+  SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
+  // Synthra WUSDC (different from main WUSDC)
+  WUSDC_SYNTHRA: "0x911b4000D3422F482F4062a913885f7b035382Df",
   // Add other token addresses as needed
-  // USDT: "0x...",
   // UNI: "0x...",
   // HYPE: "0x...",
   // ETH: "0x...",
@@ -58,17 +68,19 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
 export const NATIVE_TOKENS = ["USDC"];
 
 // Tokens that are regular ERC-20 (require approval)
-export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "SWPRC", "USDT", "UNI", "HYPE"];
+export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USYC", "USDT", "SYN", "SWPRC", "UNI", "HYPE"];
 
 // Token Decimals Configuration
-// Note: USDC has 18 decimals on Arc Testnet, WUSDC has 6
+// Note: USDC, EURC, SWPRC, and USYC have 6 decimals on Arc Testnet
 export const TOKEN_DECIMALS: Record<string, number> = {
-  USDC: 18,
-  WUSDC: 6,
+  USDC: 6,
+  WUSDC: 18,
   QTM: 18,
   EURC: 6,
+  USYC: 6,
+  USDT: 18,
   SWPRC: 6,
-  USDT: 6,
+  SYN: 18,
   UNI: 18,
   HYPE: 18,
   ETH: 18,

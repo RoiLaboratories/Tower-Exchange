@@ -34,19 +34,16 @@ export const uploadProfilePicture = async (
   }
 
   try {
-    // Create a unique filename
-    const timestamp = Date.now();
-    const fileName = `${walletAddress}-${timestamp}-${file.name}`;
-    const filePath = `${fileName}`;
+    // Use simpler path structure: {walletAddress}/profile.{ext}
+    const ext = file.type.split("/")[1]; // Get extension from mime type
+    const filePath = `${walletAddress}/profile.${ext}`;
 
     // Upload to Supabase storage
-    // Note: Make sure RLS is disabled on the profile-pictures bucket
-    // or create appropriate RLS policies for public uploads
     const { data, error } = await supabase.storage
       .from("profile-pictures")
       .upload(filePath, file, {
         cacheControl: "3600",
-        upsert: true, // Allow overwriting if file exists
+        upsert: true, // Overwrite existing profile picture
       });
 
     if (error) {
@@ -68,6 +65,9 @@ export const uploadProfilePicture = async (
     } = supabase.storage
       .from("profile-pictures")
       .getPublicUrl(data.path);
+
+    // Cache locally
+    saveProfileData(walletAddress, publicUrl);
 
     console.log("Profile picture uploaded successfully:", publicUrl);
     return publicUrl;
@@ -121,16 +121,46 @@ export const saveProfileData = (walletAddress: string, profilePictureUrl: string
 };
 
 /**
- * Load profile data from local storage
+ * Load profile data from local storage or fetch from Supabase Storage
  * @param walletAddress - The user's wallet address
  */
-export const loadProfileData = (walletAddress: string): string | null => {
+export const loadProfileData = async (walletAddress: string): Promise<string | null> => {
   try {
+    // First try to load from localStorage
     const data = localStorage.getItem(`tower-finance-profile-${walletAddress}`);
     if (data) {
       const profileData = JSON.parse(data);
-      return profileData.profilePictureUrl || null;
+      if (profileData.profilePictureUrl) {
+        return profileData.profilePictureUrl;
+      }
     }
+
+    // Try to get the profile picture from storage bucket
+    // Check common file extensions
+    const extensions = ["jpg", "jpeg", "png", "webp", "gif"];
+    
+    for (const ext of extensions) {
+      const filePath = `${walletAddress}/profile.${ext}`;
+      const {
+        data: { publicUrl },
+      } = supabase.storage
+        .from("profile-pictures")
+        .getPublicUrl(filePath);
+
+      // Try to fetch to see if file exists
+      try {
+        const response = await fetch(publicUrl, { method: "GET" });
+        if (response.ok) {
+          // File exists, cache and return
+          saveProfileData(walletAddress, publicUrl);
+          return publicUrl;
+        }
+      } catch (error) {
+        // File doesn't exist at this path, try next extension
+        continue;
+      }
+    }
+
     return null;
   } catch (error) {
     console.error("Error loading profile data:", error);

@@ -11,18 +11,9 @@ interface TokenInputProps {
 const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
   const [isFocused, setIsFocused] = useState(false);
 
-  // Dynamic font size based on input length - scales down much more aggressively
-  const getInputFontSize = (inputValue: string) => {
-    const length = inputValue.length;
-    if (length <= 4) return 36;
-    if (length <= 6) return 32;
-    if (length <= 8) return 26;
-    if (length <= 10) return 22;
-    if (length <= 12) return 18;
-    if (length <= 15) return 14;
-    if (length <= 18) return 12;
-    if (length <= 25) return 10;
-    return Math.max(8, 36 - (length - 4) * 1.5);
+  // Fixed font size - no scaling based on input length
+  const getInputFontSize = () => {
+    return 36;
   };
 
   return (
@@ -56,7 +47,7 @@ const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
           }
         }}
         style={{
-          fontSize: `${getInputFontSize(value)}px`,
+          fontSize: `${getInputFontSize()}px`,
           transition: "font-size 0.2s ease",
         }}
         className="bg-transparent font-semibold text-right w-full outline-none text-foreground pr-6"

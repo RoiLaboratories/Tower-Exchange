@@ -10,11 +10,11 @@ const arcRpcUrl = "https://rpc.testnet.arc.network";
 // Token decimals for proper amount conversion
 const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 18,
-  WUSDC: 6,
+  WUSDC: 18,
   QTM: 18,
   EURC: 6,
   SWPRC: 6,
-  USDT: 6,
+  USDT: 18,
   UNI: 18,
   HYPE: 18,
   ETH: 18,

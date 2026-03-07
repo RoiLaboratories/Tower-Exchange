@@ -7,23 +7,23 @@ import Image from "next/image";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
-import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
-import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
-import hypeLogo from "@/public/assets/hype.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
+import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import swprcLogo from "@/public/assets/swapr_logo.png";
+import syntharaLogo from "@/public/assets/synthra logo.png";
 import quantumLogo from "@/public/assets/quantum-logo.png";
 
+// Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
   { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "ETH", icon: ethLogo, name: "Ethereum", balance: 2.5 },
-  { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
   { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
-  { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  { symbol: "UNI", icon: uniLogo, name: "Uniswap", balance: 50 },
-  { symbol: "HYPE", icon: hypeLogo, name: "Hyperliquid", balance: 100 },
-  { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
-  { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
+  // TODO: Uncomment when DEX routes are integrated
+  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
+  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
+  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
+  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
+  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
+  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
 ];
 
 interface TokenModalProps {
