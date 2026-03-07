@@ -11,12 +11,18 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [arcDropdownOpen, setArcDropdownOpen] = useState(false);
+  const [tradeDropdownOpen, setTradeDropdownOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { user, login, logout, authenticated } = usePrivy();
 
+  const tradeOptions = [
+    { name: "Swap", path: "/" },
+    { name: "Bridge", path: "/bridge" },
+  ];
+
   const navItems = [
-    { name: "Trade", path: "/" },
+    { name: "Trade", path: null, dropdown: true }, // Trade is now a dropdown
     { name: "AI Agent", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
     { name: "Recurring Orders", path: "/recurring-orders" },
@@ -88,32 +94,98 @@ const Header = () => {
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-1">
             {navItems.map((item, index) => (
-              <motion.button
-                key={item.name}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: item.disabled ? 1 : 1.05 }}
-                whileTap={{ scale: item.disabled ? 1 : 0.95 }}
-                onClick={() => handleNavigation(item.path, item.disabled)}
-                disabled={item.disabled}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  pathname === item.path
-                    ? "bg-primary/20 text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                } ${
-                  item.disabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "cursor-pointer"
-                }`}
-              >
-                {item.name}
-                {item.badge && (
-                  <span className="ml-2 px-2 py-0.5 text-xs bg-muted rounded-full text-muted-foreground">
-                    {item.badge}
-                  </span>
+              <div key={item.name}>
+                {item.dropdown ? (
+                  // Trade Dropdown
+                  <div className="relative group">
+                    <motion.button
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setTradeDropdownOpen(!tradeDropdownOpen)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
+                        tradeDropdownOpen || pathname === "/" || pathname === "/bridge"
+                          ? "bg-primary/20 text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {item.name}
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          tradeDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </motion.button>
+
+                    {/* Trade Dropdown Menu */}
+                    <AnimatePresence>
+                      {tradeDropdownOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-30"
+                            onClick={() => setTradeDropdownOpen(false)}
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute left-0 mt-2 w-40 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
+                          >
+                            <div className="p-2">
+                              {tradeOptions.map((option) => (
+                                <button
+                                  key={option.name}
+                                  className={`w-full text-left px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                    pathname === option.path
+                                      ? "bg-primary/20 text-primary"
+                                      : "text-foreground hover:bg-secondary"
+                                  }`}
+                                  onClick={() => {
+                                    router.push(option.path);
+                                    setTradeDropdownOpen(false);
+                                  }}
+                                >
+                                  {option.name}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  // Regular nav items
+                  <motion.button
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: item.disabled ? 1 : 1.05 }}
+                    whileTap={{ scale: item.disabled ? 1 : 0.95 }}
+                    onClick={() => handleNavigation(item.path as string, item.disabled)}
+                    disabled={item.disabled}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      pathname === item.path
+                        ? "bg-primary/20 text-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    } ${
+                      item.disabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer"
+                    }`}
+                  >
+                    {item.name}
+                    {item.badge && (
+                      <span className="ml-2 px-2 py-0.5 text-xs bg-muted rounded-full text-muted-foreground">
+                        {item.badge}
+                      </span>
+                    )}
+                  </motion.button>
                 )}
-              </motion.button>
+              </div>
             ))}
           </nav>
         </div>
@@ -276,29 +348,88 @@ const Header = () => {
           >
             <nav className="flex flex-col p-4 gap-2">
               {navItems.map((item, index) => (
-                <motion.button
-                  key={item.name}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={() => handleNavigation(item.path, item.disabled)}
-                  disabled={item.disabled}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                    pathname === item.path
-                      ? "bg-primary/20 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  <span className="flex items-center justify-between">
-                    {item.name}
-                    {item.badge && (
-                      <span className="px-2 py-0.5 text-xs bg-muted rounded-full text-muted-foreground">
-                        {item.badge}
+                <div key={item.name}>
+                  {item.dropdown ? (
+                    // Mobile Trade Dropdown
+                    <>
+                      <motion.button
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ delay: index * 0.05 }}
+                        onClick={() => setTradeDropdownOpen(!tradeDropdownOpen)}
+                        className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between text-foreground hover:bg-secondary"
+                      >
+                        <span>{item.name}</span>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            tradeDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </motion.button>
+
+                      {/* Mobile Trade Options */}
+                      <AnimatePresence>
+                        {tradeDropdownOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pl-4 flex flex-col gap-1">
+                              {tradeOptions.map((option) => (
+                                <motion.button
+                                  key={option.name}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: -10 }}
+                                  onClick={() => {
+                                    router.push(option.path);
+                                    setTradeDropdownOpen(false);
+                                    setMobileMenuOpen(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                    pathname === option.path
+                                      ? "bg-primary/20 text-primary"
+                                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                  }`}
+                                >
+                                  {option.name}
+                                </motion.button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </>
+                  ) : (
+                    // Regular mobile nav items
+                    <motion.button
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => handleNavigation(item.path as string, item.disabled)}
+                      disabled={item.disabled}
+                      className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                        pathname === item.path
+                          ? "bg-primary/20 text-primary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <span className="flex items-center justify-between">
+                        {item.name}
+                        {item.badge && (
+                          <span className="px-2 py-0.5 text-xs bg-muted rounded-full text-muted-foreground">
+                            {item.badge}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                </motion.button>
+                    </motion.button>
+                  )}
+                </div>
               ))}
 
               {/* Mobile-only Settings */}
