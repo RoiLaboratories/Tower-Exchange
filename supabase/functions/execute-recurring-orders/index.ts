@@ -6,19 +6,13 @@ const deno = (globalThis as any).Deno;
 const supabaseUrl = deno.env.get("SUPABASE_URL") ?? "";
 const supabaseServiceKey = deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";;
 const arcRpcUrl = "https://rpc.testnet.arc.network";
+const towerExchangeAiUrl = "https://tower-exchange-ai.vercel.app";
+const towerBackendUrl = "https://tower-backend.vercel.app";
 
-// Token decimals for proper amount conversion
-const TOKEN_DECIMALS: Record<string, number> = {
-  USDC: 18,
-  WUSDC: 18,
-  QTM: 18,
-  EURC: 6,
-  SWPRC: 6,
-  USDT: 18,
-  UNI: 18,
-  HYPE: 18,
-  ETH: 18,
-};
+// Privy Server Wallet Configuration
+const privyAppId = deno.env.get("PRIVY_APP_ID") ?? "";
+const privyAppSecret = deno.env.get("PRIVY_APP_SECRET") ?? "";
+const privyApiUrl = "https://api.privy.io";
 
 interface RecurringOrder {
   id: string;
@@ -132,16 +126,18 @@ async function executeOrder(
   try {
     console.log(`Executing order ${order.id}: ${order.source_token} -> ${order.target_token}`);
 
-    // Get swap quote from QuantumExchange API
+    // Get swap quote from Tower-Exchange-AI
     const quoteResult = await getSwapQuote(order);
     if (!quoteResult.success) {
       throw new Error(`Failed to get quote: ${quoteResult.error}`);
     }
 
-    // Build and send transaction
+    // Build and send transaction via Tower-Exchange-AI
     const txResult = await sendSwapTransaction(
       order.wallet_address,
-      quoteResult.data
+      order.source_token,
+      order.target_token,
+      order.amount.toString()
     );
 
     if (!txResult.success) {
@@ -184,37 +180,149 @@ async function executeOrder(
 }
 
 /**
- * Get swap quote from QuantumExchange API
+ * Get swap quote from Tower-Exchange-AI
  */
 async function getSwapQuote(
   order: RecurringOrder
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const sourceDecimals = TOKEN_DECIMALS[order.source_token] || 18;
-    const amountInWei = (order.amount * Math.pow(10, sourceDecimals)).toString();
+    // Tower-Exchange-AI handles amount conversion internally based on token type
+    console.log(`[Quote] Requesting quote: ${order.source_token} -> ${order.target_token}, amount: ${order.amount}`);
 
-    const url = new URL("https://www.quantumexchange.app/api/v1/quote");
-    url.searchParams.append("tokenIn", order.source_token);
-    url.searchParams.append("tokenOut", order.target_token);
-    url.searchParams.append("amountIn", amountInWei);
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
+    // Call Tower-Exchange-AI chat endpoint to get swap quote using AI agent
+    const chatResponse = await fetch(`${towerExchangeAiUrl}/api/v1/chat`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        user_id: order.wallet_address,
+        wallet_address: order.wallet_address,
+        message: `Get swap quote for ${order.amount} ${order.source_token} to ${order.target_token}`,
+        enable_wallet_access: false,
+        enable_portfolio_analysis: false,
+      }),
     });
 
-    if (!response.ok) {
+    if (!chatResponse.ok) {
       return {
         success: false,
-        error: `API returned status ${response.status}`,
+        error: `Tower-Exchange-AI returned status ${chatResponse.status}`,
       };
     }
 
-    const quoteData = await response.json();
-    return { success: true, data: quoteData };
+    const chatData = (await chatResponse.json()) as any;
+    console.log(`[Quote] Tower-Exchange-AI response:`, chatData);
+
+    // Extract quote data from response
+    const quote = chatData.data?.swap_quote || chatData.quote;
+    if (!quote) {
+      return {
+        success: false,
+        error: "No quote data in Tower-Exchange-AI response",
+      };
+    }
+
+    return { success: true, data: quote };
   } catch (error) {
+    console.error("[Quote Error]", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Sign and send a transaction using Privy Server Wallet
+ * Requires PRIVY_APP_ID and PRIVY_APP_SECRET environment variables
+ */
+async function signAndSendTransaction(
+  walletAddress: string,
+  txData: any
+): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
+  try {
+    if (!privyAppId || !privyAppSecret) {
+      return {
+        success: false,
+        error: "Privy credentials not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET.",
+      };
+    }
+
+    console.log(`[Privy] Signing transaction for wallet: ${walletAddress}`);
+
+    // Build Privy auth header (Base64 encoded "app_id:app_secret")
+    const credentials = `${privyAppId}:${privyAppSecret}`;
+    // deno-lint-ignore no-explicit-any
+    const encodedCredentials = btoa(credentials) as any;
+
+    // Call Privy Server Wallet API to sign transaction
+    // The transaction object should have: to, data, value, chainId
+    const privyResponse = await fetch(
+      `${privyApiUrl}/v1/wallets/${walletAddress}/sign_transaction`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({
+          transaction: {
+            to: txData.to,
+            data: txData.data,
+            value: txData.value || "0x0",
+            gasLimit: txData.gasLimit?.toString() || "200000",
+            chainId: 5042002, // Arc testnet
+          },
+        }),
+      }
+    );
+
+    if (!privyResponse.ok) {
+      const errorText = await privyResponse.text();
+      console.error(`[Privy] Signing failed with status ${privyResponse.status}:`, errorText);
+      return {
+        success: false,
+        error: `Privy signing failed: ${privyResponse.status}`,
+      };
+    }
+
+    const signedTx = (await privyResponse.json()) as any;
+    console.log(`[Privy] Transaction signed successfully`);
+
+    // Send the signed transaction to Arc RPC
+    const sendResponse = await fetch(arcRpcUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "eth_sendRawTransaction",
+        params: [signedTx.signed_transaction || signedTx.transaction],
+      }),
+    });
+
+    const sendResult = (await sendResponse.json()) as any;
+
+    if (sendResult.error) {
+      console.error(`[RPC] Transaction broadcast failed:`, sendResult.error);
+      return {
+        success: false,
+        error: `RPC error: ${sendResult.error.message}`,
+      };
+    }
+
+    const txHash = sendResult.result;
+    console.log(`[RPC] Transaction broadcast successful: ${txHash}`);
+
+    return {
+      success: true,
+      transactionHash: txHash,
+    };
+  } catch (error) {
+    console.error("[Privy Error]", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -224,34 +332,63 @@ async function getSwapQuote(
 
 /**
  * Send swap transaction to the blockchain
- * NOTE: This is a placeholder. In production, you would need to:
- * 1. Sign the transaction using stored wallet credentials or a secure signer
- * 2. Send it via the Arc RPC
- * 3. Wait for confirmation
+ * Calls Tower-Exchange-AI to build and sends via Privy for signing
  */
 async function sendSwapTransaction(
   walletAddress: string,
-  quoteData: any
+  inputToken: string,
+  outputToken: string,
+  inputAmount: string
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   try {
-    // IMPORTANT: This is a simplified implementation
-    // In production, you would need:
-    // - A secure way to sign transactions (e.g., AWS KMS, private keys in secure storage)
-    // - Web3.py or ethers.js to prepare the transaction
-    // - Send via Arc RPC using eth_sendRawTransaction
+    console.log(`[Transaction] Building transaction for ${walletAddress}: ${inputToken} -> ${outputToken}`);
 
-    console.log(`Transaction would be sent from ${walletAddress}`);
-    console.log(`Quote data:`, quoteData);
+    // Call Tower-Exchange-AI execute_swap endpoint to build transaction
+    const execResponse = await fetch(`${towerExchangeAiUrl}/api/v1/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: walletAddress,
+        wallet_address: walletAddress,
+        message: `Execute swap: ${inputAmount} ${inputToken} to ${outputToken}`,
+        enable_wallet_access: true, // Needed for swap execution
+        enable_portfolio_analysis: false,
+      }),
+    });
 
-    // For now, return a mock transaction hash
-    // This would be replaced with actual signing and sending
-    const mockTxHash = "0x" + Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join("");
+    if (!execResponse.ok) {
+      return {
+        success: false,
+        error: `Transaction building failed: ${execResponse.status}`,
+      };
+    }
 
-    return {
-      success: true,
-      transactionHash: mockTxHash,
-    };
+    const execData = (await execResponse.json()) as any;
+    console.log(`[Transaction] Execute response:`, execData);
+
+    // Extract transaction data from response
+    const txData = execData.data?.swap_execution?.transaction;
+    if (!txData) {
+      return {
+        success: false,
+        error: "No transaction data in response",
+      };
+    }
+
+    console.log(`[Transaction] Prepared transaction:`, {
+      to: txData.to,
+      from: txData.from,
+      dataLength: txData.data?.length,
+      value: txData.value,
+      gasLimit: txData.gasLimit,
+    });
+
+    // Sign and send transaction using Privy Server Wallet
+    return await signAndSendTransaction(walletAddress, txData);
   } catch (error) {
+    console.error("[Transaction Error]", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),

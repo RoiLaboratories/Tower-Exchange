@@ -36,15 +36,44 @@ To unschedule a job:
 SELECT cron.unschedule('execute-recurring-orders-hourly');
 ```
 
-## How It Works
+## Integration with Tower-Exchange-AI (Option A - Active)
 
-1. **Scheduler** (pg_cron): Every hour, calls the Edge Function
-2. **Edge Function** (this file): 
-   - Fetches all active orders where `next_execution_date <= now()`
-   - Calls QuantumExchange API to get swap quotes
-   - Sends swap transactions to Arc blockchain
-   - Logs execution results in `recurring_order_executions` table
-   - Updates `next_execution_date` for next scheduled execution
+This Edge Function now integrates with **Tower-Exchange-AI** for all swap operations:
+
+### How It Works
+
+1. **Quote Retrieval** 
+   - Calls Tower-Exchange-AI `/api/v1/chat` endpoint
+   - AI agent returns accurate swap quote with price impact
+   - Uses same routing and DEX discovery as frontend
+
+2. **Transaction Building**
+   - Calls Tower-Exchange-AI with `enable_wallet_access: true`
+   - Gets transaction object with: `to`, `data`, `value`, `gasLimit`
+   - Transaction is ready for signing via Arc RPC
+
+3. **Transaction Execution (TODO)**
+   - ⚠️ **Transaction signing not yet implemented**
+   - Options to complete:
+     - **Option 1 (Recommended)**: Privy Server Wallet API
+       ```typescript
+       const tx = await privy.signAndSendTransaction({
+         transaction: txData,
+         wallet: walletAddress
+       });
+       ```
+     - **Option 2**: AWS KMS or Supabase Vault for private key storage
+       ```typescript
+       const signer = new ethers.Wallet(privateKey, provider);
+       const tx = await signer.sendTransaction(txData);
+       ```
+     - **Option 3**: Delegate to separate service (recommended for production)
+
+### Current Status
+
+✅ Quote retrieval - WORKING
+✅ Transaction building - WORKING  
+⏳ Transaction signing/sending - PENDING IMPLEMENTATION
 
 ## Environment Variables
 
@@ -62,31 +91,57 @@ Required for the Edge Function:
 
 ## Important Notes
 
-### Wallet Signing & Transaction Sending
+## Implementation Notes
 
-**Current Implementation (Placeholder):**
-The `sendSwapTransaction()` function is a placeholder that returns mock transaction hashes. 
+### Transaction Signing Architecture
 
-**For Production, you need to:**
+The Edge Function currently:
+1. ✅ Fetches quotes from Tower-Exchange-AI
+2. ✅ Builds transactions using Tower-Exchange-AI's transaction builder
+3. ⏳ **Needs**: Secure signing mechanism for on-chain transaction
 
-1. **Sign Transactions**: 
-   - Store wallet private keys securely (e.g., AWS KMS, Vault)
-   - Use ethers.js or Web3.js to sign transactions
-   - Or use a service like Privy's key management
+### Recommended Implementation: Privy Server Wallet
 
-2. **Send to Blockchain**:
-   ```typescript
-   // Example using ethers.js
-   const provider = new ethers.JsonRpcProvider(arcRpcUrl);
-   const signer = new ethers.Wallet(privateKey, provider);
-   const tx = await signer.sendTransaction(transactionData);
-   const receipt = await tx.wait();
-   ```
+**Setup:**
+```bash
+# Install Privy SDK
+npm install @privy-io/server-node
 
-3. **Handle Confirmations**:
-   - Wait for transaction confirmation
-   - Update execution status accordingly
-   - Implement retry logic for failed transactions
+# Set environment variables in Supabase
+PRIVY_APP_ID=your_privy_app_id
+PRIVY_APP_SECRET=your_privy_app_secret
+```
+
+**Usage in Edge Function:**
+```typescript
+import { PrivyClient } from '@privy-io/server-node';
+
+const privy = new PrivyClient({
+  appId: deno.env.get('PRIVY_APP_ID'),
+  appSecret: deno.env.get('PRIVY_APP_SECRET'),
+});
+
+// In sendSwapTransaction():
+const txHash = await privy.sendTransaction({
+  walletAddress: walletAddress,
+  chainId: 5042002, // Arc testnet
+  transaction: {
+    to: txData.to,
+    from: txData.from,
+    data: txData.data,
+    value: txData.value,
+    gasLimit: txData.gasLimit,
+  },
+});
+```
+
+### Alternative: AWS KMS Signing
+
+Store private keys in AWS KMS or Supabase Vault and sign transactions server-side using ethers.js.
+
+⚠️ **Security Consideration**: Private key management requires secure infrastructure. Use KMS, HashiCorp Vault, or similar.
+
+
 
 ### Security Considerations
 

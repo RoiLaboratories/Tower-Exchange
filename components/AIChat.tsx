@@ -9,6 +9,7 @@ import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, MessageSquare, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
+import { submitSwapFee } from "@/lib/swapExecutionService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 
 interface Message {
@@ -298,6 +299,21 @@ export const AIChat = () => {
         
         // Validate transaction structure
         const txData = response.data.swap_execution.transaction;
+        const quote = response.data.swap_execution.quote;
+        
+        // Enhanced quote logging
+        if (quote) {
+          console.log("═══ FULL QUOTE OBJECT FROM BACKEND ═══");
+          console.log("Full quote:", JSON.stringify(quote, null, 2));
+          console.log("quote.inputToken:", quote.inputToken);
+          console.log("quote.outputToken:", quote.outputToken);
+          console.log("quote.outputToken type:", typeof quote.outputToken);
+          console.log("quote.outputToken length:", quote.outputToken?.length);
+          console.log("quote.inputAmount:", quote.inputAmount);
+          console.log("quote.outputAmount:", quote.outputAmount);
+          console.log("═════════════════════════════════════════");
+        }
+        
         if (txData) {
           console.log("Transaction fields:", {
             to: txData.to || "MISSING",
@@ -315,6 +331,7 @@ export const AIChat = () => {
 
         // Auto-trigger swap execution flow
         if (user?.wallet?.address) {
+          const walletAddress = user.wallet.address;
           try {
             if (!txData || !txData.to) {
               throw new Error(
@@ -324,12 +341,81 @@ export const AIChat = () => {
 
             await swapExecution.executeSwap(
               txData,
-              user.wallet.address,
+              walletAddress,
               sessionId,
-              (confirmation) => {
-                // After successful confirmation, send message back to AI
+              async (confirmation) => {
+                // After successful confirmation, submit platform fee to FeeCollector
+                console.log("═══════════════════════════════════════════");
+                console.log("SWAP CONFIRMATION RECEIVED");
+                console.log("═══════════════════════════════════════════");
                 console.log("Swap confirmed:", confirmation);
-                // This will be handled by the backend confirmation endpoint
+                
+                // Submit fee using captured quote data
+                console.log("Quote data available:", !!quote);
+                console.log("Confirmation status:", confirmation.status);
+                console.log("walletAddress captured:", !!walletAddress, walletAddress?.substring(0, 6) + "...");
+                
+                // Detailed quote inspection
+                if (quote) {
+                  console.log("─── Quote Details ───");
+                  console.log("quote.outputToken:", quote.outputToken);
+                  console.log("quote.outputToken length:", quote.outputToken?.length);
+                  console.log("quote.outputToken valid?", quote.outputToken?.length === 42 && quote.outputToken?.startsWith("0x"));
+                  console.log("quote.outputAmount:", quote.outputAmount);
+                  console.log("quote.inputToken:", quote.inputToken);
+                  console.log("quote.inputAmount:", quote.inputAmount);
+                  console.log("Full quote object:", JSON.stringify(quote, null, 2));
+                }
+                
+                if (quote && confirmation.status === "success") {
+                  console.log("─── Initiating Fee Submission ───");
+                  
+                  const isValidToken = quote.outputToken?.length === 42 && quote.outputToken?.startsWith("0x");
+                  const isValidAmount = quote.outputAmount && Number(quote.outputAmount) > 0;
+                  
+                  console.log("Pre-submission validation:", {
+                    tokenValid: isValidToken,
+                    amountValid: isValidAmount,
+                    walletValid: walletAddress?.length === 42 && walletAddress?.startsWith("0x"),
+                  });
+
+                  if (!isValidToken || !isValidAmount) {
+                    console.error("❌ Invalid quote data - cannot submit fee:", {
+                      outputToken: quote.outputToken,
+                      outputAmount: quote.outputAmount,
+                    });
+                  } else {
+                    console.log("Submitting platform fee after swap confirmation...", {
+                      outputToken: quote.outputToken,
+                      outputAmount: quote.outputAmount,
+                      userAddress: walletAddress,
+                      feeBps: 25,
+                    });
+                    try {
+                      const feeResult = await submitSwapFee(
+                        quote.outputToken,
+                        quote.outputAmount,
+                        walletAddress,
+                        25  // 0.25% platform fee in basis points
+                      );
+                      console.log("submitSwapFee returned:", feeResult);
+                      if (feeResult) {
+                        console.log("✅ Platform fee submitted successfully!");
+                      } else {
+                        console.warn("⚠️ Fee submission returned false - check logs above for validation errors");
+                      }
+                    } catch (feeError) {
+                      console.error("❌ Error submitting platform fee:", feeError);
+                      // Log error but don't fail the swap - tokens are in FeeCollector
+                    }
+                  }
+                } else {
+                  console.warn("⚠️ Fee submission skipped - quote missing or confirmation failed", {
+                    quote: !!quote,
+                    status: confirmation.status,
+                  });
+                }
+                console.log("═══════════════════════════════════════════");
               }
             );
           } catch (swapError) {
