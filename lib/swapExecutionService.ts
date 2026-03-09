@@ -384,3 +384,105 @@ export const notifyBackendConfirmation = async (
     return false;
   }
 };
+
+/**
+ * Submit platform fee to FeeCollector for distribution after swap confirms
+ * CRITICAL: Must be called AFTER swap transaction is confirmed on-chain
+ * This triggers FeeCollector to atomically deduct fee and send remainder to user wallet
+ */
+export const submitSwapFee = async (
+  outputToken: string,
+  outputAmount: string,
+  userAddress: string,
+  feeBps: number = 25
+): Promise<boolean> => {
+  try {
+    console.log("=== FEE SUBMISSION START ===");
+    console.log("submitSwapFee called with:", {
+      outputToken,
+      outputAmount,
+      userAddress,
+      feeBps,
+    });
+
+    // Ensure we have all required parameters
+    if (!outputToken || !outputAmount || !userAddress) {
+      console.error("Missing required fee submission parameters:", {
+        outputToken: !!outputToken,
+        outputAmount: !!outputAmount,
+        userAddress: !!userAddress,
+      });
+      return false;
+    }
+
+    // Validate token address format (should be 42 chars: 0x + 40 hex chars)
+    if (outputToken.length !== 42 || !outputToken.startsWith("0x")) {
+      console.error("Invalid token address format:", {
+        address: outputToken,
+        length: outputToken.length,
+        startsWithOx: outputToken.startsWith("0x"),
+      });
+      return false;
+    }
+
+    // Validate user address format
+    if (userAddress.length !== 42 || !userAddress.startsWith("0x")) {
+      console.error("Invalid user address format:", {
+        address: userAddress,
+        length: userAddress.length,
+        startsWithOx: userAddress.startsWith("0x"),
+      });
+      return false;
+    }
+
+    // Validate output amount is a valid number
+    if (isNaN(Number(outputAmount)) || Number(outputAmount) <= 0) {
+      console.error("Invalid output amount:", {
+        amount: outputAmount,
+        parsedAsNumber: Number(outputAmount),
+      });
+      return false;
+    }
+
+    const payload = {
+      outputToken,
+      totalAmount: outputAmount,
+      userAddress,
+      feeBps,
+    };
+
+    console.log("FEE SUBMISSION PAYLOAD:", JSON.stringify(payload, null, 2));
+
+    const response = await fetch("/api/swap/submit-fee", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    console.log("Fee submission response status:", response.status);
+    const result = await response.json();
+    console.log("Fee submission response body:", JSON.stringify(result, null, 2));
+
+    if (!response.ok) {
+      console.error(`Fee submission HTTP error! status: ${response.status}`, result);
+      return false;
+    }
+
+    if (result.error) {
+      console.error("Fee submission returned error:", result.error, result.details);
+      return false;
+    }
+
+    console.log("✅ Platform fee submitted successfully!", result.data);
+    console.log("=== FEE SUBMISSION SUCCESS ===");
+    return true;
+  } catch (error) {
+    console.error("❌ Error submitting platform fee:", error);
+    console.log("=== FEE SUBMISSION FAILED ===");
+    // Log but don't throw - if fee submission fails, the user has their tokens in FeeCollector
+    // and manual distribution can be triggered later
+    return false;
+  }
+};
