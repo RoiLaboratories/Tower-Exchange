@@ -155,7 +155,7 @@ export default function BridgePageContent() {
     : null;
 
   return (
-    <main className="flex-1 flex items-center justify-center py-12 px-4 min-h-screen">
+    <main className="flex-1 flex items-center justify-center py-12 px-4">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
