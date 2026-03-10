@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -43,6 +44,7 @@ import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
+import { supabase } from "@/lib/supabase";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 // Currently only USDC and EURC are swappable via XyloNet
@@ -103,6 +105,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
 };
 
 const SwapCard = () => {
+  const router = useRouter();
   // Privy hook
   const { user, login, authenticated } = usePrivy();
   const { wallets } = useWallets();
@@ -212,6 +215,28 @@ const SwapCard = () => {
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState(tokens[0]);
   const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
+
+  const logSwapActivity = useCallback(
+    async (status: "Successful" | "Failed", txHash?: string | null) => {
+      try {
+        if (!user?.wallet?.address) return;
+        await supabase.from("activities").insert({
+          wallet_address: user.wallet.address.toLowerCase(),
+          type: "Swap",
+          source_currency_ticker: sellToken.symbol,
+          destination_currency_ticker: receiveToken?.symbol || null,
+          source_network_name: "Arc",
+          destination_network_name: "Arc",
+          status,
+          amount: parseFloat(sellAmount) || null,
+          transaction_hash: txHash || null,
+        });
+      } catch (e) {
+        console.error("Error logging swap activity:", e);
+      }
+    },
+    [sellToken.symbol, receiveToken?.symbol, sellAmount, user?.wallet?.address]
+  );
 
   // Actual wallet balances - only for swappable tokens (currently USDC and EURC)
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
@@ -1092,6 +1117,9 @@ const SwapCard = () => {
       setSwapState("success");
       setNotification("success");
 
+      // Log successful swap activity
+      logSwapActivity("Successful", txHash);
+
       // Step 8: Submit platform fee with atomic distribution through FeeCollector
       // Swap output went to FeeCollector, now execute atomic fee split
       const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
@@ -1298,8 +1326,22 @@ const SwapCard = () => {
           className="bg-[#191A1C] border border-border rounded-2xl p-6"
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-foreground">Swap</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs font-medium rounded-full bg-[#1f2125] text-foreground"
+              >
+                Swap
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/bridge")}
+                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
+              >
+                Bridge
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <motion.button
                 onClick={() => setIsChartOpen(!isChartOpen)}

@@ -70,6 +70,7 @@ const Activities = ({
           .from("activities")
           .select("*")
           .eq("wallet_address", walletAddress.toLowerCase())
+          // Include both swap and recurring order activities; filter purely by wallet
           .order("timestamp", { ascending: false })
           .limit(100);
 

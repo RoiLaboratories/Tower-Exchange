@@ -8,11 +8,18 @@ interface SettingsModalProps {
   onClose: () => void;
   slippageTolerance: number;
   onSlippageChange: (value: number) => void;
+  title?: string;
 }
 
 const PRESET_SLIPPAGE = [0.1, 0.2, 0.5];
 
-const SettingsModal = ({ isOpen, onClose, slippageTolerance, onSlippageChange }: SettingsModalProps) => {
+const SettingsModal = ({
+  isOpen,
+  onClose,
+  slippageTolerance,
+  onSlippageChange,
+  title = "Swap Settings",
+}: SettingsModalProps) => {
   const isPreset = PRESET_SLIPPAGE.includes(slippageTolerance);
   const [customInput, setCustomInput] = useState(isPreset ? "" : String(slippageTolerance));
 
@@ -37,7 +44,7 @@ const SettingsModal = ({ isOpen, onClose, slippageTolerance, onSlippageChange }:
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
             <h3 className="text-base font-medium text-foreground/90">
-              Swap Settings
+              {title}
             </h3>
             <motion.button
               onClick={onClose}

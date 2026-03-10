@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
 import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/lib/recurringOrderService";
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
@@ -21,12 +22,6 @@ export const RecurringOrdersDashboard = () => {
 
   // Load orders on component mount
   useEffect(() => {
-    if (!walletAddress) {
-      setError("Please connect your wallet");
-      setIsLoading(false);
-      return;
-    }
-
     loadOrders();
   }, [walletAddress]);
 
@@ -67,9 +62,44 @@ export const RecurringOrdersDashboard = () => {
     }
   };
 
+  // If no wallet connected, show unified "No wallet connected" state (same as Activities/Profile)
+  if (!walletAddress) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl overflow-hidden"
+        style={{
+          backgroundColor: "hsl(220, 20%, 10%)",
+          border: "1px solid hsl(220, 15%, 18%)",
+        }}
+      >
+        <div className="flex flex-col items-center justify-center py-20 px-6">
+          <div className="mb-6">
+            <Image
+              src="/assets/wallet.png"
+              alt="No wallet connected"
+              width={80}
+              height={80}
+              className="w-20 h-20 opacity-60"
+            />
+          </div>
+          <h4 className="text-xl font-semibold mb-2 text-white">
+            No wallet connected
+          </h4>
+          <p className="text-gray-400 text-center text-sm">
+            Connect your wallet to view your recurring orders.
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
+
   const handleCancelOrder = async (orderId: string) => {
     if (!walletAddress) {
-      alert("Please connect your wallet");
+      setError("Please connect your wallet");
       return;
     }
 
@@ -99,7 +129,7 @@ export const RecurringOrdersDashboard = () => {
       setOrderToCancel(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to cancel order";
-      alert(`Error: ${errorMessage}`);
+      setError(errorMessage);
       console.error("Error canceling order:", err);
     } finally {
       setCancelingId(null);
