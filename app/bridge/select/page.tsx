@@ -1,10 +1,21 @@
-"use client";
+ "use client";
 
 import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { X, Search } from "lucide-react";
 import Image from "next/image";
+import globeLogo from "@/public/assets/globe-removebg-preview.svg";
+import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
+import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
+import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
+import arbitrumSepoliaLogo from "@/public/assets/Arbitrum Sepolia logo (2).svg";
+import ethLogo from "@/public/assets/EthLogo.svg";
+import penguLogo from "@/public/assets/PenguLogo.svg";
+import makerLogo from "@/public/assets/MakerLogo.svg";
+import tagbondLogo from "@/public/assets/TagbondLogo.svg";
+import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
 
 type Chain = {
   id: string;
@@ -26,37 +37,37 @@ const CHAINS: Chain[] = [
     id: "all",
     name: "All Chains",
     color: "#4B5563",
-    logo: require("@/public/assets/globe-removebg-preview.svg"),
+    logo: globeLogo,
   },
   {
     id: "arc-testnet",
     name: "Arc Testnet",
     color: "#00AEEF",
-    logo: require("@/public/assets/Arc Testnet logo.svg"),
+    logo: arcTestnetLogo,
   },
   {
     id: "base-sepolia",
     name: "Base Sepolia",
     color: "#0174F0",
-    logo: require("@/public/assets/Base Sepolia logo.svg"),
+    logo: baseSepoliaLogo,
   },
   {
     id: "optimism-sepolia",
     name: "Optimism Sepolia",
     color: "#FF0420",
-    logo: require("@/public/assets/Optimism Sepolia logo.svg"),
+    logo: optimismSepoliaLogo,
   },
   {
     id: "avalanche-fuji",
     name: "Avalanche Fuji",
     color: "#E84142",
-    logo: require("@/public/assets/Avalanche Fuji logo.svg"),
+    logo: avalancheFujiLogo,
   },
   {
     id: "arbitrum-sepolia",
     name: "Arbitrum Sepolia",
     color: "#2D374B",
-    logo: require("@/public/assets/Arbitrum Sepolia logo (2).svg"),
+    logo: arbitrumSepoliaLogo,
   },
 ];
 
@@ -65,31 +76,31 @@ const TOKENS: TokenRow[] = [
     symbol: "ETH",
     name: "ETH",
     address: "0x76fb...9278",
-    logo: require("@/public/assets/EthLogo.svg"),
+    logo: ethLogo,
   },
   {
     symbol: "PENGU",
     name: "Pudgy Penguins",
     address: "0x76fb...9278",
-    logo: require("@/public/assets/PenguLogo.svg"),
+    logo: penguLogo,
   },
   {
     symbol: "MKR",
     name: "Maker",
     address: "0x76fb...9278",
-    logo: require("@/public/assets/MakerLogo.svg"),
+    logo: makerLogo,
   },
   {
     symbol: "TAG",
     name: "TAGBOND",
     address: "0x76fb...9278",
-    logo: require("@/public/assets/TagbondLogo.svg"),
+    logo: tagbondLogo,
   },
   {
     symbol: "USDT",
     name: "USDT",
     address: "0x76fb...9278",
-    logo: require("@/public/assets/usdt_logo-removebg-preview.png"),
+    logo: usdtLogo,
   },
 ];
 

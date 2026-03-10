@@ -15,6 +15,17 @@ import {
   Wallet,
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
+import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
+import penguLogo from "@/public/assets/PenguLogo.svg";
+import makerLogo from "@/public/assets/MakerLogo.svg";
+import tagbondLogo from "@/public/assets/TagbondLogo.svg";
+import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
+import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
+import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
+import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
+import arbitrumSepoliaLogo from "@/public/assets/Arbitrum Sepolia logo (2).svg";
 
 type BridgeToken = {
   symbol: string;
@@ -34,37 +45,37 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     symbol: "USDC",
     label: "USDC",
     usdValue: "$1",
-    logo: require("@/public/assets/USDC-fotor-bg-remover-2025111075935.png"),
+    logo: usdcLogo,
   },
   {
     symbol: "ETH",
     label: "ETH",
     usdValue: "$1",
-    logo: require("@/public/assets/Eth_logo_3-removebg-preview.png"),
+    logo: ethLogo,
   },
   {
     symbol: "PENGU",
     label: "PENGU",
     usdValue: "$1",
-    logo: require("@/public/assets/PenguLogo.svg"),
+    logo: penguLogo,
   },
   {
     symbol: "MKR",
     label: "MKR",
     usdValue: "$1",
-    logo: require("@/public/assets/MakerLogo.svg"),
+    logo: makerLogo,
   },
   {
     symbol: "TAG",
     label: "TAG",
     usdValue: "$1",
-    logo: require("@/public/assets/TagbondLogo.svg"),
+    logo: tagbondLogo,
   },
   {
     symbol: "USDT",
     label: "USDT",
     usdValue: "$1",
-    logo: require("@/public/assets/usdt_logo-removebg-preview.png"),
+    logo: usdtLogo,
   },
 ];
 
@@ -72,27 +83,27 @@ const BRIDGE_CHAINS: BridgeChain[] = [
   {
     id: "arc-testnet",
     name: "Arc Testnet",
-    logo: require("@/public/assets/Arc Testnet logo.svg"),
+    logo: arcTestnetLogo,
   },
   {
     id: "base-sepolia",
     name: "Base Sepolia",
-    logo: require("@/public/assets/Base Sepolia logo.svg"),
+    logo: baseSepoliaLogo,
   },
   {
     id: "optimism-sepolia",
     name: "Optimism Sepolia",
-    logo: require("@/public/assets/Optimism Sepolia logo.svg"),
+    logo: optimismSepoliaLogo,
   },
   {
     id: "avalanche-fuji",
     name: "Avalanche Fuji",
-    logo: require("@/public/assets/Avalanche Fuji logo.svg"),
+    logo: avalancheFujiLogo,
   },
   {
     id: "arbitrum-sepolia",
     name: "Arbitrum Sepolia",
-    logo: require("@/public/assets/Arbitrum Sepolia logo (2).svg"),
+    logo: arbitrumSepoliaLogo,
   },
 ];
 
