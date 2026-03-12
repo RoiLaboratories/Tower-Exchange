@@ -30,7 +30,7 @@ const AIAgentPage = () => {
   ];
 
   return (
-    <div className="min-h-screen text-white flex flex-col">
+    <div className="h-full min-h-0 text-white flex flex-col overflow-hidden">
       <TokenTicker />
 
       {/* Mobile Toggle Button - Only visible on mobile */}
@@ -46,14 +46,14 @@ const AIAgentPage = () => {
       </div>
 
       <div
-        className="flex flex-col lg:flex-row flex-1 overflow-hidden"
+        className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden"
       >
         {/* Left Side - AI Chat */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
-          className={`flex-1 flex flex-col ${
+          className={`flex-1 flex flex-col min-h-0 ${
             showRightPanel ? "hidden lg:flex" : "flex"
           }`}
           style={{

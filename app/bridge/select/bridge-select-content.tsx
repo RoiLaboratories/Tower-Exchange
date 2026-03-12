@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { X, Search } from "lucide-react";
-import Image from "next/image";
+import { X, Search, ChevronDown } from "lucide-react";
+import Image, { type StaticImageData } from "next/image";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
@@ -22,14 +22,14 @@ type Chain = {
   name: string;
   badge?: string;
   color: string;
-  logo?: any;
+  logo?: StaticImageData | string;
 };
 
 type TokenRow = {
   symbol: string;
   name: string;
   address: string;
-  logo?: any;
+  logo?: StaticImageData | string;
 };
 
 const CHAINS: Chain[] = [
@@ -111,7 +111,14 @@ export default function BridgeSelectContent() {
 
   const [chainSearch, setChainSearch] = useState("");
   const [tokenSearch, setTokenSearch] = useState("");
-  const [selectedChainId, setSelectedChainId] = useState<string>("arc-testnet");
+  const [selectedChainId, setSelectedChainId] = useState<string>(() => {
+    const currentChainId = searchParams.get(`${side}Chain`);
+    if (currentChainId && CHAINS.some((chain) => chain.id === currentChainId)) {
+      return currentChainId;
+    }
+    return "arc-testnet";
+  });
+  const [isChainModalOpen, setIsChainModalOpen] = useState(false);
 
   const title = useMemo(
     () => (side === "to" ? "Exchange to" : "Exchange from"),
@@ -125,6 +132,10 @@ export default function BridgeSelectContent() {
       chain.name.toLowerCase().includes(query)
     );
   }, [chainSearch]);
+
+  const selectedChain = useMemo(() => {
+    return CHAINS.find((chain) => chain.id === selectedChainId) ?? CHAINS[1];
+  }, [selectedChainId]);
 
   const filteredTokens = useMemo(() => {
     const q = tokenSearch.toLowerCase().trim();
@@ -224,6 +235,38 @@ export default function BridgeSelectContent() {
             </button>
           </header>
 
+          {/* Mobile chain selector */}
+          <div className="md:hidden px-5 py-3 border-b border-border/60">
+            <button
+              type="button"
+              onClick={() => setIsChainModalOpen(true)}
+              className="flex w-full items-center justify-between rounded-xl bg-[#18191c] px-3 py-2.5 text-left hover:bg-[#202225] transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
+                  {selectedChain.logo ? (
+                    <Image
+                      src={selectedChain.logo}
+                      alt={`${selectedChain.name} logo`}
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 object-contain"
+                    />
+                  ) : (
+                    <span
+                      className="inline-flex h-full w-full rounded-full"
+                      style={{ backgroundColor: selectedChain.color }}
+                    />
+                  )}
+                </span>
+                <span className="text-xs font-medium text-foreground">
+                  {selectedChain.name}
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+
           {/* Search input */}
           <div className="px-5 py-4 border-b border-border/60">
             <div className="relative">
@@ -297,6 +340,86 @@ export default function BridgeSelectContent() {
           </div>
         </section>
       </motion.div>
+
+      {isChainModalOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex items-end bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-h-[80vh] rounded-t-3xl border border-border/70 bg-[#111214] shadow-2xl overflow-hidden flex flex-col"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+              <h2 className="text-sm font-semibold text-foreground">
+                Select Network
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsChainModalOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] text-muted-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-b border-border/60">
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
+                  <Search className="h-4 w-4" />
+                </span>
+                <input
+                  type="text"
+                  value={chainSearch}
+                  onChange={(e) => setChainSearch(e.target.value)}
+                  placeholder="Search Network"
+                  className="w-full rounded-xl bg-[#18191c] pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pb-4">
+              {visibleChains.length === 0 ? (
+                <p className="px-5 py-8 text-xs text-muted-foreground">
+                  Chain not found
+                </p>
+              ) : (
+                visibleChains.map((chain) => (
+                  <button
+                    key={chain.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedChainId(chain.id);
+                      setIsChainModalOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 px-5 py-3 text-sm text-left transition-colors ${
+                      selectedChainId === chain.id
+                        ? "bg-[#18191c] text-foreground"
+                        : "text-muted-foreground hover:bg-[#18191c]"
+                    }`}
+                  >
+                    <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
+                      {chain.logo ? (
+                        <Image
+                          src={chain.logo}
+                          alt={`${chain.name} logo`}
+                          width={20}
+                          height={20}
+                          className="h-5 w-5 object-contain"
+                        />
+                      ) : (
+                        <span
+                          className="inline-flex h-full w-full rounded-full"
+                          style={{ backgroundColor: chain.color }}
+                        />
+                      )}
+                    </span>
+                    <span>{chain.name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
   );
 }

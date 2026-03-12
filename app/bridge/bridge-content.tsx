@@ -165,7 +165,7 @@ export default function BridgePageContent() {
         <div className="relative rounded-3xl border border-border/70 bg-[#111214] px-6 pt-5 pb-6 shadow-xl overflow-hidden">
           {/* Header */}
           <div className="mb-5 flex items-center justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
+            <div className="inline-flex items-center gap-1 rounded-full bg-black p-1">
               <button
                 type="button"
                 onClick={() => router.push("/")}

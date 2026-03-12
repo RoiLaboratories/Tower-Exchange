@@ -488,7 +488,7 @@ export const AIChat = () => {
   };
 
   return (
-    <div className="flex-1 flex h-full relative">
+    <div className="flex-1 flex h-full relative min-h-0 overflow-hidden">
       {/* Sidebar - Collapsible Overlay */}
       <motion.div
         initial={{ x: -250 }}
@@ -566,7 +566,7 @@ export const AIChat = () => {
       )}
 
       {/* Main Chat Area - Takes full space, sidebar overlays */}
-      <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 w-full overflow-hidden relative">
+      <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 w-full overflow-hidden relative min-h-0">
         {/* Sidebar Toggle Icon */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -582,14 +582,18 @@ export const AIChat = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm"
+            className={`absolute top-16 left-4 right-4 sm:right-auto sm:max-w-md z-10 p-3 rounded-lg text-sm ${
+              error === "Please connect your wallet first"
+                ? "bg-[#7BB8FF]/20 border border-[#7BB8FF]/50 text-[#A6CFFF]"
+                : "bg-red-500/20 border border-red-500/50 text-red-300"
+            }`}
           >
             {error}
           </motion.div>
         )}
 
         {/* Messages Area - Takes up remaining space */}
-        <div className="flex-1 overflow-y-auto space-y-4 flex flex-col justify-end pt-12">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 flex flex-col justify-end pt-12 pb-40">
           {messages.length > 0 && (
           <div className="space-y-4">
             {messages.map((msg) => (
@@ -723,84 +727,86 @@ export const AIChat = () => {
         </div>
 
         {/* Bottom Container: Logo, Prompts, and Input */}
-        <div className="shrink-0 max-w-2xl mt-6">
-          {/* Transaction Confirmation Display */}
-          {showSwapConfirmation && (
-            <div className="mb-4">
-              <TransactionConfirmation
-                status={swapExecution.status as any}
-                statusMessage={swapExecution.statusMessage}
-                transactionHash={swapExecution.transactionHash}
-                blockNumber={swapExecution.blockNumber}
-                error={swapExecution.error}
-                onClose={() => {
-                  setShowSwapConfirmation(false);
-                  swapExecution.resetState();
-                }}
-              />
-            </div>
-          )}
-
-          {/* Logo and Prompts - Only show when no messages */}
-          {messages.length === 0 && (
-            <div className="mb-6">
-              {/* Logo */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200 }}
-                className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
-              >
-                <Image
-                  src="/assets/chat_logo.svg"
-                  alt="Tower logo"
-                  width={48}
-                  height={48}
-                  className="object-contain"
+        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-12 pb-2 pt-4 bg-gradient-to-t from-[#0f1012] via-[#0f1012]/95 to-transparent">
+          <div className="w-full max-w-2xl">
+            {/* Transaction Confirmation Display */}
+            {showSwapConfirmation && (
+              <div className="mb-4">
+                <TransactionConfirmation
+                  status={swapExecution.status as any}
+                  statusMessage={swapExecution.statusMessage}
+                  transactionHash={swapExecution.transactionHash}
+                  blockNumber={swapExecution.blockNumber}
+                  error={swapExecution.error}
+                  onClose={() => {
+                    setShowSwapConfirmation(false);
+                    swapExecution.resetState();
+                  }}
                 />
-              </motion.div>
-
-              {/* Quick Prompts */}
-              <div className="space-y-3 max-w-md">
-                {quickPrompts.map((prompt, index) => (
-                  <motion.button
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1, duration: 0.3 }}
-                    whileHover={{ x: 4 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full text-left px-5 py-3.5 rounded-full border border-blue-500/30 hover:border-blue-500/50 transition-all text-gray-300 bg-transparent"
-                    onClick={() => handlePromptClick(prompt)}
-                  >
-                    <span className="text-sm">{prompt}</span>
-                  </motion.button>
-                ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Input */}
-          <div className="relative">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask Tower anything..."
-              className="w-full px-5 py-3.5 pr-12 rounded-full bg-transparent border border-zinc-700/50 focus:border-zinc-600/50 outline-none text-white placeholder-gray-500 text-sm transition-all"
-            />
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => handleSendMessage(message)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center"
-            >
-              <ArrowUp className="w-4 h-4 text-black" />
-            </motion.button>
+            {/* Logo and Prompts - Only show when no messages */}
+            {messages.length === 0 && (
+              <div className="mb-6">
+                {/* Logo */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
+                >
+                  <Image
+                    src="/assets/chat_logo.svg"
+                    alt="Tower logo"
+                    width={48}
+                    height={48}
+                    className="object-contain"
+                  />
+                </motion.div>
+
+                {/* Quick Prompts */}
+                <div className="space-y-3 max-w-md">
+                  {quickPrompts.map((prompt, index) => (
+                    <motion.button
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1, duration: 0.3 }}
+                      whileHover={{ x: 4 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full text-left px-5 py-3.5 rounded-full border border-blue-500/30 hover:border-blue-500/50 transition-all text-gray-300 bg-transparent"
+                      onClick={() => handlePromptClick(prompt)}
+                    >
+                      <span className="text-sm">{prompt}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input */}
+            <div className="relative">
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Ask Tower anything..."
+                className="w-full px-5 py-3.5 pr-12 rounded-full bg-transparent border border-zinc-700/50 focus:border-zinc-600/50 outline-none text-white placeholder-gray-500 text-sm transition-all"
+              />
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => handleSendMessage(message)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center"
+              >
+                <ArrowUp className="w-4 h-4 text-black" />
+              </motion.button>
             </div>
           </div>
         </div>
       </div>
+    </div>
     );
   };
