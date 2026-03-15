@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, ArrowDown } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { sendMessageToAIAgent, createAIAgentSession, saveChatMessageToHistory, getConversationHistory } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
@@ -48,6 +48,8 @@ export const AIChat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [swapExecutionData, setSwapExecutionData] = useState<any>(null);
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Load sessions from localStorage
   const loadSessions = (walletAddress: string): ChatSession[] => {
@@ -487,6 +489,21 @@ export const AIChat = () => {
     }
   };
 
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    const isBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 50;
+    setIsAtBottom(isBottom);
+  };
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  };
+
   return (
     <div className="flex-1 flex h-full relative min-h-0 overflow-hidden">
       {/* Sidebar - Collapsible Overlay */}
@@ -566,7 +583,7 @@ export const AIChat = () => {
       )}
 
       {/* Main Chat Area - Takes full space, sidebar overlays */}
-      <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 w-full overflow-hidden relative min-h-0">
+      <div className="flex-1 flex flex-col w-full overflow-hidden relative min-h-0">
         {/* Sidebar Toggle Icon */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -592,10 +609,15 @@ export const AIChat = () => {
           </motion.div>
         )}
 
-        {/* Messages Area - Takes up remaining space */}
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 flex flex-col justify-end pt-12 pb-40">
-          {messages.length > 0 && (
-          <div className="space-y-4">
+        {/* Messages Area - Scrollable with padding for fixed input */}
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div 
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            className="chat-scrollbar absolute inset-0 overflow-y-auto overscroll-contain pt-12 pb-32 z-0"
+          >
+            {messages.length > 0 && (
+            <div className="space-y-4 px-4 sm:px-6 lg:px-12">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -726,9 +748,24 @@ export const AIChat = () => {
         )}
         </div>
 
-        {/* Bottom Container: Logo, Prompts, and Input */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-12 pb-2 pt-4 bg-gradient-to-t from-[#0f1012] via-[#0f1012]/95 to-transparent">
-          <div className="w-full max-w-2xl">
+        {/* Scroll to Bottom Button */}
+        {!isAtBottom && (
+          <motion.button
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            onClick={scrollToBottom}
+            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full bg-[#7BB8FF] hover:bg-[#6AABFF] text-white flex items-center justify-center shadow-lg transition-colors"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown size={20} />
+          </motion.button>
+        )}
+        </div>
+
+        {/* Bottom Container: Logo, Prompts, and Input - Fixed at bottom of chat area */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-12 py-4 bg-gradient-to-t from-[#0f1012] from-60% via-[#0f1012]/98 to-[#0f1012]/90">
+          <div className="w-full max-w-2xl mx-auto">
             {/* Transaction Confirmation Display */}
             {showSwapConfirmation && (
               <div className="mb-4">

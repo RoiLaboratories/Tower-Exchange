@@ -115,6 +115,47 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+}
+
+.chat-scrollbar:hover {
+  scrollbar-color: rgba(123, 184, 255, 0.55) transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  cursor: grab;
+  transition: background 0.2s ease;
+}
+
+.chat-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(123, 184, 255, 0.55);
+  background-clip: content-box;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(123, 184, 255, 0.75);
+  background-clip: content-box;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:active {
+  cursor: grabbing;
+}
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;

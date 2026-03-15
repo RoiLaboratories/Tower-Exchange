@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import {
   ArrowDown,
+  ArrowUp,
   RefreshCw,
   Settings,
   Lock,
@@ -120,6 +121,7 @@ export default function BridgePageContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isReceivingOpen, setIsReceivingOpen] = useState(false);
   const [receivingAddress, setReceivingAddress] = useState("");
+  const [isArrowHovered, setIsArrowHovered] = useState(false);
 
   useEffect(() => {
     const fromSymbol = searchParams.get("fromToken");
@@ -145,6 +147,15 @@ export default function BridgePageContent() {
     if (toChain) setToChainId(toChain);
   }, [searchParams]);
 
+  const handleSwapTokens = () => {
+    setFromToken(toToken);
+    setToToken(fromToken);
+    setFromAmount(toAmount);
+    setToAmount(fromAmount);
+    setFromChainId(toChainId);
+    setToChainId(fromChainId);
+  };
+
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken ?? BRIDGE_TOKENS[1];
   const fromChain = fromChainId
@@ -162,10 +173,10 @@ export default function BridgePageContent() {
         transition={{ duration: 0.4 }}
         className="w-full max-w-md"
       >
-        <div className="relative rounded-3xl border border-border/70 bg-[#111214] px-6 pt-5 pb-6 shadow-xl overflow-hidden">
+        <div className="relative rounded-3xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden">
           {/* Header */}
           <div className="mb-5 flex items-center justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-black p-1">
+            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
               <button
                 type="button"
                 onClick={() => router.push("/")}
@@ -181,28 +192,32 @@ export default function BridgePageContent() {
               </button>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <button
+              <motion.button
                 type="button"
                 onClick={() => {
                   setFromAmount("0.00");
                   setToAmount("0.00");
                 }}
+                whileHover={{ rotate: 180 }}
+                transition={{ duration: 0.5 }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="button"
                 onClick={() => setIsSettingsOpen(true)}
+                whileHover={{ rotate: 90 }}
+                transition={{ duration: 0.3 }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] transition-colors"
               >
                 <Settings className="h-4 w-4" />
-              </button>
+              </motion.button>
             </div>
           </div>
 
           {/* Bridge from */}
-          <section className="rounded-2xl bg-[#151618] px-4 py-3 mb-2 border border-border/50">
+          <section className="rounded-2xl bg-[#151617] px-4 py-3 mb-2 border border-border/50">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="font-medium">Bridge from</span>
               <div className="flex items-center gap-2">
@@ -286,13 +301,32 @@ export default function BridgePageContent() {
 
           {/* Arrow separator */}
           <div className="flex justify-center my-1">
-            <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#151618] border border-border/60">
-              <ArrowDown className="h-4 w-4 text-muted-foreground" />
-            </div>
+            <motion.button
+              type="button"
+              onClick={handleSwapTokens}
+              onMouseEnter={() => setIsArrowHovered(true)}
+              onMouseLeave={() => setIsArrowHovered(false)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#151617] border border-border/60 hover:bg-[#1f2125] transition-colors"
+            >
+              <motion.div
+                initial={{ rotateX: 0 }}
+                animate={{ rotateX: isArrowHovered ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
+                style={{ perspectiveOrigin: "center" }}
+              >
+                {isArrowHovered ? (
+                  <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </motion.div>
+            </motion.button>
           </div>
 
           {/* Bridge to */}
-          <section className="rounded-2xl bg-[#151618] px-4 py-3 mb-3 border border-border/50">
+          <section className="rounded-2xl bg-[#151617] px-4 py-3 mb-3 border border-border/50">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="font-medium">Bridge to</span>
               <div className="flex items-center gap-1">
@@ -358,7 +392,7 @@ export default function BridgePageContent() {
           <button
             type="button"
             onClick={() => setIsReceivingOpen(true)}
-            className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-[#151618] hover:text-foreground transition-colors"
+            className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-[#151617] hover:text-foreground transition-colors"
           >
             <Plus className="h-3 w-3" />
             <span>
@@ -386,7 +420,7 @@ export default function BridgePageContent() {
             {[fromDisplayToken, toDisplayToken].map((token, idx) => (
               <div
                 key={`${token.symbol}-${idx}`}
-                className="inline-flex items-center gap-2 rounded-full bg-[#151618] px-3 py-1.5 text-xs font-medium text-foreground/90 border border-border/60"
+                className="inline-flex items-center gap-2 rounded-full bg-[#151617] px-3 py-1.5 text-xs font-medium text-foreground/90 border border-border/60"
               >
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#232428] overflow-hidden">
                   {token.logo ? (
