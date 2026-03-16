@@ -49,6 +49,7 @@ export const AIChat = () => {
   const [swapExecutionData, setSwapExecutionData] = useState<any>(null);
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isAtTop, setIsAtTop] = useState(true);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Load sessions from localStorage
@@ -492,7 +493,9 @@ export const AIChat = () => {
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
     const isBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 50;
+    const isTop = element.scrollTop === 0;
     setIsAtBottom(isBottom);
+    setIsAtTop(isTop);
   };
 
   const scrollToBottom = () => {
@@ -501,6 +504,12 @@ export const AIChat = () => {
         top: messagesContainerRef.current.scrollHeight,
         behavior: "smooth",
       });
+    }
+  };
+
+  const scrollToTop = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = 0;
     }
   };
 
@@ -614,10 +623,10 @@ export const AIChat = () => {
           <div 
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="chat-scrollbar absolute inset-0 overflow-y-auto overscroll-contain pt-12 pb-32 z-0"
+            className="chat-scrollbar absolute inset-0 overflow-y-auto overscroll-contain pb-32 z-0"
           >
             {messages.length > 0 && (
-            <div className="space-y-4 px-4 sm:px-6 lg:px-12">
+            <div className="space-y-4 px-4 sm:px-6 lg:px-12 pt-12">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -748,17 +757,17 @@ export const AIChat = () => {
         )}
         </div>
 
-        {/* Scroll to Bottom Button */}
-        {!isAtBottom && (
+        {/* Scroll Button */}
+        {(!isAtBottom || !isAtTop) && (
           <motion.button
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            onClick={scrollToBottom}
+            onClick={isAtBottom ? scrollToTop : scrollToBottom}
             className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full bg-[#7BB8FF] hover:bg-[#6AABFF] text-white flex items-center justify-center shadow-lg transition-colors"
-            aria-label="Scroll to bottom"
+            aria-label={isAtBottom ? "Scroll to top" : "Scroll to bottom"}
           >
-            <ArrowDown size={20} />
+            {isAtBottom ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
           </motion.button>
         )}
         </div>

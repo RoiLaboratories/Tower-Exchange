@@ -22,6 +22,7 @@ import penguLogo from "@/public/assets/PenguLogo.svg";
 import makerLogo from "@/public/assets/MakerLogo.svg";
 import tagbondLogo from "@/public/assets/TagbondLogo.svg";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
+import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
@@ -77,6 +78,12 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     label: "USDT",
     usdValue: "$1",
     logo: usdtLogo,
+  },
+  {
+    symbol: "EURC",
+    label: "EURC",
+    usdValue: "$1.15",
+    logo: eurcLogo,
   },
 ];
 

@@ -1484,7 +1484,9 @@ const SwapCard = () => {
             <span className="font-medium text-foreground">
               {sellToken.symbol}
             </span>
-            <span className="text-muted-foreground">$1</span>
+            <span className="text-muted-foreground">
+              {sellToken.symbol === "EURC" ? "$1.15" : "$1"}
+            </span>
           </motion.button>
           {receiveToken && (
             <motion.button
@@ -1505,7 +1507,9 @@ const SwapCard = () => {
               <span className="font-medium text-foreground">
                 {receiveToken.symbol}
               </span>
-              <span className="text-muted-foreground">$1</span>
+              <span className="text-muted-foreground">
+                {receiveToken.symbol === "EURC" ? "$1.15" : "$1"}
+              </span>
             </motion.button>
           )}
         </div>

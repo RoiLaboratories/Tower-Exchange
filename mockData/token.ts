@@ -19,23 +19,23 @@ export interface Token {
 export const tokens: Token[] = [
   {
     symbol: "USDC",
-    price: "$3.21",
-    change: "+16.0%",
+    price: "$1.00",
+    change: "+0.1%",
     icon: usdcLogo,
     color: "text-primary",
-    change24h: "+16.0%",
+    change24h: "+0.1%",
     marketCap: "$32.5B",
-    chartData: [2.8, 2.9, 2.85, 3.0, 2.95, 3.1, 3.05, 3.15, 3.21],
+    chartData: [0.99, 0.995, 1.0, 1.0, 1.0, 1.001, 1.0, 1.0, 1.0],
   },
   {
     symbol: "EURC",
-    price: "$1.02",
-    change: "+0.8%",
+    price: "$1.15",
+    change: "-0.2%",
     icon: eurcLogo,
     color: "text-primary",
-    change24h: "+0.8%",
+    change24h: "-0.2%",
     marketCap: "$500M",
-    chartData: [0.99, 1.0, 1.01, 1.0, 1.005, 1.015, 1.01, 1.02, 1.02],
+    chartData: [1.152, 1.151, 1.15, 1.149, 1.148, 1.147, 1.15, 1.149, 1.15],
   },
   // TODO: Uncomment when DEX routes are integrated
   // {
