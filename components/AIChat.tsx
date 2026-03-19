@@ -514,7 +514,7 @@ export const AIChat = () => {
   };
 
   return (
-    <div className="flex-1 flex h-full relative min-h-0 overflow-hidden">
+    <div className="flex-1 flex relative min-h-0 overflow-hidden">
       {/* Sidebar - Collapsible Overlay */}
       <motion.div
         initial={{ x: -250 }}
