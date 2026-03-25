@@ -22,7 +22,7 @@ const Footer = () => {
     },
     {
       icon: <FaDiscord className="w-5 h-5" />,
-      href: "https://discord.gg/84d3wauUu",
+      href: "https://discord.gg/ftXUD6qa4J",
     },
   ];
 
