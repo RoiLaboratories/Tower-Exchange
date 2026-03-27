@@ -24,6 +24,7 @@ import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
 import { usePrivy } from "@privy-io/react-auth";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import eurcLogo from "@/public/assets/EURC_logo.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
@@ -55,9 +56,33 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     usdValue: "$1",
     logo: usdcLogo,
   },
+  {
+    symbol: "EURC",
+    label: "EURC",
+    usdValue: "€1",
+    logo: eurcLogo,
+  },
 ];
 
 const BRIDGE_CHAINS: BridgeChain[] = [
+  // Production chains
+  {
+    id: "base",
+    name: "Base (Mainnet)",
+    logo: baseSepoliaLogo,
+  },
+  {
+    id: "ethereum",
+    name: "Ethereum (Mainnet)",
+    logo: ethereumSepoliaLogo,
+  },
+  {
+    id: "avalanche",
+    name: "Avalanche (Mainnet)",
+    logo: avalancheFujiLogo,
+  },
+
+  // Testnet chains
   {
     id: "arc-testnet",
     name: "Arc Testnet",
@@ -134,22 +159,30 @@ export default function BridgePageContent() {
   useEffect(() => {
     const fromChain = searchParams.get("fromChain");
     const toChain = searchParams.get("toChain");
+    const fromTokenParam = searchParams.get("fromToken");
+    const toTokenParam = searchParams.get("toToken");
 
-    // Set token to USDC only when user selects a chain
-    const usdc = BRIDGE_TOKENS[0];
+    // Set tokens from params or default to USDC
+    const selectedFromToken = fromTokenParam
+      ? BRIDGE_TOKENS.find((t) => t.symbol === fromTokenParam) 
+      : BRIDGE_TOKENS[0]; // Default to USDC
+    const selectedToToken = toTokenParam
+      ? BRIDGE_TOKENS.find((t) => t.symbol === toTokenParam)
+      : BRIDGE_TOKENS[0]; // Default to USDC
+
     if (fromChain) {
-      setFromToken(usdc);
+      setFromToken(selectedFromToken || BRIDGE_TOKENS[0]);
       setFromChainId(fromChain);
     }
     if (toChain) {
-      setToToken(usdc);
+      setToToken(selectedToToken || BRIDGE_TOKENS[0]);
       setToChainId(toChain);
     }
   }, [searchParams]);
 
   // Fetch wallet balance when chain or user changes
   const fetchWalletBalance = useCallback(async () => {
-    if (!user?.wallet?.address || !fromChainId) {
+    if (!user?.wallet?.address || !fromChainId || !fromToken) {
       setWalletBalance("0.00");
       return;
     }
@@ -159,7 +192,18 @@ export default function BridgePageContent() {
       const chainConfig = SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
 
-      // Fetch USDC balance
+      // Get the token address for the selected token
+      const tokenAddress = fromToken?.symbol === "EURC" 
+        ? (chainConfig as any).eurcAddress 
+        : (chainConfig as any).usdcAddress;
+
+      if (!tokenAddress) {
+        console.warn(`${fromToken?.symbol} not available on ${chainConfig.name}`);
+        setWalletBalance("0.00");
+        return;
+      }
+
+      // Fetch token balance
       const response = await fetch("/api/wallet/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,6 +211,7 @@ export default function BridgePageContent() {
           address: user.wallet.address,
           chainId: fromChainId,
           rpcUrl: chainConfig.rpcUrl,
+          tokenAddress,
         }),
       });
 
@@ -177,7 +222,7 @@ export default function BridgePageContent() {
       console.error("Error fetching wallet balance:", error);
       setWalletBalance("0.00");
     }
-  }, [user?.wallet?.address, fromChainId]);
+  }, [user?.wallet?.address, fromChainId, fromToken]);
 
   useEffect(() => {
     fetchWalletBalance();
@@ -185,7 +230,7 @@ export default function BridgePageContent() {
 
   // Fetch wallet balance for destination chain
   const fetchToChainBalance = useCallback(async () => {
-    if (!user?.wallet?.address || !toChainId) {
+    if (!user?.wallet?.address || !toChainId || !toToken) {
       setToChainBalance("0.00");
       return;
     }
@@ -195,7 +240,18 @@ export default function BridgePageContent() {
       const chainConfig = SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
 
-      // Fetch USDC balance
+      // Get the token address for the selected token
+      const tokenAddress = toToken?.symbol === "EURC" 
+        ? (chainConfig as any).eurcAddress 
+        : (chainConfig as any).usdcAddress;
+
+      if (!tokenAddress) {
+        console.warn(`${toToken?.symbol} not available on ${chainConfig.name}`);
+        setToChainBalance("0.00");
+        return;
+      }
+
+      // Fetch token balance
       const response = await fetch("/api/wallet/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,6 +259,7 @@ export default function BridgePageContent() {
           address: user.wallet.address,
           chainId: toChainId,
           rpcUrl: chainConfig.rpcUrl,
+          tokenAddress,
         }),
       });
 
@@ -213,7 +270,7 @@ export default function BridgePageContent() {
       console.error("Error fetching destination chain balance:", error);
       setToChainBalance("0.00");
     }
-  }, [user?.wallet?.address, toChainId]);
+  }, [user?.wallet?.address, toChainId, toToken]);
 
   useEffect(() => {
     fetchToChainBalance();
@@ -222,9 +279,14 @@ export default function BridgePageContent() {
   // Calculate bridge fees and estimated time when chain/amount changes
   useEffect(() => {
     if (fromChainId && toChainId && fromAmount && parseFloat(fromAmount) > 0) {
-      bridgeHook.calculateBridgeDetails(fromChainId, toChainId, fromAmount);
+      bridgeHook.calculateBridgeDetails(
+        fromChainId,
+        toChainId,
+        fromAmount,
+        fromToken?.symbol || "USDC"
+      );
     }
-  }, [fromChainId, toChainId, fromAmount]);
+  }, [fromChainId, toChainId, fromAmount, fromToken?.symbol]);
 
   // Update to amount based on Circle fee calculation
   useEffect(() => {
@@ -581,7 +643,7 @@ export default function BridgePageContent() {
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#18191c]">
                 <span>Circle Fee:</span>
                 <span className="text-foreground font-medium">
-                  {bridgeHook.estimatedFee} USDC
+                  {bridgeHook.estimatedFee} {fromDisplayToken.symbol}
                 </span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#18191c]">

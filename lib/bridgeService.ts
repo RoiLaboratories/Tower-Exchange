@@ -38,10 +38,19 @@ import {
   PolygonAmoy,
   SonicTestnet,
   UnichainSepolia,
+  Ethereum,
+  Base,
+  Avalanche,
 } from "@circle-fin/bridge-kit/chains";
 
 // Chain mapping for viem
 const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
+  // Production chains
+  1: mainnet,
+  8453: base,
+  43114: avalanche,
+  
+  // Testnet chains
   84532: baseSepolia,
   11155420: optimismSepolia,
   43113: avalancheFuji,
@@ -110,12 +119,40 @@ const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
 
 // Chain configurations for supported networks
 export const SUPPORTED_CHAINS = {
+  // PRODUCTION CHAINS
+  "base": {
+    name: "Base",
+    chainId: 8453,
+    rpcUrl: "https://mainnet.base.org",
+    circleChain: "Base" as const,
+    usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    eurcAddress: "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
+  },
+  "avalanche": {
+    name: "Avalanche",
+    chainId: 43114,
+    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    circleChain: "Avalanche" as const,
+    usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    eurcAddress: "0xc891eb4cbdeff6e073e859e987815ed1505c2acd",
+  },
+  "ethereum": {
+    name: "Ethereum",
+    chainId: 1,
+    rpcUrl: "https://eth.merkle.io",
+    circleChain: "Ethereum" as const,
+    usdcAddress: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    eurcAddress: "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
+  },
+  
+  // TESTNET CHAINS
   "arc-testnet": {
     name: "Arc Testnet",
     chainId: 5042002,
     rpcUrl: "https://rpc.testnet.arc.network",
     circleChain: "Arc_Testnet" as const,
     usdcAddress: "0x3600000000000000000000000000000000000000",
+    eurcAddress: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   },
   "base-sepolia": {
     name: "Base Sepolia",
@@ -123,6 +160,7 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://sepolia.base.org",
     circleChain: "Base_Sepolia" as const,
     usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    eurcAddress: "0x808456652fdb597867f38412077A9182bf77359F",
   },
   "optimism-sepolia": {
     name: "Optimism Sepolia",
@@ -137,6 +175,7 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
     circleChain: "Avalanche_Fuji" as const,
     usdcAddress: "0x5425890298aed601595a70ab815c96711a31bc65",
+    eurcAddress: "0x5e44db7996c682e92a960b65ac713a54ad815c6b",
   },
   "arbitrum-sepolia": {
     name: "Arbitrum Sepolia",
@@ -151,6 +190,7 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://sepolia.drpc.org",
     circleChain: "Ethereum_Sepolia" as const,
     usdcAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    eurcAddress: "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
   },
   "linea-sepolia": {
     name: "Linea Sepolia",
@@ -194,9 +234,10 @@ export const SUPPORTED_CHAINS = {
  * This is mandatory and cannot be avoided
  * Platform custom fees have been disabled
  */
-export const BRIDGE_FEE_CONFIG = {
+export const BRIDGE_FEE_CONFIG: Record<string, string> = {
   // Circle's fee per bridge (varies by chain pair, approximate)
-  circleFee: "0.00013",
+  USDC: "0.00013",
+  EURC: "0.00013",
 };
 
 // Bridge request parameters
@@ -383,6 +424,12 @@ export async function bridgeTokens(
 
     // Map to Circle's chain objects
     const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
+      // Production chains
+      "ethereum": Ethereum,
+      "base": Base,
+      "avalanche": Avalanche,
+      
+      // Testnet chains
       "arc-testnet": ArcTestnet,
       "base-sepolia": BaseSepolia,
       "optimism-sepolia": OptimismSepolia,
@@ -615,7 +662,8 @@ export function getSupportedBridgeRoutes(): Array<{
 export async function getBridgeFees(
   _fromChain: string,
   _toChain: string,
-  _amount: string
+  _amount: string,
+  tokenSymbol: string = "USDC"
 ): Promise<{
   circleFee: string;
   platformFee: string;
@@ -623,7 +671,8 @@ export async function getBridgeFees(
   totalWithFees: string;
 }> {
   // Only Circle's mandatory fee applies
-  const circleFee = parseFloat(BRIDGE_FEE_CONFIG.circleFee);
+  const feeKey = tokenSymbol?.toUpperCase?.() ?? "USDC";
+  const circleFee = parseFloat(BRIDGE_FEE_CONFIG[feeKey] ?? BRIDGE_FEE_CONFIG.USDC);
   const userAmount = parseFloat(_amount) - circleFee;
   
   return {
@@ -655,6 +704,9 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy",
         "sonic-testnet",
         "unichain-sepolia",
+        "base",
+        "avalanche",
+        "ethereum",
       ],
       chainAddresses: {
         "arc-testnet": "0x3600000000000000000000000000000000000000",
@@ -667,8 +719,35 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy": "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
         "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
         "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
+        "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "avalanche": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "ethereum": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       },
       logo: "/assets/USDC-fotor-bg-remover-2025111075935.png",
+    },
+    {
+      symbol: "EURC",
+      name: "Euro Coin",
+      decimals: 6,
+      chains: [
+        "arc-testnet",
+        "base-sepolia",
+        "avalanche-fuji",
+        "ethereum-sepolia",
+        "base",
+        "avalanche",
+        "ethereum",
+      ],
+      chainAddresses: {
+        "arc-testnet": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+        "base-sepolia": "0x808456652fdb597867f38412077A9182bf77359F",
+        "avalanche-fuji": "0x5e44db7996c682e92a960b65ac713a54ad815c6b",
+        "ethereum-sepolia": "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
+        "base": "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
+        "avalanche": "0xc891eb4cbdeff6e073e859e987815ed1505c2acd",
+        "ethereum": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
+      },
+      logo: "/assets/EURC_logo.png",
     },
   ];
 

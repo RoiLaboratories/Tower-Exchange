@@ -34,6 +34,24 @@ const CHAINS: Chain[] = [
     logo: globeLogo,
   },
   {
+    id: "ethereum",
+    name: "Ethereum",
+    color: "#627EEA",
+    logo: ethereumSepoliaLogo,
+  },
+  {
+    id: "base",
+    name: "Base",
+    color: "#0174F0",
+    logo: baseSepoliaLogo,
+  },
+  {
+    id: "avalanche",
+    name: "Avalanche",
+    color: "#E84142",
+    logo: avalancheFujiLogo,
+  },
+  {
     id: "arc-testnet",
     name: "Arc Testnet",
     color: "#00AEEF",

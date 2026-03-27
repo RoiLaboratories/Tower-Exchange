@@ -1168,6 +1168,41 @@ const SwapCard = () => {
               outputToken: feeResult.data?.outputToken || feeResult.outputToken,
               feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
             });
+
+            // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
+            // This ensures the user receives their tokens before we query the balance
+            if (feeResult.data?.transactionHash || feeResult.transactionHash) {
+              const feeDistributionTxHash = feeResult.data?.transactionHash || feeResult.transactionHash;
+              console.log("[SwapCard] Waiting for fee distribution transaction to finalize:", feeDistributionTxHash);
+              
+              // Poll for fee distribution confirmation (up to 30 seconds)
+              let feeDistributionConfirmed = false;
+              for (let attempt = 0; attempt < 30; attempt++) {
+                try {
+                  const feeReceipt = await eip1193Provider.request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [feeDistributionTxHash],
+                  }) as { status: string } | null;
+                  
+                  if (feeReceipt && feeReceipt.status === '0x1') {
+                    console.log("[SwapCard] Fee distribution transaction confirmed!");
+                    feeDistributionConfirmed = true;
+                    break;
+                  }
+                } catch (err) {
+                  // Continue polling
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+              
+              if (feeDistributionConfirmed) {
+                console.log("[SwapCard] Refreshing balance after fee distribution confirmed");
+                // Immediate balance refresh after fee distribution is confirmed
+                await fetchUserBalances();
+              } else {
+                console.warn("[SwapCard] Fee distribution transaction not confirmed within timeout - will refresh anyway");
+              }
+            }
           }
         } catch (feeError: unknown) {
           console.error("[SwapCard] Error submitting fee with atomic distribution:", {
@@ -1192,7 +1227,8 @@ const SwapCard = () => {
         setReceiveAmount("0.00");
         setSwapState("idle");
         setTransactionHash(null);
-        // Refresh wallet balances after successful swap
+        // Refresh wallet balances after successful swap (second pass as fallback)
+        // This ensures balance is updated even if fee distribution was not monitored
         fetchUserBalances();
       }, 3000);
     } catch (error: unknown) {
@@ -1309,7 +1345,15 @@ const SwapCard = () => {
             sellToken={sellToken.symbol}
             receiveAmount={receiveAmount}
             receiveToken={receiveToken.symbol}
-            onClose={() => setNotification(null)}
+            onClose={() => {
+              setNotification(null);
+              // CRITICAL: Refresh balances when user closes the notification
+              // This ensures the displayed balance is up-to-date after successful swap
+              if (notification === "success") {
+                console.log("[SwapCard] Success notification closed - refreshing balances");
+                fetchUserBalances();
+              }
+            }}
             transactionHash={transactionHash}
             revertReason={revertReason}
           />

@@ -3,7 +3,7 @@ import { createPublicClient, http, getContract, erc20Abi } from "viem";
 
 export async function POST(request: NextRequest) {
   try {
-    const { address, chainId, rpcUrl } = await request.json();
+    const { address, chainId, rpcUrl, tokenAddress } = await request.json();
 
     if (!address || !chainId || !rpcUrl) {
       return NextResponse.json(
@@ -17,18 +17,18 @@ export async function POST(request: NextRequest) {
       transport: http(rpcUrl),
     });
 
-    // Get USDC contract address for the chain
-    const usdcAddress = getUSDCAddressForChain(chainId);
-    if (!usdcAddress) {
+    // Use provided token address, or default to USDC for the chain
+    let contractAddress = tokenAddress || getUSDCAddressForChain(chainId);
+    if (!contractAddress) {
       return NextResponse.json(
-        { balance: "0.00", error: "USDC not supported on this chain" },
+        { balance: "0.00", error: "Token not supported on this chain" },
         { status: 200 }
       );
     }
 
     // Get the contract
     const contract = getContract({
-      address: usdcAddress as `0x${string}`,
+      address: contractAddress as `0x${string}`,
       abi: erc20Abi,
       client: publicClient,
     });

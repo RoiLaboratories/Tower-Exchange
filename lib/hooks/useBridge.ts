@@ -76,11 +76,11 @@ export function useBridge() {
    * Calculate bridge fees and estimated time
    */
   const calculateBridgeDetails = useCallback(
-    async (fromChain: string, toChain: string, amount: string) => {
+    async (fromChain: string, toChain: string, amount: string, tokenSymbol: string = "USDC") => {
       try {
         setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-        const fees = await getBridgeFees(fromChain, toChain, amount);
+        const fees = await getBridgeFees(fromChain, toChain, amount, tokenSymbol);
         const time = estimateBridgeTime(fromChain, toChain);
 
         setState((prev) => ({

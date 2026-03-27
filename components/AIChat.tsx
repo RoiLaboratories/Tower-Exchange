@@ -29,7 +29,7 @@ interface ChatSession {
 
 const quickPrompts = [
   "What are my buy/sell position",
-  "Show are my 7D trading volume",
+  "Show my 7D trading volume",
   "Provide overall analysis on the market",
 ];
 
