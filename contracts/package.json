@@ -8,6 +8,8 @@
     "deploy:testnet": "hardhat run scripts/deploy.ts --network arc-testnet",
     "deploy:xylonet-adapter": "hardhat run scripts/deploy-xylonet-adapter.cjs --network arc-testnet",
     "deploy:fee-collector": "hardhat run scripts/deploy-fee-collector.cjs --network arc-testnet",
+    "deploy:bridge-collector": "hardhat run scripts/deploy-bridge-collector.cjs --network arc-testnet",
+    "deploy:bridge-collector:all": "node scripts/deploy-all-chains.js",
     "authorize-backend": "hardhat run scripts/authorize-backend.cjs --network arc-testnet",
     "register-routers": "hardhat run scripts/register-routers.ts --network arc-testnet",
     "test": "hardhat test"

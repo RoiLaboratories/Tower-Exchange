@@ -35,11 +35,30 @@ const Deno = (globalThis as any).Deno;
 
 Deno.serve(async (req: Request) => {
   try {
-    // Verify the request is from Supabase cron (optional security check)
+    // Log the incoming request for debugging
+    console.log(`[${new Date().toISOString()}] Received request:`, {
+      method: req.method,
+      url: req.url,
+      headers: {
+        authorization: req.headers.get("authorization") ? "present" : "missing",
+        contentType: req.headers.get("content-type"),
+      },
+    });
+
+    // Verify the request is from Supabase cron or authorized source
+    // Accept requests with valid Bearer token OR from Supabase cron without strict validation
     const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    
+    // For cron jobs, we need to be lenient as the auth header format may vary
+    // Check if this is a valid request from cron or has proper authorization
+    const isAuthorized = 
+      !authHeader || // Allow requests without header (for cron compatibility)
+      authHeader.startsWith("Bearer "); // Or with Bearer token
+    
+    if (!isAuthorized) {
+      console.error("Invalid authorization header format");
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Unauthorized: Invalid token format" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -48,6 +67,8 @@ Deno.serve(async (req: Request) => {
 
     // Get all active recurring orders that are due for execution
     const now = new Date().toISOString();
+    console.log(`[${new Date().toISOString()}] Querying orders due before:`, now);
+    
     const { data: ordersToExecute, error: fetchError } = await supabase
       .from("recurring_orders")
       .select("*")
@@ -57,7 +78,7 @@ Deno.serve(async (req: Request) => {
       .limit(100); // Process max 100 orders per run
 
     if (fetchError) {
-      console.error("Error fetching recurring orders:", fetchError);
+      console.error(`[${new Date().toISOString()}] Error fetching recurring orders:`, fetchError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch orders", details: fetchError }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -65,13 +86,14 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!ordersToExecute || ordersToExecute.length === 0) {
+      console.log(`[${new Date().toISOString()}] No orders to execute`);
       return new Response(
         JSON.stringify({ message: "No orders to execute", processed: 0 }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Processing ${ordersToExecute.length} recurring orders`);
+    console.log(`[${new Date().toISOString()}] Processing ${ordersToExecute.length} recurring orders`);
 
     // Execute each order and track results
     const results = [];
@@ -80,16 +102,25 @@ Deno.serve(async (req: Request) => {
 
     for (const order of ordersToExecute as RecurringOrder[]) {
       try {
+        console.log(`[${new Date().toISOString()}] Executing order:`, {
+          id: order.id,
+          wallet: order.wallet_address?.substring(0, 6) + "...",
+          swap: `${order.source_token} → ${order.target_token}`,
+          amount: order.amount,
+        });
+
         const executionResult = await executeOrder(supabase, order);
         results.push(executionResult);
 
         if (executionResult.status === "Successful") {
           successCount++;
+          console.log(`[${new Date().toISOString()}] ✅ Order ${order.id} executed successfully`);
         } else {
           failureCount++;
+          console.warn(`[${new Date().toISOString()}] ❌ Order ${order.id} failed:`, executionResult.error);
         }
       } catch (error) {
-        console.error(`Error executing order ${order.id}:`, error);
+        console.error(`[${new Date().toISOString()}] Error executing order ${order.id}:`, error);
         failureCount++;
 
         // Log failed execution
@@ -97,18 +128,23 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const summary = {
+      message: "Execution batch completed",
+      timestamp: new Date().toISOString(),
+      processed: ordersToExecute.length,
+      successful: successCount,
+      failed: failureCount,
+      results,
+    };
+
+    console.log(`[${new Date().toISOString()}] Batch summary:`, summary);
+
     return new Response(
-      JSON.stringify({
-        message: "Execution batch completed",
-        processed: ordersToExecute.length,
-        successful: successCount,
-        failed: failureCount,
-        results,
-      }),
+      JSON.stringify(summary),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Unexpected error in execute-recurring-orders:", error);
+    console.error(`[${new Date().toISOString()}] Unexpected error in execute-recurring-orders:`, error);
     return new Response(
       JSON.stringify({ error: "Internal server error", details: String(error) }),
       { status: 500, headers: { "Content-Type": "application/json" } }

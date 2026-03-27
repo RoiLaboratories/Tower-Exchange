@@ -1,34 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { X, Search, ChevronDown } from "lucide-react";
 import Image, { type StaticImageData } from "next/image";
+import { getSupportedTokens, type SupportedToken } from "@/lib/bridgeService";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
 import arbitrumSepoliaLogo from "@/public/assets/Arbitrum Sepolia logo (2).svg";
-import ethLogo from "@/public/assets/EthLogo.svg";
-import penguLogo from "@/public/assets/PenguLogo.svg";
-import makerLogo from "@/public/assets/MakerLogo.svg";
-import tagbondLogo from "@/public/assets/TagbondLogo.svg";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
+import ethereumSepoliaLogo from "@/public/assets/EthLogo.svg";
+import lineaSepoliaLogo from "@/public/assets/linea.svg";
+import polygonAmoyLogo from "@/public/assets/polygon.svg";
+import sonicTestnetLogo from "@/public/assets/sonic.svg";
+import unichainSepoliaLogo from "@/public/assets/unichain.svg";
 
 type Chain = {
   id: string;
   name: string;
   badge?: string;
   color: string;
-  logo?: StaticImageData | string;
-};
-
-type TokenRow = {
-  symbol: string;
-  name: string;
-  address: string;
   logo?: StaticImageData | string;
 };
 
@@ -69,38 +63,35 @@ const CHAINS: Chain[] = [
     color: "#2D374B",
     logo: arbitrumSepoliaLogo,
   },
-];
-
-const TOKENS: TokenRow[] = [
   {
-    symbol: "ETH",
-    name: "ETH",
-    address: "0x76fb...9278",
-    logo: ethLogo,
+    id: "ethereum-sepolia",
+    name: "Ethereum Sepolia",
+    color: "#627EEA",
+    logo: ethereumSepoliaLogo,
   },
   {
-    symbol: "PENGU",
-    name: "Pudgy Penguins",
-    address: "0x76fb...9278",
-    logo: penguLogo,
+    id: "linea-sepolia",
+    name: "Linea Sepolia",
+    color: "#121212",
+    logo: lineaSepoliaLogo,
   },
   {
-    symbol: "MKR",
-    name: "Maker",
-    address: "0x76fb...9278",
-    logo: makerLogo,
+    id: "polygon-amoy",
+    name: "Polygon Amoy",
+    color: "#8247E5",
+    logo: polygonAmoyLogo,
   },
   {
-    symbol: "TAG",
-    name: "TAGBOND",
-    address: "0x76fb...9278",
-    logo: tagbondLogo,
+    id: "sonic-testnet",
+    name: "Sonic Testnet",
+    color: "#00D4AA",
+    logo: sonicTestnetLogo,
   },
   {
-    symbol: "USDT",
-    name: "USDT",
-    address: "0x76fb...9278",
-    logo: usdtLogo,
+    id: "unichain-sepolia",
+    name: "Unichain Sepolia",
+    color: "#FF007A",
+    logo: unichainSepoliaLogo,
   },
 ];
 
@@ -111,6 +102,7 @@ export default function BridgeSelectContent() {
 
   const [chainSearch, setChainSearch] = useState("");
   const [tokenSearch, setTokenSearch] = useState("");
+  const [tokens, setTokens] = useState<SupportedToken[]>([]);
   const [selectedChainId, setSelectedChainId] = useState<string>(() => {
     const currentChainId = searchParams.get(`${side}Chain`);
     if (currentChainId && CHAINS.some((chain) => chain.id === currentChainId)) {
@@ -119,6 +111,23 @@ export default function BridgeSelectContent() {
     return "arc-testnet";
   });
   const [isChainModalOpen, setIsChainModalOpen] = useState(false);
+
+  // Fetch supported tokens for the selected chain
+  useEffect(() => {
+    const fetchTokens = async () => {
+      try {
+        const supportedTokens = getSupportedTokens(
+          selectedChainId === "all" ? undefined : selectedChainId
+        );
+        setTokens(supportedTokens);
+      } catch (error) {
+        console.error("Failed to fetch tokens:", error);
+        setTokens([]);
+      }
+    };
+
+    fetchTokens();
+  }, [selectedChainId]);
 
   const title = useMemo(
     () => (side === "to" ? "Exchange to" : "Exchange from"),
@@ -139,15 +148,18 @@ export default function BridgeSelectContent() {
 
   const filteredTokens = useMemo(() => {
     const q = tokenSearch.toLowerCase().trim();
-    if (!q) return TOKENS;
-    return TOKENS.filter((token) => {
+    if (!q) return tokens;
+    return tokens.filter((token) => {
+      const addressMatches = Object.values(token.chainAddresses).some((addr) =>
+        addr.toLowerCase().includes(q)
+      );
       return (
         token.symbol.toLowerCase().includes(q) ||
         token.name.toLowerCase().includes(q) ||
-        token.address.toLowerCase().includes(q)
+        addressMatches
       );
     });
-  }, [tokenSearch]);
+  }, [tokenSearch, tokens]);
 
   return (
     <main className="flex-1 flex items-center justify-center py-10 px-4 min-h-screen">
@@ -158,7 +170,7 @@ export default function BridgeSelectContent() {
         className="w-full max-w-4xl rounded-3xl border border-border/70 bg-[#111214] shadow-2xl overflow-hidden flex"
       >
         {/* Left: chain list */}
-        <aside className="hidden md:flex w-64 flex-col border-r border-border/70 bg-[#101113]">
+        <aside className="hidden md:flex w-64 flex-col border-r border-border/70 bg-[#101113] h-screen max-h-screen">
           <div className="px-4 py-4 border-b border-border/60">
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
@@ -178,43 +190,54 @@ export default function BridgeSelectContent() {
             Top Chains
           </div>
 
-          <div className="flex-1 overflow-y-auto pb-4">
-            {visibleChains.length === 0 ? (
-              <p className="px-4 py-8 text-xs text-muted-foreground">
-                Chain not found
+          <div className="relative flex-1">
+            <div className="absolute inset-0 overflow-y-auto pr-2 scroll-smooth [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-[#101113] [&::-webkit-scrollbar-thumb]:bg-[#232428] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-[#2a2c31]">
+              {visibleChains.length === 0 ? (
+                <p className="px-4 py-8 text-xs text-muted-foreground">
+                  Chain not found
+                </p>
+              ) : (
+                <div className="pb-16">
+                  {visibleChains.map((chain) => (
+                    <button
+                      key={chain.id}
+                      type="button"
+                      onClick={() => setSelectedChainId(chain.id)}
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
+                        selectedChainId === chain.id
+                          ? "bg-[#18191c] text-foreground"
+                          : "text-muted-foreground hover:bg-[#18191c]"
+                      }`}
+                    >
+                      <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
+                        {chain.logo ? (
+                          <Image
+                            src={chain.logo}
+                            alt={`${chain.name} logo`}
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 object-contain"
+                          />
+                        ) : (
+                          <span
+                            className="inline-flex h-full w-full rounded-full"
+                            style={{ backgroundColor: chain.color }}
+                          />
+                        )}
+                      </span>
+                      <span>{chain.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fixed Footer */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#101113] to-transparent pt-4 pb-2 px-4 border-t border-border/40">
+              <p className="text-[11px] text-muted-foreground/60 text-center">
+                {selectedChain.name}
               </p>
-            ) : (
-              visibleChains.map((chain) => (
-                <button
-                  key={chain.id}
-                  type="button"
-                  onClick={() => setSelectedChainId(chain.id)}
-                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
-                    selectedChainId === chain.id
-                      ? "bg-[#18191c] text-foreground"
-                      : "text-muted-foreground hover:bg-[#18191c]"
-                  }`}
-                >
-                  <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
-                    {chain.logo ? (
-                      <Image
-                        src={chain.logo}
-                        alt={`${chain.name} logo`}
-                        width={20}
-                        height={20}
-                        className="h-5 w-5 object-contain"
-                      />
-                    ) : (
-                      <span
-                        className="inline-flex h-full w-full rounded-full"
-                        style={{ backgroundColor: chain.color }}
-                      />
-                    )}
-                  </span>
-                  <span>{chain.name}</span>
-                </button>
-              ))
-            )}
+            </div>
           </div>
         </aside>
 
@@ -312,9 +335,9 @@ export default function BridgeSelectContent() {
                         <Image
                           src={token.logo}
                           alt={`${token.symbol} logo`}
-                          width={24}
-                          height={24}
-                          className="h-6 w-6 object-contain"
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 object-contain"
                         />
                       ) : (
                         <span className="text-xs font-semibold text-foreground">
@@ -332,7 +355,11 @@ export default function BridgeSelectContent() {
                     </div>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {token.address}
+                    {selectedChainId && selectedChainId !== "all"
+                      ? (token.chainAddresses[selectedChainId] || "N/A").slice(0, 6) +
+                        "..." +
+                        (token.chainAddresses[selectedChainId] || "N/A").slice(-4)
+                      : "Multiple"}
                   </span>
                 </button>
               ))

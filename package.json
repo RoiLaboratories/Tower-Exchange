@@ -9,6 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@circle-fin/adapter-solana-kit": "^1.4.1",
+    "@circle-fin/adapter-viem-v2": "^1.7.0",
+    "@circle-fin/app-kit": "^1.1.0",
+    "@circle-fin/bridge-kit": "^1.7.0",
     "@privy-io/react-auth": "^3.13.1",
     "@radix-ui/react-slot": "^1.2.4",
     "@supabase/supabase-js": "^2.39.0",
@@ -21,9 +25,11 @@
     "react-dom": "19.2.3",
     "react-icons": "^5.5.0",
     "recharts": "^3.6.0",
+    "solana": "^3.0.0",
     "tailwind-merge": "^3.4.0",
     "use-debounce": "^10.1.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "viem": "^2.47.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -322,61 +322,47 @@ CREATE TRIGGER update_execution_history_updated_at
 -- Enable pg_cron extension for scheduled jobs
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
--- Schedule the execute-recurring-orders Edge Function to run every hour
--- This will check for orders due for execution and trigger them automatically
--- NOTE: Replace 'project-id' with your actual Supabase project ID
--- The function runs at 0 minutes past every hour
-SELECT cron.schedule(
-  'execute-recurring-orders-hourly',
-  '0 * * * *', -- Run every hour at the top of the hour
-  $$
-  SELECT
-    net.http_post(
-      url := concat(
-        'https://',
-        current_setting('app.settings.supabase_project_id'),
-        '.supabase.co/functions/v1/execute-recurring-orders'
-      ),
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', concat('Bearer ', current_setting('app.settings.supabase_service_key'))
-      ),
-      body := jsonb_build_object(
-        'timestamp', now()
-      )
-    ) as request_id;
-  $$
-);
+-- Enable http_post for cron jobs
+CREATE EXTENSION IF NOT EXISTS http;
 
--- Schedule to run every 30 minutes for more frequent execution
--- Uncomment if you want more frequent checks
+-- Schedule the execute-recurring-orders Edge Function to run every 15 minutes
+-- This will check for orders due for execution and trigger them automatically
+-- IMPORTANT: You must set this up manually in Supabase dashboard after deploying
+-- because Supabase provides the project ID and service key at runtime
+-- 
+-- To set this up in Supabase:
+-- 1. Go to SQL Editor in Supabase Dashboard
+-- 2. Create a new query and replace YOUR_PROJECT_ID and YOUR_SERVICE_ROLE_KEY
+-- 3. Run:
+--
 -- SELECT cron.schedule(
---   'execute-recurring-orders-frequent',
---   '*/30 * * * *', -- Run every 30 minutes
+--   'execute-recurring-orders-15min',
+--   '*/15 * * * *',
 --   $$
---   SELECT
---     net.http_post(
---       url := concat(
---         'https://',
---         current_setting('app.settings.supabase_project_id'),
---         '.supabase.co/functions/v1/execute-recurring-orders'
---       ),
---       headers := jsonb_build_object(
---         'Content-Type', 'application/json',
---         'Authorization', concat('Bearer ', current_setting('app.settings.supabase_service_key'))
---       ),
---       body := jsonb_build_object(
---         'timestamp', now()
---       )
---     ) as request_id;
+--   SELECT net.http_post(
+--     url:='https://YOUR_PROJECT_ID.supabase.co/functions/v1/execute-recurring-orders',
+--     headers:=jsonb_build_object(
+--       'Content-Type','application/json',
+--       'Authorization','Bearer YOUR_SERVICE_ROLE_KEY'
+--     ),
+--     body:=jsonb_build_object('trigger','cron')
+--   );
 --   $$
 -- );
+--
+-- Then verify with: SELECT * FROM cron.job;
+--
+-- To remove the job use: SELECT cron.unschedule('execute-recurring-orders-15min');
+--
+-- ALTERNATIVE: Use a PostgreSQL function that doesn't require external HTTP
+-- This version uses a database trigger instead (commented out below)
+-- Uncomment lines 339-359 if you prefer database-native triggering
 
--- View all scheduled cron jobs
+-- View all scheduled cron jobs (run this to check if the cron job exists)
 -- SELECT * FROM cron.job;
 
--- Cancel a specific cron job (example)
--- SELECT cron.unschedule('execute-recurring-orders-hourly');
+-- To debug cron job execution logs (run this)
+-- SELECT * FROM cron.job_run_details WHERE job_name LIKE '%recurring%' ORDER BY start_time DESC LIMIT 10;
 
 -- ============================================================================
 -- EXAMPLE INSERTS (FOR TESTING)

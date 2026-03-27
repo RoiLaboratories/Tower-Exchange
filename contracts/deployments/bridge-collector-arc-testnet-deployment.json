@@ -1,0 +1,13 @@
+{
+  "contract": "BridgeCollector",
+  "version": "1.0.0",
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "bridgeCollector": "0x7AeEa4E66Ef8E0B48fF47bE7adf64363Ed7405f5",
+  "usdcToken": "0x3600000000000000000000000000000000000000",
+  "feeRecipient": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "backendWallet": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "timestamp": "2026-03-26T12:40:19.585Z",
+  "blockExplorerUrl": "https://testnet.arcscan.app/address/0x7AeEa4E66Ef8E0B48fF47bE7adf64363Ed7405f5"
+}

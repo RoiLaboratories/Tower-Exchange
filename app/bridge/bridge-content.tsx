@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
@@ -14,20 +14,26 @@ import {
   Plus,
   X,
   Wallet,
+  AlertCircle,
+  CheckCircle,
+  Loader,
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
+import useBridge from "@/lib/hooks/useBridge";
+import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
+import { registerBridgeActivity } from "@/lib/supabase";
+import { usePrivy } from "@privy-io/react-auth";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
-import penguLogo from "@/public/assets/PenguLogo.svg";
-import makerLogo from "@/public/assets/MakerLogo.svg";
-import tagbondLogo from "@/public/assets/TagbondLogo.svg";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
-import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
 import arbitrumSepoliaLogo from "@/public/assets/Arbitrum Sepolia logo (2).svg";
+import ethereumSepoliaLogo from "@/public/assets/EthLogo.svg";
+import lineaSepoliaLogo from "@/public/assets/linea.svg";
+import polygonAmoyLogo from "@/public/assets/polygon.svg";
+import sonicTestnetLogo from "@/public/assets/sonic.svg";
+import unichainSepoliaLogo from "@/public/assets/unichain.svg";
 
 type BridgeToken = {
   symbol: string;
@@ -48,42 +54,6 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     label: "USDC",
     usdValue: "$1",
     logo: usdcLogo,
-  },
-  {
-    symbol: "ETH",
-    label: "ETH",
-    usdValue: "$1",
-    logo: ethLogo,
-  },
-  {
-    symbol: "PENGU",
-    label: "PENGU",
-    usdValue: "$1",
-    logo: penguLogo,
-  },
-  {
-    symbol: "MKR",
-    label: "MKR",
-    usdValue: "$1",
-    logo: makerLogo,
-  },
-  {
-    symbol: "TAG",
-    label: "TAG",
-    usdValue: "$1",
-    logo: tagbondLogo,
-  },
-  {
-    symbol: "USDT",
-    label: "USDT",
-    usdValue: "$1",
-    logo: usdtLogo,
-  },
-  {
-    symbol: "EURC",
-    label: "EURC",
-    usdValue: "$1.15",
-    logo: eurcLogo,
   },
 ];
 
@@ -113,11 +83,39 @@ const BRIDGE_CHAINS: BridgeChain[] = [
     name: "Arbitrum Sepolia",
     logo: arbitrumSepoliaLogo,
   },
+  {
+    id: "ethereum-sepolia",
+    name: "Ethereum Sepolia",
+    logo: ethereumSepoliaLogo,
+  },
+  {
+    id: "linea-sepolia",
+    name: "Linea Sepolia",
+    logo: lineaSepoliaLogo,
+  },
+  {
+    id: "polygon-amoy",
+    name: "Polygon Amoy",
+    logo: polygonAmoyLogo,
+  },
+  {
+    id: "sonic-testnet",
+    name: "Sonic Testnet",
+    logo: sonicTestnetLogo,
+  },
+  {
+    id: "unichain-sepolia",
+    name: "Unichain Sepolia",
+    logo: unichainSepoliaLogo,
+  },
 ];
 
 export default function BridgePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, ready } = usePrivy();
+  const bridgeHook = useBridge();
+
   const [fromAmount, setFromAmount] = useState("0.00");
   const [toAmount, setToAmount] = useState("0.00");
   const [fromToken, setFromToken] = useState<BridgeToken | null>(null);
@@ -129,42 +127,179 @@ export default function BridgePageContent() {
   const [isReceivingOpen, setIsReceivingOpen] = useState(false);
   const [receivingAddress, setReceivingAddress] = useState("");
   const [isArrowHovered, setIsArrowHovered] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [walletBalance, setWalletBalance] = useState("0.00");
+  const [toChainBalance, setToChainBalance] = useState("0.00");
 
   useEffect(() => {
-    const fromSymbol = searchParams.get("fromToken");
-    const toSymbol = searchParams.get("toToken");
     const fromChain = searchParams.get("fromChain");
     const toChain = searchParams.get("toChain");
 
-    if (fromSymbol) {
-      const t = BRIDGE_TOKENS.find(
-        (token) => token.symbol.toLowerCase() === fromSymbol.toLowerCase()
-      );
-      if (t) setFromToken(t);
+    // Set token to USDC only when user selects a chain
+    const usdc = BRIDGE_TOKENS[0];
+    if (fromChain) {
+      setFromToken(usdc);
+      setFromChainId(fromChain);
     }
-
-    if (toSymbol) {
-      const t = BRIDGE_TOKENS.find(
-        (token) => token.symbol.toLowerCase() === toSymbol.toLowerCase()
-      );
-      if (t) setToToken(t);
+    if (toChain) {
+      setToToken(usdc);
+      setToChainId(toChain);
     }
-
-    if (fromChain) setFromChainId(fromChain);
-    if (toChain) setToChainId(toChain);
   }, [searchParams]);
 
-  const handleSwapTokens = () => {
-    setFromToken(toToken);
-    setToToken(fromToken);
-    setFromAmount(toAmount);
-    setToAmount(fromAmount);
+  // Fetch wallet balance when chain or user changes
+  const fetchWalletBalance = useCallback(async () => {
+    if (!user?.wallet?.address || !fromChainId) {
+      setWalletBalance("0.00");
+      return;
+    }
+
+    try {
+      // Get chain info for RPC
+      const chainConfig = SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
+      if (!chainConfig) return;
+
+      // Fetch USDC balance
+      const response = await fetch("/api/wallet/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: user.wallet.address,
+          chainId: fromChainId,
+          rpcUrl: chainConfig.rpcUrl,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch balance");
+      const data = await response.json();
+      setWalletBalance(data.balance || "0.00");
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+      setWalletBalance("0.00");
+    }
+  }, [user?.wallet?.address, fromChainId]);
+
+  useEffect(() => {
+    fetchWalletBalance();
+  }, [fetchWalletBalance]);
+
+  // Fetch wallet balance for destination chain
+  const fetchToChainBalance = useCallback(async () => {
+    if (!user?.wallet?.address || !toChainId) {
+      setToChainBalance("0.00");
+      return;
+    }
+
+    try {
+      // Get chain info for RPC
+      const chainConfig = SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS];
+      if (!chainConfig) return;
+
+      // Fetch USDC balance
+      const response = await fetch("/api/wallet/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: user.wallet.address,
+          chainId: toChainId,
+          rpcUrl: chainConfig.rpcUrl,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch balance");
+      const data = await response.json();
+      setToChainBalance(data.balance || "0.00");
+    } catch (error) {
+      console.error("Error fetching destination chain balance:", error);
+      setToChainBalance("0.00");
+    }
+  }, [user?.wallet?.address, toChainId]);
+
+  useEffect(() => {
+    fetchToChainBalance();
+  }, [fetchToChainBalance]);
+
+  // Calculate bridge fees and estimated time when chain/amount changes
+  useEffect(() => {
+    if (fromChainId && toChainId && fromAmount && parseFloat(fromAmount) > 0) {
+      bridgeHook.calculateBridgeDetails(fromChainId, toChainId, fromAmount);
+    }
+  }, [fromChainId, toChainId, fromAmount]);
+
+  // Update to amount based on Circle fee calculation
+  useEffect(() => {
+    const feeAmount = parseFloat(bridgeHook.estimatedFee);
+    const estimated = (parseFloat(fromAmount) - feeAmount).toFixed(2);
+    setToAmount(isNaN(parseFloat(estimated)) ? "0.00" : estimated);
+  }, [bridgeHook.estimatedFee, fromAmount]);
+
+  const handleSwapChains = () => {
     setFromChainId(toChainId);
     setToChainId(fromChainId);
+    setFromAmount(toAmount);
+    setToAmount(fromAmount);
   };
 
+  const handleBridge = useCallback(async () => {
+    // Check wallet connection
+    if (!user) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    // Execute bridge - tokens will arrive at the connected wallet address
+    const result = await bridgeHook.executeBridge({
+      fromChain: fromChainId || "",
+      toChain: toChainId || "",
+      amount: fromAmount,
+      token: fromToken?.symbol || "USDC",
+      toAddress: user.wallet?.address, // Tokens sent to connected wallet (Privy limitation)
+      sourceAddress: user.wallet?.address,
+    });
+
+    if (result.success) {
+      // Register bridge transaction in Supabase
+      await registerBridgeActivity({
+        walletAddress: user.wallet?.address || "",
+        fromChain: SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]?.name || fromChainId || "",
+        toChain: SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]?.name || toChainId || "",
+        amount: fromAmount,
+        token: fromToken?.symbol || "USDC",
+        transactionHash: result.transactionHash,
+        fee: bridgeHook.estimatedFee,
+        status: "Successful",
+      });
+
+      // Show success modal after a small delay
+      setTimeout(() => {
+        setShowSuccessModal(true);
+      }, 1000);
+      
+      // Reset form and refetch balances after successful bridge
+      setTimeout(() => {
+        bridgeHook.resetBridgeState();
+        setFromAmount("0.00");
+        setToAmount("0.00");
+        setShowSuccessModal(false);
+        
+        // Refetch wallet balances after bridge completes
+        fetchWalletBalance();
+        fetchToChainBalance();
+      }, 6000);
+    }
+  }, [
+    user,
+    bridgeHook,
+    fromChainId,
+    toChainId,
+    fromAmount,
+    fromToken,
+    fetchWalletBalance,
+    fetchToChainBalance,
+  ]);
+
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
-  const toDisplayToken = toToken ?? BRIDGE_TOKENS[1];
+  const toDisplayToken = toToken ?? BRIDGE_TOKENS[0];
   const fromChain = fromChainId
     ? BRIDGE_CHAINS.find((c) => c.id === fromChainId) ?? null
     : null;
@@ -228,10 +363,12 @@ export default function BridgePageContent() {
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="font-medium">Bridge from</span>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Lock className="h-3 w-3" />
-                  <span>0 —</span>
-                </div>
+                {walletBalance !== "0.00" && (
+                  <div className="flex items-center gap-1">
+                    <Wallet className="h-3 w-3" />
+                    <span>{walletBalance}</span>
+                  </div>
+                )}
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground transition-colors"
@@ -310,7 +447,7 @@ export default function BridgePageContent() {
           <div className="flex justify-center my-1">
             <motion.button
               type="button"
-              onClick={handleSwapTokens}
+              onClick={handleSwapChains}
               onMouseEnter={() => setIsArrowHovered(true)}
               onMouseLeave={() => setIsArrowHovered(false)}
               whileHover={{ scale: 1.1 }}
@@ -336,10 +473,12 @@ export default function BridgePageContent() {
           <section className="rounded-2xl bg-[#151617] px-4 py-3 mb-3 border border-border/50">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="font-medium">Bridge to</span>
-              <div className="flex items-center gap-1">
-                <Lock className="h-3 w-3" />
-                <span>—</span>
-              </div>
+              {toChainBalance !== "0.00" && (
+                <div className="flex items-center gap-1">
+                  <Wallet className="h-3 w-3" />
+                  <span>{toChainBalance}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-3">
@@ -395,7 +534,7 @@ export default function BridgePageContent() {
             </div>
           </section>
 
-          {/* Add / show receiving address */}
+          {/* Add / show receiving address - NOTE: Informational only for Privy wallets */}
           <button
             type="button"
             onClick={() => setIsReceivingOpen(true)}
@@ -403,23 +542,76 @@ export default function BridgePageContent() {
           >
             <Plus className="h-3 w-3" />
             <span>
-              {receivingAddress
-                ? `Receiving Address: ${
-                    receivingAddress.length > 10
-                      ? `${receivingAddress.slice(0, 6)}...${receivingAddress.slice(-4)}`
-                      : receivingAddress
-                  }`
-                : "Add receiving address"}
+              Receiving Wallet:{" "}
+              {user?.wallet?.address
+                ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
+                : "Connect wallet"}
             </span>
           </button>
+
+          {/* Error message display */}
+          {bridgeHook.error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 flex items-start gap-3 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2"
+            >
+              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-red-500">
+                  {bridgeHook.error}
+                </p>
+              </div>
+              <button
+                onClick={bridgeHook.clearError}
+                className="text-red-500/60 hover:text-red-500 text-xs"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+
+          {/* Circle fee and estimated time info */}
+          {fromChainId && toChainId && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-4 text-xs text-muted-foreground space-y-1"
+            >
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#18191c]">
+                <span>Circle Fee:</span>
+                <span className="text-foreground font-medium">
+                  {bridgeHook.estimatedFee} USDC
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#18191c]">
+                <span>Estimated Time:</span>
+                <span className="text-foreground font-medium">
+                  {bridgeHook.estimatedTime}
+                </span>
+              </div>
+            </motion.div>
+          )}
 
           {/* Primary bridge button */}
           <button
             type="button"
-            disabled
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1b1c1f] py-3 text-sm font-semibold text-muted-foreground opacity-60 cursor-not-allowed"
+            onClick={handleBridge}
+            disabled={
+              !user ||
+              !fromChainId ||
+              !toChainId ||
+              !fromAmount ||
+              parseFloat(fromAmount) <= 0 ||
+              bridgeHook.isBridging ||
+              bridgeHook.isLoading
+            }
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
           >
-            Bridge
+            {bridgeHook.isBridging && (
+              <Loader className="h-4 w-4 animate-spin" />
+            )}
+            {bridgeHook.isBridging ? "Bridging..." : "Bridge"}
           </button>
 
           {/* Bottom token pills (reflect current selection, not interactive) */}
@@ -529,6 +721,107 @@ export default function BridgePageContent() {
                     </span>
                   </div>
                 </div>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Bridge success modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="w-full max-w-sm rounded-2xl bg-[#111214] border border-border/70 shadow-2xl overflow-hidden p-6 text-center"
+          >
+            <div className="mb-4 flex justify-center">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.1 }}
+              >
+                <CheckCircle className="h-16 w-16 text-green-500" />
+              </motion.div>
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              Bridge Initiated!
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Your tokens are being bridged to{" "}
+              <span className="font-medium text-foreground">
+                {toChainId === "arc-testnet"
+                  ? "Arc Testnet"
+                  : toChainId === "base-sepolia"
+                  ? "Base Sepolia"
+                  : toChainId === "optimism-sepolia"
+                  ? "Optimism Sepolia"
+                  : toChainId === "avalanche-fuji"
+                  ? "Avalanche Fuji"
+                  : toChainId === "arbitrum-sepolia"
+                  ? "Arbitrum Sepolia"
+                  : toChainId === "ethereum-sepolia"
+                  ? "Ethereum Sepolia"
+                  : toChainId === "linea-sepolia"
+                  ? "Linea Sepolia"
+                  : toChainId === "polygon-amoy"
+                  ? "Polygon Amoy"
+                  : toChainId === "sonic-testnet"
+                  ? "Sonic Testnet"
+                  : toChainId === "unichain-sepolia"
+                  ? "Unichain Sepolia"
+                  : "destination chain"}
+              </span>
+              . Estimated time:{" "}
+              <span className="font-medium text-foreground">
+                {bridgeHook.estimatedTime}
+              </span>
+            </p>
+            {(() => {
+              console.log("Modal - bridgeHook.transactionHash:", bridgeHook.transactionHash);
+              console.log("Modal - bridgeHook full state:", bridgeHook);
+              return null;
+            })()}
+            {bridgeHook.transactionHash && (
+              <div className="text-[11px] text-muted-foreground mb-4 p-2 rounded bg-[#18191c] break-all">
+                TX: {bridgeHook.transactionHash}
+              </div>
+            )}
+            <div className="flex gap-2 w-full">
+              {bridgeHook.transactionHash ? (
+                <a
+                  href={(() => {
+                    const explorerUrls: Record<string, string> = {
+                      "arc-testnet": "https://testnet.arcscan.app/tx/",
+                      "base-sepolia": "https://sepolia.basescan.org/tx/",
+                      "optimism-sepolia": "https://sepolia-optimism.etherscan.io/tx/",
+                      "avalanche-fuji": "https://testnet.snowtrace.io/tx/",
+                      "arbitrum-sepolia": "https://sepolia.arbiscan.io/tx/",
+                      "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
+                      "linea-sepolia": "https://sepolia.lineascan.build/tx/",
+                      "polygon-amoy": "https://amoy.polygonscan.com/tx/",
+                      "sonic-testnet": "https://testnet.sonicscan.org/tx/",
+                      "unichain-sepolia": "https://sepolia.unichain.org/tx/",
+                    };
+                    const url = explorerUrls[toChainId || ""];
+                    console.log("Explorer URL:", url, "TxHash:", bridgeHook.transactionHash);
+                    return url ? url + bridgeHook.transactionHash : "#";
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center rounded-full bg-blue-600 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  View Transaction ↗
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className={`${
+                  bridgeHook.transactionHash ? "flex-1" : "w-full"
+                } inline-flex items-center justify-center rounded-full bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors`}
+              >
+                Done
               </button>
             </div>
           </motion.div>

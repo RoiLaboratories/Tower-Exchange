@@ -28,9 +28,62 @@ export interface ActivityRow {
   status: "Successful" | "Failed" | "Pending";
   timestamp: string;
   amount: number | null;
+  amount_usd: number | null;
   transaction_hash: string | null;
   fee: number | null;
   fee_currency_ticker: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Interface for registering bridge transactions
+export interface BridgeActivityParams {
+  walletAddress: string;
+  fromChain: string;
+  toChain: string;
+  amount: string;
+  token: string;
+  transactionHash?: string;
+  fee?: string;
+  status?: "Successful" | "Failed" | "Pending";
+}
+
+/**
+ * Register a bridge transaction in the activities table
+ */
+export async function registerBridgeActivity(
+  params: BridgeActivityParams
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.from("activities").insert([
+      {
+        wallet_address: params.walletAddress.toLowerCase(),
+        type: "Bridge",
+        source_currency_ticker: params.token,
+        source_network_name: params.fromChain,
+        destination_currency_ticker: params.token,
+        destination_network_name: params.toChain,
+        amount: parseFloat(params.amount),
+        amount_usd: parseFloat(params.amount), // USDC is 1:1 with USD
+        transaction_hash: params.transactionHash || null,
+        fee: params.fee ? parseFloat(params.fee) : null,
+        fee_currency_ticker: params.fee ? params.token : null,
+        status: params.status || "Successful",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    if (error) {
+      console.error("Error registering bridge activity:", error);
+      return { success: false, error: error.message };
+    }
+
+    console.log("Bridge activity registered:", data);
+    return { success: true };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error registering bridge activity:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
 }

@@ -2,7 +2,11 @@
 
 This Edge Function automatically executes recurring buy/sell orders on a scheduled basis.
 
-## Setup Instructions
+## ⚠️ REQUIRED SETUP
+
+**The cron job must be set up manually in Supabase!** See [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) for details.
+
+## Quick Setup
 
 ### 1. Deploy the Edge Function
 
@@ -10,144 +14,163 @@ This Edge Function automatically executes recurring buy/sell orders on a schedul
 supabase functions deploy execute-recurring-orders
 ```
 
-### 2. Enable pg_cron Extension
+### 2. Set Up Cron Job (CRITICAL!)
 
-Run this SQL in the Supabase SQL Editor:
+Follow the instructions in [SETUP_INSTRUCTIONS.md](SETUP_INSTRUCTIONS.md) to set up the cron job in Supabase SQL Editor.
 
+**Without this step, recurring orders will NOT execute automatically.**
+
+### 3. Verify Setup
+
+Run in Supabase SQL Editor:
 ```sql
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- Check if cron job exists
+SELECT * FROM cron.job WHERE jobname LIKE '%recurring%';
+
+-- Check recent executions
+SELECT * FROM cron.job_run_details 
+WHERE job_name = 'execute-recurring-orders-15min' 
+ORDER BY start_time DESC LIMIT 5;
 ```
 
-### 3. Set Up Cron Job Scheduling
+## System Architecture
 
-The cron scheduling is already configured in `schema.sql`. It will:
-- Check for orders due for execution every hour
-- Automatically trigger the Edge Function to process them
+### Execution Flow
 
-To view all scheduled jobs:
-
-```sql
-SELECT * FROM cron.job;
+```
+Cron Job (every 15 min)
+    ↓
+Edge Function (execute-recurring-orders)
+    ↓
+Query: Get active orders due for execution
+    ↓
+For each order:
+  • Get swap quote from Tower-Exchange-AI
+  • Build transaction
+  • Sign via Privy
+  • Broadcast to Arc RPC
+  • Update next_execution_date
+  • Log execution
 ```
 
-To unschedule a job:
+## What Gets Executed
+
+Orders are executed when:
+- `is_active = true`
+- `next_execution_date <= current_time`
+- Wallet has sufficient balance
+- No errors during transaction building/signing
+
+## Common Issues
+
+### "No orders to execute"
+✅ Normal - means no orders are due yet
+
+### Cron job not in list
+❌ **Critical** - Run the setup SQL from SETUP_INSTRUCTIONS.md
+
+### "Failed to get quote"
+- Tower-Exchange-AI API is down
+- Order tokens might not be supported
+- Check function logs for details
+
+### "Transaction build failed"
+- Invalid token combination
+- Insufficient liquidity
+- Check Tower-Exchange-AI API response
+
+## Configuration
+
+Edit [config.ts](config.ts) to adjust:
+- `MAX_ORDERS_PER_RUN`: How many orders to process per execution (default: 100)
+- `BATCH_SIZE`: Parallel execution (default: 1, recommend keeping at 1)
+- `ORDER_EXECUTION_TIMEOUT`: Timeout per order (default: 30s)
+- `LOG_LEVEL`: Debug verbosity (default: 'info')
+
+## Monitoring
+
+### View Execution History
 
 ```sql
-SELECT cron.unschedule('execute-recurring-orders-hourly');
+SELECT * FROM recurring_order_executions 
+WHERE status = 'Failed'
+ORDER BY execution_date DESC
+LIMIT 20;
 ```
 
-## Integration with Tower-Exchange-AI (Option A - Active)
+### View Active Orders
 
-This Edge Function now integrates with **Tower-Exchange-AI** for all swap operations:
+```sql
+SELECT id, wallet_address, source_token, target_token, frequency, 
+       next_execution_date, execution_count
+FROM recurring_orders
+WHERE is_active = true
+ORDER BY next_execution_date ASC;
+```
 
-### How It Works
+### View Edge Function Logs
 
-1. **Quote Retrieval** 
-   - Calls Tower-Exchange-AI `/api/v1/chat` endpoint
-   - AI agent returns accurate swap quote with price impact
-   - Uses same routing and DEX discovery as frontend
+In Supabase Dashboard:
+1. Go to **Functions**
+2. Click **execute-recurring-orders**
+3. Check **Logs** tab
 
-2. **Transaction Building**
-   - Calls Tower-Exchange-AI with `enable_wallet_access: true`
-   - Gets transaction object with: `to`, `data`, `value`, `gasLimit`
-   - Transaction is ready for signing via Arc RPC
+Logs include:
+- Orders fetched
+- Execution attempts
+- Success/failure status
+- Error details
 
-3. **Transaction Execution (TODO)**
-   - ⚠️ **Transaction signing not yet implemented**
-   - Options to complete:
-     - **Option 1 (Recommended)**: Privy Server Wallet API
-       ```typescript
-       const tx = await privy.signAndSendTransaction({
-         transaction: txData,
-         wallet: walletAddress
-       });
-       ```
-     - **Option 2**: AWS KMS or Supabase Vault for private key storage
-       ```typescript
-       const signer = new ethers.Wallet(privateKey, provider);
-       const tx = await signer.sendTransaction(txData);
-       ```
-     - **Option 3**: Delegate to separate service (recommended for production)
+## Scaling
 
-### Current Status
+For production with many orders:
 
-✅ Quote retrieval - WORKING
-✅ Transaction building - WORKING  
-⏳ Transaction signing/sending - PENDING IMPLEMENTATION
+1. **Increase execution frequency:**
+```sql
+-- Change to every 5 minutes (more aggressive)
+SELECT cron.unschedule('execute-recurring-orders-15min');
+SELECT cron.schedule(
+  'execute-recurring-orders-5min',
+  '*/5 * * * *',
+  ...
+);
+```
+
+2. **Implement exponential backoff** for failed orders
+
+3. **Add rate limiting** to Tower-Exchange-AI calls
+
+4. **Consider splitting by wallet** for parallel execution
 
 ## Environment Variables
 
-Required for the Edge Function:
-- `SUPABASE_URL`: Your Supabase project URL (auto-provided)
-- `SUPABASE_SERVICE_ROLE_KEY`: Service role API key (auto-provided)
+Add to Supabase Function Settings (if using Privy signing):
+- `PRIVY_APP_ID` - Your Privy app ID
+- `PRIVY_APP_SECRET` - Your Privy secret
 
-## Key Features
+## Security
 
-✅ **Automatic Execution** - Orders execute automatically without user intervention
-✅ **Error Handling** - Failed orders are logged with error messages
-✅ **Frequency Support** - Daily, Weekly, Bi-weekly, Monthly
-✅ **Transaction Logging** - All executions tracked in execution history
-✅ **Batch Processing** - Handles up to 100 orders per run
+⚠️ **Important:**
+- Edge Function uses `SUPABASE_SERVICE_ROLE_KEY` (auto-provided by Supabase)
+- Cron job stores service key in database - ensure pgcrypto encryption
+- Consider rotating service role keys regularly
+- Never commit credentials to git
 
-## Important Notes
+## Troubleshooting Checklist
 
-## Implementation Notes
+- [ ] Edge Function deployed successfully
+- [ ] Cron job created in SQL Editor (run: `SELECT * FROM cron.job`)
+- [ ] `pg_cron` extension enabled
+- [ ] `http` extension enabled
+- [ ] Recurring orders exist and `is_active = true`
+- [ ] Orders' `next_execution_date` is in the past
+- [ ] Edge Function logs show execution attempts
+- [ ] Network connectivity to Tower-Exchange-AI and Arc RPC
 
-### Transaction Signing Architecture
+## Next Steps
 
-The Edge Function currently:
-1. ✅ Fetches quotes from Tower-Exchange-AI
-2. ✅ Builds transactions using Tower-Exchange-AI's transaction builder
-3. ⏳ **Needs**: Secure signing mechanism for on-chain transaction
+See [SETUP_INSTRUCTIONS.md](/SETUP_INSTRUCTIONS.md) for the complete manual setup guide.
 
-### Recommended Implementation: Privy Server Wallet
-
-**Setup:**
-```bash
-# Install Privy SDK
-npm install @privy-io/server-node
-
-# Set environment variables in Supabase
-PRIVY_APP_ID=your_privy_app_id
-PRIVY_APP_SECRET=your_privy_app_secret
-```
-
-**Usage in Edge Function:**
-```typescript
-import { PrivyClient } from '@privy-io/server-node';
-
-const privy = new PrivyClient({
-  appId: deno.env.get('PRIVY_APP_ID'),
-  appSecret: deno.env.get('PRIVY_APP_SECRET'),
-});
-
-// In sendSwapTransaction():
-const txHash = await privy.sendTransaction({
-  walletAddress: walletAddress,
-  chainId: 5042002, // Arc testnet
-  transaction: {
-    to: txData.to,
-    from: txData.from,
-    data: txData.data,
-    value: txData.value,
-    gasLimit: txData.gasLimit,
-  },
-});
-```
-
-### Alternative: AWS KMS Signing
-
-Store private keys in AWS KMS or Supabase Vault and sign transactions server-side using ethers.js.
-
-⚠️ **Security Consideration**: Private key management requires secure infrastructure. Use KMS, HashiCorp Vault, or similar.
-
-
-
-### Security Considerations
-
-⚠️ **Private Key Management**: 
-- Never hardcode private keys in the Edge Function
-- Use Supabase Vault or AWS KMS for secure key storage
 - Implement strict access controls
 
 ⚠️ **Authorization**:
