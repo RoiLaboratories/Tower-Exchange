@@ -1,5 +1,17 @@
 /* Privy Theme Customization - Matches Tower Finance Design */
 
+/* Font Stack - Apply Sora font to all Privy elements */
+.privy-modal,
+.privy-modal__container,
+.privy-button,
+.privy-text,
+.privy-input,
+.privy-header,
+.privy-card,
+.privy-tab {
+  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 /* Privy Modal Styles */
 .privy-modal {
   background-color: hsl(220 20% 10%);

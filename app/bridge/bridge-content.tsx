@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import {
   ArrowDown,
@@ -24,7 +24,6 @@ import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
 import { usePrivy } from "@privy-io/react-auth";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import eurcLogo from "@/public/assets/EURC_logo.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
@@ -56,32 +55,9 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     usdValue: "$1",
     logo: usdcLogo,
   },
-  {
-    symbol: "EURC",
-    label: "EURC",
-    usdValue: "€1",
-    logo: eurcLogo,
-  },
 ];
 
 const BRIDGE_CHAINS: BridgeChain[] = [
-  // Production chains
-  {
-    id: "base",
-    name: "Base (Mainnet)",
-    logo: baseSepoliaLogo,
-  },
-  {
-    id: "ethereum",
-    name: "Ethereum (Mainnet)",
-    logo: ethereumSepoliaLogo,
-  },
-  {
-    id: "avalanche",
-    name: "Avalanche (Mainnet)",
-    logo: avalancheFujiLogo,
-  },
-
   // Testnet chains
   {
     id: "arc-testnet",
@@ -155,6 +131,27 @@ export default function BridgePageContent() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [walletBalance, setWalletBalance] = useState("0.00");
   const [toChainBalance, setToChainBalance] = useState("0.00");
+  const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
+
+  // Load recent addresses from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("bridgeRecentAddresses");
+    if (stored) {
+      try {
+        setRecentAddresses(JSON.parse(stored));
+      } catch (e) {
+        console.error("Failed to parse recent addresses", e);
+      }
+    }
+  }, []);
+
+  // Save address to recent addresses when modal closes
+  const saveRecentAddress = (address: string) => {
+    if (!address.trim()) return;
+    const updated = [address, ...recentAddresses.filter(a => a !== address)].slice(0, 5);
+    setRecentAddresses(updated);
+    localStorage.setItem("bridgeRecentAddresses", JSON.stringify(updated));
+  };
 
   useEffect(() => {
     const fromChain = searchParams.get("fromChain");
@@ -277,16 +274,18 @@ export default function BridgePageContent() {
   }, [fetchToChainBalance]);
 
   // Calculate bridge fees and estimated time when chain/amount changes
+  const feeTokenSymbol = fromToken?.symbol || "USDC";
+
   useEffect(() => {
     if (fromChainId && toChainId && fromAmount && parseFloat(fromAmount) > 0) {
       bridgeHook.calculateBridgeDetails(
         fromChainId,
         toChainId,
         fromAmount,
-        fromToken?.symbol || "USDC"
+        feeTokenSymbol
       );
     }
-  }, [fromChainId, toChainId, fromAmount, fromToken?.symbol]);
+  }, [fromChainId, toChainId, fromAmount, feeTokenSymbol]);
 
   // Update to amount based on Circle fee calculation
   useEffect(() => {
@@ -309,13 +308,16 @@ export default function BridgePageContent() {
       return;
     }
 
-    // Execute bridge - tokens will arrive at the connected wallet address
+    // Use receiving address if provided, otherwise use connected wallet
+    const destinationAddress = receivingAddress || user.wallet?.address;
+
+    // Execute bridge
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
       toChain: toChainId || "",
       amount: fromAmount,
       token: fromToken?.symbol || "USDC",
-      toAddress: user.wallet?.address, // Tokens sent to connected wallet (Privy limitation)
+      toAddress: destinationAddress,
       sourceAddress: user.wallet?.address,
     });
 
@@ -371,12 +373,15 @@ export default function BridgePageContent() {
 
   return (
     <main className="flex-1 flex items-center justify-center py-12 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
-      >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="bridge-card"
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full max-w-md"
+        >
         <div className="relative rounded-3xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden">
           {/* Header */}
           <div className="mb-5 flex items-center justify-between">
@@ -406,7 +411,7 @@ export default function BridgePageContent() {
                 transition={{ duration: 0.5 }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] transition-colors"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-5 w-5" />
               </motion.button>
               <motion.button
                 type="button"
@@ -415,7 +420,7 @@ export default function BridgePageContent() {
                 transition={{ duration: 0.3 }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] transition-colors"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-5 w-5" />
               </motion.button>
             </div>
           </div>
@@ -605,7 +610,9 @@ export default function BridgePageContent() {
             <Plus className="h-3 w-3" />
             <span>
               Receiving Wallet:{" "}
-              {user?.wallet?.address
+              {receivingAddress
+                ? `${receivingAddress.slice(0, 6)}...${receivingAddress.slice(-4)}`
+                : user?.wallet?.address
                 ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
                 : "Connect wallet"}
             </span>
@@ -706,6 +713,7 @@ export default function BridgePageContent() {
           <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 opacity-60" />
         </div>
       </motion.div>
+      </AnimatePresence>
 
       {/* Slippage settings modal */}
       <SettingsModal
@@ -741,20 +749,23 @@ export default function BridgePageContent() {
             <div className="px-5 pt-4 pb-3 space-y-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-2">
-                  Enter Destination Address
+                  Enter Destination Address {toChainId === "solana" && "(Solana)"}
                 </label>
                 <input
                   type="text"
                   value={receivingAddress}
                   onChange={(e) => setReceivingAddress(e.target.value)}
-                  placeholder="0x..."
+                  placeholder={toChainId === "solana" ? "Enter Solana address..." : "0x..."}
                   className="w-full rounded-xl bg-[#18191c] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 border border-border/70 focus:outline-none focus:border-border"
                 />
               </div>
               <button
                 type="button"
                 disabled={!receivingAddress.trim()}
-                onClick={() => setIsReceivingOpen(false)}
+                onClick={() => {
+                  saveRecentAddress(receivingAddress);
+                  setIsReceivingOpen(false);
+                }}
                 className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-[#1b1c1f] py-2.5 text-xs font-semibold text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#222327] hover:text-foreground transition-colors"
               >
                 Done
@@ -762,28 +773,36 @@ export default function BridgePageContent() {
             </div>
 
             <div className="px-5 pt-1 pb-4">
-              <p className="text-[11px] font-medium text-muted-foreground mb-2">
-                Recent Addresses
-              </p>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs hover:bg-[#18191c] transition-colors"
-                onClick={() => setReceivingAddress("0x22...2111")}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#232428]">
-                    <Wallet className="h-3.5 w-3.5 text-foreground" />
-                  </span>
-                  <div className="flex flex-col text-left">
-                    <span className="text-xs font-medium text-foreground">
-                      Wallet 1
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      0x22...2111
-                    </span>
+              {recentAddresses.length > 0 && (
+                <>
+                  <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                    Recent Addresses
+                  </p>
+                  <div className="space-y-2">
+                    {recentAddresses.map((address) => (
+                      <button
+                        key={address}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs hover:bg-[#18191c] transition-colors"
+                        onClick={() => setReceivingAddress(address)}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#232428] flex-shrink-0">
+                            <Wallet className="h-3.5 w-3.5 text-foreground" />
+                          </span>
+                          <div className="flex flex-col text-left min-w-0">
+                            <span className="text-xs font-medium text-foreground truncate">
+                              {address.length > 20
+                                ? `${address.slice(0, 6)}...${address.slice(-4)}`
+                                : address}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </div>
-              </button>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
@@ -832,6 +851,8 @@ export default function BridgePageContent() {
                   ? "Sonic Testnet"
                   : toChainId === "unichain-sepolia"
                   ? "Unichain Sepolia"
+                  : toChainId === "solana"
+                  ? "Solana Devnet"
                   : "destination chain"}
               </span>
               . Estimated time:{" "}
@@ -863,7 +884,7 @@ export default function BridgePageContent() {
                       "linea-sepolia": "https://sepolia.lineascan.build/tx/",
                       "polygon-amoy": "https://amoy.polygonscan.com/tx/",
                       "sonic-testnet": "https://testnet.sonicscan.org/tx/",
-                      "unichain-sepolia": "https://sepolia.unichain.org/tx/",
+                      "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
                     };
                     const url = explorerUrls[toChainId || ""];
                     console.log("Explorer URL:", url, "TxHash:", bridgeHook.transactionHash);

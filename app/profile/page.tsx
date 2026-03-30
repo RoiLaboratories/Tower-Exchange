@@ -192,10 +192,7 @@ const Profile = () => {
               </div>
 
               {!isOnArcTestnet && (
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="text-xs text-amber-300">
-                    Switch/add Arc Testnet
-                  </span>
+                <div className="mb-3">
                   <button
                     onClick={handleAddArcNetwork}
                     className="text-xs px-3 py-1.5 rounded-lg bg-primary text-black font-semibold hover:opacity-90 transition"

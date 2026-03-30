@@ -27,6 +27,7 @@ import {
 import { BridgeKit } from "@circle-fin/bridge-kit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
+import { createSolanaKitAdapterFromProvider } from "@circle-fin/adapter-solana-kit";
 import {
   ArcTestnet,
   ArbitrumSepolia,
@@ -38,18 +39,11 @@ import {
   PolygonAmoy,
   SonicTestnet,
   UnichainSepolia,
-  Ethereum,
-  Base,
-  Avalanche,
+  SolanaDevnet,
 } from "@circle-fin/bridge-kit/chains";
 
 // Chain mapping for viem
 const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
-  // Production chains
-  1: mainnet,
-  8453: base,
-  43114: avalanche,
-  
   // Testnet chains
   84532: baseSepolia,
   11155420: optimismSepolia,
@@ -120,39 +114,12 @@ const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
 // Chain configurations for supported networks
 export const SUPPORTED_CHAINS = {
   // PRODUCTION CHAINS
-  "base": {
-    name: "Base",
-    chainId: 8453,
-    rpcUrl: "https://mainnet.base.org",
-    circleChain: "Base" as const,
-    usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    eurcAddress: "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
-  },
-  "avalanche": {
-    name: "Avalanche",
-    chainId: 43114,
-    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
-    circleChain: "Avalanche" as const,
-    usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-    eurcAddress: "0xc891eb4cbdeff6e073e859e987815ed1505c2acd",
-  },
-  "ethereum": {
-    name: "Ethereum",
-    chainId: 1,
-    rpcUrl: "https://eth.merkle.io",
-    circleChain: "Ethereum" as const,
-    usdcAddress: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    eurcAddress: "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
-  },
-  
-  // TESTNET CHAINS
   "arc-testnet": {
     name: "Arc Testnet",
     chainId: 5042002,
     rpcUrl: "https://rpc.testnet.arc.network",
     circleChain: "Arc_Testnet" as const,
     usdcAddress: "0x3600000000000000000000000000000000000000",
-    eurcAddress: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   },
   "base-sepolia": {
     name: "Base Sepolia",
@@ -160,7 +127,6 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://sepolia.base.org",
     circleChain: "Base_Sepolia" as const,
     usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    eurcAddress: "0x808456652fdb597867f38412077A9182bf77359F",
   },
   "optimism-sepolia": {
     name: "Optimism Sepolia",
@@ -175,7 +141,6 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://api.avax-test.network/ext/bc/C/rpc",
     circleChain: "Avalanche_Fuji" as const,
     usdcAddress: "0x5425890298aed601595a70ab815c96711a31bc65",
-    eurcAddress: "0x5e44db7996c682e92a960b65ac713a54ad815c6b",
   },
   "arbitrum-sepolia": {
     name: "Arbitrum Sepolia",
@@ -190,7 +155,6 @@ export const SUPPORTED_CHAINS = {
     rpcUrl: "https://sepolia.drpc.org",
     circleChain: "Ethereum_Sepolia" as const,
     usdcAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-    eurcAddress: "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
   },
   "linea-sepolia": {
     name: "Linea Sepolia",
@@ -220,12 +184,6 @@ export const SUPPORTED_CHAINS = {
     circleChain: "Unichain_Sepolia" as const,
     usdcAddress: "0x31d0220469e10c4E71834a79b1f276d740d3768F",
   },
-  solana: {
-    name: "Solana Devnet",
-    chainId: 900,
-    rpcUrl: "https://api.devnet.solana.com",
-    circleChain: "Solana_Devnet" as const,
-  },
 };
 
 /**
@@ -237,7 +195,6 @@ export const SUPPORTED_CHAINS = {
 export const BRIDGE_FEE_CONFIG: Record<string, string> = {
   // Circle's fee per bridge (varies by chain pair, approximate)
   USDC: "0.00013",
-  EURC: "0.00013",
 };
 
 // Bridge request parameters
@@ -299,6 +256,40 @@ async function createBridgeKitAdapter(): Promise<any> {
  */
 let appKitInstance: AppKit | null = null;
 let evmAdapter: any = null;
+let solanaAdapter: any = null;
+
+/**
+ * Helper function to initialize Solana adapter from wallet provider
+ * Returns null if Solana wallet is not available
+ */
+async function initializeSolanaAdapter(): Promise<any> {
+  try {
+    const solanaWindow = (window as any).solana;
+    if (!solanaWindow) {
+      console.warn("Solana wallet not found - Phantom not installed");
+      return null;
+    }
+
+    // Request connection to Phantom wallet
+    try {
+      await solanaWindow.connect();
+      console.log("Connected to Phantom wallet");
+    } catch (connectError) {
+      console.warn("User rejected Phantom connection or already connected:", connectError);
+      // Continue anyway - wallet might already be connected
+    }
+
+    // Create adapter with connected wallet
+    const adapter = await createSolanaKitAdapterFromProvider({
+      provider: solanaWindow,
+    });
+    console.log("Solana adapter initialized successfully");
+    return adapter;
+  } catch (error) {
+    console.warn("Failed to initialize Solana adapter:", error);
+    return null;
+  }
+}
 
 async function initializeCircleSDK(): Promise<any> {
   if (appKitInstance && evmAdapter) {
@@ -308,6 +299,9 @@ async function initializeCircleSDK(): Promise<any> {
   try {
     // Create the EVM adapter from the browser wallet provider
     evmAdapter = await createBridgeKitAdapter();
+
+    // Initialize Solana adapter if Solana wallet is available
+    solanaAdapter = await initializeSolanaAdapter();
 
     // Initialize AppKit (which includes Bridge capability)
     appKitInstance = new AppKit();
@@ -424,11 +418,6 @@ export async function bridgeTokens(
 
     // Map to Circle's chain objects
     const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
-      // Production chains
-      "ethereum": Ethereum,
-      "base": Base,
-      "avalanche": Avalanche,
-      
       // Testnet chains
       "arc-testnet": ArcTestnet,
       "base-sepolia": BaseSepolia,
@@ -440,6 +429,7 @@ export async function bridgeTokens(
       "polygon-amoy": PolygonAmoy,
       "sonic-testnet": SonicTestnet,
       "unichain-sepolia": UnichainSepolia,
+      "solana": SolanaDevnet,
     };
 
     const fromChainObj = CIRCLE_CHAIN_OBJECTS[request.fromChain];
@@ -452,13 +442,72 @@ export async function bridgeTokens(
       };
     }
 
-    // Execute bridge using Circle's documented pattern
-    // Use the same adapter for both chains (user-controlled adapters auto-detect wallet context)
-    const adapter = evmAdapter;
-    if (!adapter) {
+    // Determine adapters based on chain types
+    let fromAdapter = evmAdapter;
+    let toAdapter = evmAdapter;
+
+    // For cross-chain bridges (EVM → Solana), only use EVM adapter
+    // The destination address is provided by the user, not from a connected wallet
+    const isEVMtoSolana = request.fromChain !== "solana" && request.toChain === "solana";
+    const isSolanatoEVM = request.fromChain === "solana" && request.toChain !== "solana";
+
+    // Check for cross-chain type transfers (not currently supported by Circle)
+    if (isEVMtoSolana || isSolanatoEVM) {
+      return {
+        success: false,
+        error: "Cross-chain transfers between EVM and Solana are not yet supported by Circle's Bridge Kit. Circle currently only supports EVM-to-EVM or Solana-to-Solana transfers.",
+      };
+    }
+
+    // For EVM → EVM: Only EVM adapter needed, destination address is manual
+    if (!isEVMtoSolana && request.toChain !== "solana") {
+      if (!request.toAddress) {
+        return {
+          success: false,
+          error: "Destination address is required",
+        };
+      }
+    }
+
+    // For Solana → EVM or Solana → Solana: Need Solana adapter
+    if (request.fromChain === "solana") {
+      if (!solanaAdapter) {
+        solanaAdapter = await initializeSolanaAdapter();
+      }
+      if (!solanaAdapter) {
+        return {
+          success: false,
+          error: "Phantom wallet not connected. Please connect Phantom to Solana Devnet.",
+        };
+      }
+      fromAdapter = solanaAdapter;
+    }
+
+    if (request.toChain === "solana" && request.fromChain === "solana") {
+      if (!solanaAdapter) {
+        solanaAdapter = await initializeSolanaAdapter();
+      }
+      if (!solanaAdapter) {
+        return {
+          success: false,
+          error: "Phantom wallet not connected. Please connect Phantom to Solana Devnet.",
+        };
+      }
+      toAdapter = solanaAdapter;
+    }
+
+    // Validate that adapters are initialized
+    if (!fromAdapter) {
       return {
         success: false,
         error: "Bridge adapter not initialized. Please connect your wallet.",
+      };
+    }
+
+    if (!toAdapter) {
+      return {
+        success: false,
+        error: "Destination adapter not initialized. Please ensure required wallet is connected.",
       };
     }
 
@@ -469,12 +518,21 @@ export async function bridgeTokens(
       token: request.token,
     });
 
+    // Circle's AppKit only supports USDC bridging
+    // EURC bridging is not yet supported by Circle's bridge SDK
+    if (request.token && request.token !== "USDC") {
+      return {
+        success: false,
+        error: `${request.token} bridging is not yet supported. Only USDC can be bridged at this time.`,
+      };
+    }
+
     // Fee collection disabled - execute bridge without custom fees
     const result = await kit.bridge({
-      from: { adapter, chain: fromChainObj },
-      to: { adapter, chain: toChainObj },
+      from: { adapter: fromAdapter, chain: fromChainObj },
+      to: { adapter: toAdapter, chain: toChainObj },
       amount: request.amount,
-      token: request.token as "USDC",
+      token: "USDC",
     });
 
     console.log("Bridge transaction result:", result);
@@ -704,9 +762,6 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy",
         "sonic-testnet",
         "unichain-sepolia",
-        "base",
-        "avalanche",
-        "ethereum",
       ],
       chainAddresses: {
         "arc-testnet": "0x3600000000000000000000000000000000000000",
@@ -719,35 +774,8 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy": "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
         "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
         "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
-        "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "avalanche": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-        "ethereum": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       },
       logo: "/assets/USDC-fotor-bg-remover-2025111075935.png",
-    },
-    {
-      symbol: "EURC",
-      name: "Euro Coin",
-      decimals: 6,
-      chains: [
-        "arc-testnet",
-        "base-sepolia",
-        "avalanche-fuji",
-        "ethereum-sepolia",
-        "base",
-        "avalanche",
-        "ethereum",
-      ],
-      chainAddresses: {
-        "arc-testnet": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-        "base-sepolia": "0x808456652fdb597867f38412077A9182bf77359F",
-        "avalanche-fuji": "0x5e44db7996c682e92a960b65ac713a54ad815c6b",
-        "ethereum-sepolia": "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
-        "base": "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
-        "avalanche": "0xc891eb4cbdeff6e073e859e987815ed1505c2acd",
-        "ethereum": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
-      },
-      logo: "/assets/EURC_logo.png",
     },
   ];
 
@@ -821,8 +849,8 @@ export function isValidAddress(address: string, chainType: "evm" | "solana"): bo
     // EVM address: 0x followed by 40 hex characters
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   } else if (chainType === "solana") {
-    // Solana address: base58, typically 44 characters
-    return /^[1-9A-HJ-NP-Z]{44}$/.test(address);
+    // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 43-44 characters
+    return /^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(address);
   }
   return false;
 }

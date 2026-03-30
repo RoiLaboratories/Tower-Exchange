@@ -217,17 +217,17 @@ const TokenTicker = () => {
       >
         <motion.div
           className="flex"
-          animate={{ x: isPaused ? undefined : [0, -2880] }}
+          animate={{ x: isPaused ? undefined : [0, -1920] }}
           transition={{
             x: {
               repeat: Infinity,
               repeatType: "loop",
-              duration: 60,
+              duration: 40,
               ease: "linear",
             },
           }}
         >
-          {[...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens].map((token, index) => (
+          {[...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens].map((token, index) => (
             <TokenCard
               key={`${token.symbol}-${index}`}
               token={token}
