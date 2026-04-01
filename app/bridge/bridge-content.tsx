@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import {
   ArrowDown,
@@ -111,7 +111,7 @@ const BRIDGE_CHAINS: BridgeChain[] = [
   },
 ];
 
-export default function BridgePageContent() {
+export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSwap?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, ready } = usePrivy();
@@ -372,23 +372,14 @@ export default function BridgePageContent() {
     : null;
 
   return (
-    <main className="flex-1 flex items-center justify-center py-12 px-4">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="bridge-card"
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="w-full max-w-md"
-        >
-        <div className="relative rounded-3xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden">
-          {/* Header */}
-          <div className="mb-5 flex items-center justify-between">
+    <div className="h-full">
+    <div className="relative rounded-3xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden overflow-y-auto h-full flex flex-col">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
             <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
               <button
                 type="button"
-                onClick={() => router.push("/")}
+                onClick={() => onNavigateToSwap ? onNavigateToSwap() : router.push("/")}
                 className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
               >
                 Swap
@@ -665,7 +656,7 @@ export default function BridgePageContent() {
           {/* Primary bridge button */}
           <button
             type="button"
-            onClick={handleBridge}
+            onClick={!user ? async () => { /* placeholder for connect wallet */ } : handleBridge}
             disabled={
               !user ||
               !fromChainId ||
@@ -677,10 +668,16 @@ export default function BridgePageContent() {
             }
             className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
           >
-            {bridgeHook.isBridging && (
-              <Loader className="h-4 w-4 animate-spin" />
+            {!user ? (
+              <span>Connect Wallet</span>
+            ) : (
+              <>
+                {bridgeHook.isBridging && (
+                  <Loader className="h-4 w-4 animate-spin" />
+                )}
+                {bridgeHook.isBridging ? "Bridging..." : "Bridge"}
+              </>
             )}
-            {bridgeHook.isBridging ? "Bridging..." : "Bridge"}
           </button>
 
           {/* Bottom token pills (reflect current selection, not interactive) */}
@@ -712,8 +709,6 @@ export default function BridgePageContent() {
           {/* Soft background glow */}
           <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 opacity-60" />
         </div>
-      </motion.div>
-      </AnimatePresence>
 
       {/* Slippage settings modal */}
       <SettingsModal
@@ -723,8 +718,6 @@ export default function BridgePageContent() {
         onSlippageChange={setSlippageTolerance}
         title="Bridge Settings"
       />
-
-      {/* Receiving address modal */}
       {isReceivingOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <motion.div
@@ -807,7 +800,6 @@ export default function BridgePageContent() {
           </motion.div>
         </div>
       )}
-
       {/* Bridge success modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -910,6 +902,6 @@ export default function BridgePageContent() {
           </motion.div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

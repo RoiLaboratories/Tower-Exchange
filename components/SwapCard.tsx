@@ -104,7 +104,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   );
 };
 
-const SwapCard = () => {
+const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) => {
   const router = useRouter();
   // Privy hook
   const { user, login, authenticated } = usePrivy();
@@ -1360,15 +1360,9 @@ const SwapCard = () => {
         )}
       </AnimatePresence>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -20, scale: 0.95 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="w-full max-w-md"
-      >
+      <div className="w-full max-w-md">
         <motion.div
-          className="bg-[#191A1C] border border-border rounded-2xl p-6"
+          className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 min-h-[520px] flex flex-col"
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
           <div className="mb-4 flex items-center justify-between">
@@ -1381,10 +1375,14 @@ const SwapCard = () => {
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/bridge")}
-                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
+                onClick={() => isWalletConnected ? (onNavigateToBridge ? onNavigateToBridge() : router.push("/bridge")) : handleConnectWallet()}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                  isWalletConnected
+                    ? "text-muted-foreground hover:text-foreground hover:bg-[#1b1d21]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-[#1b1d21]"
+                }`}
               >
-                Bridge
+                {isWalletConnected ? "Bridge" : "Connect Wallet"}
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -1510,7 +1508,7 @@ const SwapCard = () => {
         </motion.div>
 
         {/* Token Quick Access Buttons */}
-        <div className="flex items-center justify-center gap-4 mt-6">
+        <div className="flex items-center justify-center gap-4 mt-4">
           <motion.button
             onClick={() => setSellToken(sellToken)}
             className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
@@ -1584,7 +1582,7 @@ const SwapCard = () => {
           slippageTolerance={slippageTolerance}
           onSlippageChange={setSlippageTolerance}
         />
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {isChartOpen && (

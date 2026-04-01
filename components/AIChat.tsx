@@ -157,9 +157,18 @@ export const AIChat = () => {
         saveSessions(user.wallet.address, updatedSessions);
       }
 
-      // If we deleted the active session, switch to the first available
-      if (sessionId === sessionToDelete && updatedSessions.length > 0) {
-        switchSession(updatedSessions[0].id);
+      // If we deleted the active session, switch to the first available or clear chat
+      if (sessionId === sessionToDelete) {
+        if (updatedSessions.length > 0) {
+          switchSession(updatedSessions[0].id);
+        } else {
+          // No more sessions, clear the chat area
+          setMessages([]);
+          setMessage("");
+          setError(null);
+          setSessionId("");
+          setSidebarOpen(false);
+        }
       }
     } catch (error) {
       console.error("Error deleting session:", error);
