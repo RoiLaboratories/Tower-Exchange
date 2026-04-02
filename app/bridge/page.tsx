@@ -11,7 +11,11 @@ export default function BridgePage() {
   return (
     <>
       <TokenTicker />
-      <BridgePageContent />
+      <main className="flex-1 flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md">
+          <BridgePageContent />
+        </div>
+      </main>
     </>
   );
 }

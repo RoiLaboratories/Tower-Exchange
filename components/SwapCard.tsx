@@ -1375,14 +1375,12 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               </button>
               <button
                 type="button"
-                onClick={() => isWalletConnected ? (onNavigateToBridge ? onNavigateToBridge() : router.push("/bridge")) : handleConnectWallet()}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                  isWalletConnected
-                    ? "text-muted-foreground hover:text-foreground hover:bg-[#1b1d21]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-[#1b1d21]"
-                }`}
+                onClick={() =>
+                  onNavigateToBridge ? onNavigateToBridge() : router.push("/bridge")
+                }
+                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
               >
-                {isWalletConnected ? "Bridge" : "Connect Wallet"}
+                Bridge
               </button>
             </div>
             <div className="flex items-center gap-2">

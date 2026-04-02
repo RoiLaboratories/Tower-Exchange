@@ -114,7 +114,7 @@ const BRIDGE_CHAINS: BridgeChain[] = [
 export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSwap?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, ready } = usePrivy();
+  const { user, login, authenticated } = usePrivy();
   const bridgeHook = useBridge();
 
   const [fromAmount, setFromAmount] = useState("0.00");
@@ -370,6 +370,23 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
   const toChain = toChainId
     ? BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? null
     : null;
+  const isBridgeActionDisabled =
+    !fromChainId ||
+    !toChainId ||
+    !fromAmount ||
+    parseFloat(fromAmount) <= 0 ||
+    bridgeHook.isBridging ||
+    bridgeHook.isLoading;
+  const isBridgeButtonDisabled = user ? isBridgeActionDisabled : false;
+
+  const handleConnectWallet = async () => {
+    if (authenticated) return;
+    try {
+      await login();
+    } catch (error) {
+      console.error("Wallet connection failed:", error);
+    }
+  };
 
   return (
     <div className="h-full">
@@ -656,17 +673,13 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
           {/* Primary bridge button */}
           <button
             type="button"
-            onClick={!user ? async () => { /* placeholder for connect wallet */ } : handleBridge}
-            disabled={
-              !user ||
-              !fromChainId ||
-              !toChainId ||
-              !fromAmount ||
-              parseFloat(fromAmount) <= 0 ||
-              bridgeHook.isBridging ||
-              bridgeHook.isLoading
-            }
-            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+            onClick={!user ? handleConnectWallet : handleBridge}
+            disabled={isBridgeButtonDisabled}
+            className={`inline-flex items-center justify-center gap-2 w-full rounded-xl h-14 text-base font-semibold transition-all ${
+              isBridgeButtonDisabled
+                ? "bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500"
+                : "bg-primary hover:opacity-90 text-black"
+            }`}
           >
             {!user ? (
               <span>Connect Wallet</span>
