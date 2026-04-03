@@ -2,7 +2,7 @@
 import { Settings, Menu, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -35,10 +35,32 @@ const Header = () => {
     },
   ];
 
+  const mobileMenuItems = [
+    ...tradeOptions.map((option) => ({ ...option, badge: undefined, disabled: false })),
+    ...navItems.filter((item) => !item.dropdown),
+  ];
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+    setTradeDropdownOpen(false);
+  };
+
   const handleNavigation = (path: string, disabled?: boolean) => {
     if (disabled) return;
     router.push(path);
-    setMobileMenuOpen(false);
+    closeMobileMenu();
   };
 
   const formatAddress = (address: string) => {
@@ -325,7 +347,9 @@ const Header = () => {
           <motion.button
             className="lg:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
             whileTap={{ scale: 0.9 }}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-expanded={mobileMenuOpen}
+            aria-label={mobileMenuOpen ? "Close mobile menu" : "Open mobile menu"}
           >
             {mobileMenuOpen ? (
               <X className="w-5 h-5 text-foreground" />
@@ -339,111 +363,78 @@ const Header = () => {
       {/* Mobile Menu */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="lg:hidden border-b border-border bg-card overflow-hidden mt-20"
-          >
-            <nav className="flex flex-col p-4 gap-2">
-              {navItems.map((item, index) => (
-                <div key={item.name}>
-                  {item.dropdown ? (
-                    // Mobile Trade Dropdown
-                    <>
-                      <motion.button
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ delay: index * 0.05 }}
-                        onClick={() => setTradeDropdownOpen(!tradeDropdownOpen)}
-                        className="w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between text-foreground hover:bg-secondary"
-                      >
-                        <span>{item.name}</span>
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            tradeDropdownOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </motion.button>
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+              onClick={closeMobileMenu}
+            />
 
-                      {/* Mobile Trade Options */}
-                      <AnimatePresence>
-                        {tradeDropdownOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pl-4 flex flex-col gap-1">
-                              {tradeOptions.map((option) => (
-                                <motion.button
-                                  key={option.name}
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  exit={{ opacity: 0, x: -10 }}
-                                  onClick={() => {
-                                    router.push(option.path);
-                                    setTradeDropdownOpen(false);
-                                    setMobileMenuOpen(false);
-                                  }}
-                                  className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    pathname === option.path
-                                      ? "bg-primary/20 text-primary"
-                                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                                  }`}
-                                >
-                                  {option.name}
-                                </motion.button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  ) : (
-                    // Regular mobile nav items
-                    <motion.button
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ delay: index * 0.05 }}
-                      onClick={() => handleNavigation(item.path as string, item.disabled)}
-                      disabled={item.disabled}
-                      className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                        pathname === item.path
-                          ? "bg-primary/20 text-primary"
-                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                      } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      <span className="flex items-center justify-between">
-                        {item.name}
-                        {item.badge && (
-                          <span className="px-2 py-0.5 text-xs bg-muted rounded-full text-muted-foreground">
-                            {item.badge}
-                          </span>
-                        )}
-                      </span>
-                    </motion.button>
-                  )}
-                </div>
-              ))}
-
-              {/* Mobile-only Settings */}
-              <div className="pt-2 mt-2 border-t border-border">
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ duration: 0.28, ease: "easeOut" }}
+              className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-xs flex-col border-l border-border bg-card px-4 pb-6 pt-20 shadow-2xl lg:hidden"
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <span className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Menu
+                </span>
                 <button
-                  onClick={() => setSettingsOpen(true)}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-muted-foreground"
+                  type="button"
+                  onClick={closeMobileMenu}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-secondary/80"
+                  aria-label="Close mobile menu"
                 >
-                  <Settings className="w-5 h-5" />
-                  <span>Settings</span>
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-            </nav>
-          </motion.div>
+
+              <nav className="flex flex-col gap-2">
+                {mobileMenuItems.map((item, index) => (
+                  <motion.button
+                    key={item.name}
+                    initial={{ opacity: 0, x: 24 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 24 }}
+                    transition={{ delay: index * 0.04 }}
+                    onClick={() => handleNavigation(item.path as string, item.disabled)}
+                    disabled={item.disabled}
+                    className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors ${
+                      pathname === item.path
+                        ? "bg-primary/20 text-primary"
+                        : "text-foreground hover:bg-secondary"
+                    } ${item.disabled ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span>{item.name}</span>
+                      {item.badge && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {item.badge}
+                        </span>
+                      )}
+                    </span>
+                  </motion.button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    closeMobileMenu();
+                  }}
+                  className="mt-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                >
+                  <Settings className="h-5 w-5 text-muted-foreground" />
+                  <span>Settings</span>
+                </button>
+              </nav>
+            </motion.aside>
+          </>
         )}
       </AnimatePresence>
 

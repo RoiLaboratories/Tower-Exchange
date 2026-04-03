@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../Tower-Exchange-AI"
+		},
+		{
+			"path": "../../../../../Desktop/Tower-Backend"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
