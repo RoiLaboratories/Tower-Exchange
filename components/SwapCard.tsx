@@ -1335,7 +1335,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   };
 
   return (
-    <div className="flex gap-6 items-start w-full justify-center">
+    <div className="flex w-full items-start justify-center gap-6">
       {/* Swap Notification */}
       <AnimatePresence>
         {notification && receiveToken && (
@@ -1360,7 +1360,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         )}
       </AnimatePresence>
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md shrink-0">
         <motion.div
           className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 min-h-[520px] flex flex-col"
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}

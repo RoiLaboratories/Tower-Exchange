@@ -25,7 +25,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/50 z-30 md:hidden"
+        className="fixed inset-0 z-30 bg-black/50 lg:hidden"
       />
 
       {/* Modal */}
@@ -34,7 +34,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: "100%", opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed inset-0 md:relative md:inset-auto w-full md:max-w-xl bg-[#18191b] border-0 md:border border-border/50 md:rounded-2xl shadow-2xl z-40 overflow-y-auto overflow-x-hidden"
+        className="fixed inset-0 z-40 w-full overflow-x-hidden overflow-y-auto bg-[#18191b] border-0 border-border/50 shadow-2xl lg:relative lg:inset-auto lg:w-[32rem] lg:shrink-0 lg:rounded-2xl lg:border"
         style={
           {
             scrollbarWidth: "none",
@@ -44,7 +44,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
       >
         <div className="p-4 sm:p-6">
           {/* Header */}
-          <div className="flex items-start md:items-center justify-between mb-4 sm:mb-6 flex-col md:flex-row gap-4">
+          <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:mb-6 lg:flex-row lg:items-center">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
@@ -71,9 +71,9 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               </h2>
             </div>
 
-            <div className="flex items-center gap-1 w-full md:w-auto">
+            <div className="flex w-full items-center gap-1 lg:w-auto">
               {/* Time period buttons */}
-              <div className="flex gap-1 flex-1 md:flex-initial overflow-x-auto scrollbar-hide crup">
+              <div className="crup flex flex-1 gap-1 overflow-x-auto scrollbar-hide lg:flex-initial">
                 {["24H", "7D", "1M", "3M", "6M"].map((period) => (
                   <motion.button
                     key={period}

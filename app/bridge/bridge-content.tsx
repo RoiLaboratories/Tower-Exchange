@@ -390,7 +390,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
 
   return (
     <div className="h-full">
-    <div className="relative rounded-3xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden overflow-y-auto h-full flex flex-col">
+    <div className="relative rounded-2xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden overflow-y-auto h-full flex flex-col">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
             <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
@@ -720,7 +720,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
           </div>
 
           {/* Soft background glow */}
-          <div className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 opacity-60" />
+          <div className="pointer-events-none absolute inset-0 -z-10 rounded-2xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 opacity-60" />
         </div>
 
       {/* Slippage settings modal */}

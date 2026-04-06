@@ -4,7 +4,7 @@
 import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
-import eurcLogo from "@/public/assets/EURC_logo.png";
+import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import hypeLogo from "@/public/assets/hype.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";

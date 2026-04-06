@@ -15,13 +15,15 @@ export default function Home() {
     <>
       <TokenTicker />
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <div className="w-full max-w-md">
-          {currentView === "swap" ? (
+        {currentView === "swap" ? (
+          <div className="w-full max-w-[62rem]">
             <SwapCard onNavigateToBridge={() => setCurrentView("bridge")} />
-          ) : (
+          </div>
+        ) : (
+          <div className="w-full max-w-md">
             <BridgeCardContent onNavigateToSwap={() => setCurrentView("swap")} />
-          )}
-        </div>
+          </div>
+        )}
       </main>
     </>
   );
