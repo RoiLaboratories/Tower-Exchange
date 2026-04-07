@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
@@ -20,19 +20,7 @@ export const RecurringOrdersDashboard = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState<RecurringOrder | null>(null);
 
-  // Load orders on component mount
-  useEffect(() => {
-    loadOrders();
-  }, [walletAddress]);
-
-  // Load execution history when order is selected
-  useEffect(() => {
-    if (selectedOrder) {
-      loadExecutionHistory(selectedOrder.id);
-    }
-  }, [selectedOrder]);
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!walletAddress) return;
     setIsLoading(true);
     setError(null);
@@ -50,9 +38,9 @@ export const RecurringOrdersDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [walletAddress, selectedOrder]);
 
-  const loadExecutionHistory = async (orderId: string) => {
+  const loadExecutionHistory = useCallback(async (orderId: string) => {
     try {
       const executions = await getOrderExecutions(orderId);
       setExecutionHistory(executions);
@@ -60,7 +48,19 @@ export const RecurringOrdersDashboard = () => {
       console.error("Error loading execution history:", err);
       setExecutionHistory([]);
     }
-  };
+  }, []);
+
+  // Load orders on component mount
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Load execution history when order is selected
+  useEffect(() => {
+    if (selectedOrder) {
+      loadExecutionHistory(selectedOrder.id);
+    }
+  }, [selectedOrder, loadExecutionHistory]);
 
   // If no wallet connected, show unified "No wallet connected" state (same as Activities/Profile)
   if (!walletAddress) {
@@ -79,7 +79,7 @@ export const RecurringOrdersDashboard = () => {
         <div className="flex flex-col items-center justify-center py-20 px-6">
           <div className="mb-6">
             <Image
-              src="/assets/wallet.png"
+              src="/assets/empty state icon.svg"
               alt="No wallet connected"
               width={80}
               height={80}

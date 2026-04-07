@@ -348,7 +348,7 @@ const Activities = ({
         >
           <div className="mb-6">
             <Image
-              src="/assets/wallet.png"
+              src="/assets/empty state icon.svg"
               alt={
                 isWalletConnected
                   ? "No transactions yet"

@@ -45,19 +45,20 @@ import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
 import { supabase } from "@/lib/supabase";
+import { formatUsdAmount } from "@/lib/formatUsdAmount";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 // Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
+  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
+  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
   // TODO: Uncomment when DEX routes are integrated
-  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
-  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
-  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
-  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
-  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
+  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
+  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
+  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100, usdPrice: 0 },
+  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300, usdPrice: 0 },
+  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
+  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
 ];
 
 interface TokenSelectorProps {
@@ -257,6 +258,11 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
+  const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
+  const receiveUsdValueLabel = formatUsdAmount(
+    receiveAmount,
+    receiveToken?.usdPrice ?? 0
+  );
 
   // Fetch actual wallet balances from Arc testnet
   const fetchUserBalances = useCallback(async () => {
@@ -1440,6 +1446,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                   setSellAmount("0.00");
                   setReceiveAmount("0.00");
                 }}
+                usdValueLabel={sellUsdValueLabel}
               />
             </div>
           </div>
@@ -1479,6 +1486,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                 value={receiveAmount}
                 onChange={setReceiveAmount}
                 onClear={() => setReceiveAmount("0.00")}
+                usdValueLabel={receiveUsdValueLabel}
               />
             </div>
           </div>

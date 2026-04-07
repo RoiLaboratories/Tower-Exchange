@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
-
 interface TokenInputProps {
   value: string;
   onChange: (value: string) => void;
   onClear: () => void;
+  usdValueLabel: string;
 }
 
-const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
-  const [isFocused, setIsFocused] = useState(false);
-
+const TokenInput = ({
+  value,
+  onChange,
+  onClear,
+  usdValueLabel,
+}: TokenInputProps) => {
   // Fixed font size - no scaling based on input length
   const getInputFontSize = () => {
     return 36;
@@ -34,14 +36,12 @@ const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={(e) => {
-          setIsFocused(true);
           if (value === "0.00") {
             onChange("");
           }
           e.target.select();
         }}
         onBlur={() => {
-          setIsFocused(false);
           if (value === "") {
             onChange("0.00");
           }
@@ -61,7 +61,7 @@ const TokenInput = ({ value, onChange, onClear }: TokenInputProps) => {
           ×
         </button>
       )}
-      <p className="text-sm text-muted-foreground">~$0</p>
+      <p className="text-sm text-muted-foreground">{usdValueLabel}</p>
     </div>
   );
 };

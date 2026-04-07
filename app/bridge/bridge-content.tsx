@@ -7,15 +7,15 @@ import Image from "next/image";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   RefreshCw,
   Settings,
-  Lock,
   ChevronDown,
+  ExternalLink,
   Plus,
   X,
   Wallet,
   AlertCircle,
-  CheckCircle,
   Loader,
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
@@ -34,11 +34,13 @@ import lineaSepoliaLogo from "@/public/assets/linea.svg";
 import polygonAmoyLogo from "@/public/assets/polygon.svg";
 import sonicTestnetLogo from "@/public/assets/sonic.svg";
 import unichainSepoliaLogo from "@/public/assets/unichain.svg";
+import { formatUsdAmount } from "@/lib/formatUsdAmount";
 
 type BridgeToken = {
   symbol: string;
   label: string;
   usdValue: string;
+  usdPrice: number;
   logo?: any;
 };
 
@@ -53,6 +55,7 @@ const BRIDGE_TOKENS: BridgeToken[] = [
     symbol: "USDC",
     label: "USDC",
     usdValue: "$1",
+    usdPrice: 1,
     logo: usdcLogo,
   },
 ];
@@ -294,6 +297,18 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
     setToAmount(isNaN(parseFloat(estimated)) ? "0.00" : estimated);
   }, [bridgeHook.estimatedFee, fromAmount]);
 
+  const handleFromAmountFocus = () => {
+    if (fromAmount === "0.00") {
+      setFromAmount("");
+    }
+  };
+
+  const handleFromAmountBlur = () => {
+    if (!fromAmount.trim()) {
+      setFromAmount("0.00");
+    }
+  };
+
   const handleSwapChains = () => {
     setFromChainId(toChainId);
     setToChainId(fromChainId);
@@ -349,7 +364,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
         // Refetch wallet balances after bridge completes
         fetchWalletBalance();
         fetchToChainBalance();
-      }, 6000);
+      }, 8500);
     }
   }, [
     user,
@@ -378,6 +393,32 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
   const isBridgeButtonDisabled = user ? isBridgeActionDisabled : false;
+  const destinationChainName =
+    toChain?.name ?? (toChainId === "solana" ? "Solana Devnet" : "destination chain");
+  const bridgeExplorerUrls: Record<string, string> = {
+    "arc-testnet": "https://testnet.arcscan.app/tx/",
+    "base-sepolia": "https://sepolia.basescan.org/tx/",
+    "optimism-sepolia": "https://sepolia-optimism.etherscan.io/tx/",
+    "avalanche-fuji": "https://testnet.snowtrace.io/tx/",
+    "arbitrum-sepolia": "https://sepolia.arbiscan.io/tx/",
+    "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
+    "linea-sepolia": "https://sepolia.lineascan.build/tx/",
+    "polygon-amoy": "https://amoy.polygonscan.com/tx/",
+    "sonic-testnet": "https://testnet.sonicscan.org/tx/",
+    "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
+  };
+  const bridgeTransactionUrl =
+    bridgeHook.transactionHash && toChainId && bridgeExplorerUrls[toChainId]
+      ? `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}`
+      : null;
+  const fromUsdValueLabel = formatUsdAmount(
+    fromAmount,
+    fromToken?.usdPrice ?? fromDisplayToken.usdPrice
+  );
+  const toUsdValueLabel = formatUsdAmount(
+    toAmount,
+    toToken?.usdPrice ?? toDisplayToken.usdPrice
+  );
 
   const handleConnectWallet = async () => {
     if (authenticated) return;
@@ -510,10 +551,14 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
                   step="0.0001"
                   value={fromAmount}
                   onChange={(e) => setFromAmount(e.target.value)}
+                  onFocus={handleFromAmountFocus}
+                  onBlur={handleFromAmountBlur}
                   className="w-full bg-transparent text-right text-2xl font-semibold text-foreground outline-none border-0 focus:ring-0"
                   placeholder="0.00"
                 />
-                <p className="text-xs text-muted-foreground">-$0</p>
+                <p className="text-xs text-muted-foreground">
+                  {fromUsdValueLabel}
+                </p>
               </div>
             </div>
           </section>
@@ -604,27 +649,17 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
                 <p className="text-2xl font-semibold text-foreground">
                   {toAmount}
                 </p>
-                <p className="text-xs text-muted-foreground">-$0</p>
+                <p className="text-xs text-muted-foreground">
+                  {toUsdValueLabel}
+                </p>
               </div>
             </div>
           </section>
 
-          {/* Add / show receiving address - NOTE: Informational only for Privy wallets */}
-          <button
-            type="button"
-            onClick={() => setIsReceivingOpen(true)}
-            className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-[#151617] hover:text-foreground transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            <span>
-              Receiving Wallet:{" "}
-              {receivingAddress
-                ? `${receivingAddress.slice(0, 6)}...${receivingAddress.slice(-4)}`
-                : user?.wallet?.address
-                ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
-                : "Connect wallet"}
-            </span>
-          </button>
+          <div className="mb-4 inline-flex w-full select-none items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white pointer-events-none">
+            <Plus className="h-3 w-3 text-white" />
+            <span className="text-white">Add receiving wallet</span>
+          </div>
 
           {/* Error message display */}
           {bridgeHook.error && (
@@ -810,110 +845,160 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
                 </>
               )}
             </div>
-          </motion.div>
-        </div>
+        </motion.div>
+      </div>
       )}
       {/* Bridge success modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <>
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="w-full max-w-sm rounded-2xl bg-[#111214] border border-border/70 shadow-2xl overflow-hidden p-6 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: -40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            transition={{ duration: 0.28 }}
+            className="fixed left-1/2 top-6 z-50 w-[min(95vw,27rem)] -translate-x-1/2"
           >
-            <div className="mb-4 flex justify-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.1 }}
+            <div className="rounded-[1.75rem] border border-white/10 bg-[#1d1d1f]/90 px-4 py-4 shadow-2xl backdrop-blur-md">
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1dd75f]">
+                  <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                </div>
+                <h2 className="text-[1.05rem] font-medium text-white">
+                  Bridge Initiated!
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="text-[#b7b8bb] transition-colors hover:text-white"
+                aria-label="Close bridge success notification"
               >
-                <CheckCircle className="h-16 w-16 text-green-500" />
-              </motion.div>
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Bridge Initiated!
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Your tokens are being bridged to{" "}
-              <span className="font-medium text-foreground">
-                {toChainId === "arc-testnet"
-                  ? "Arc Testnet"
-                  : toChainId === "base-sepolia"
-                  ? "Base Sepolia"
-                  : toChainId === "optimism-sepolia"
-                  ? "Optimism Sepolia"
-                  : toChainId === "avalanche-fuji"
-                  ? "Avalanche Fuji"
-                  : toChainId === "arbitrum-sepolia"
-                  ? "Arbitrum Sepolia"
-                  : toChainId === "ethereum-sepolia"
-                  ? "Ethereum Sepolia"
-                  : toChainId === "linea-sepolia"
-                  ? "Linea Sepolia"
-                  : toChainId === "polygon-amoy"
-                  ? "Polygon Amoy"
-                  : toChainId === "sonic-testnet"
-                  ? "Sonic Testnet"
-                  : toChainId === "unichain-sepolia"
-                  ? "Unichain Sepolia"
-                  : toChainId === "solana"
-                  ? "Solana Devnet"
-                  : "destination chain"}
-              </span>
-              . Estimated time:{" "}
-              <span className="font-medium text-foreground">
-                {bridgeHook.estimatedTime}
-              </span>
-            </p>
-            {(() => {
-              console.log("Modal - bridgeHook.transactionHash:", bridgeHook.transactionHash);
-              console.log("Modal - bridgeHook full state:", bridgeHook);
-              return null;
-            })()}
+
+            <div className="mb-3 pl-9 text-[0.95rem] leading-6 text-[#e4e4e6]">
+              <p>
+                Your tokens are being bridged to{" "}
+                <span className="font-semibold text-white">
+                  {destinationChainName}
+                </span>
+              </p>
+              <p className="text-sm text-[#a3a4a8]">
+                Estimated time:{" "}
+                <span className="font-semibold text-white">
+                  {bridgeHook.estimatedTime}
+                </span>
+              </p>
+            </div>
+
+            <div className="mb-4 flex items-center gap-1.5 pl-9 text-xs text-[#a3a4a8]">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-[#a3a4a8]"
+              >
+                <path
+                  d="M12 2L2 7L12 12L22 7L12 2Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M2 17L12 22L22 17"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M2 12L12 17L22 12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>Via Tower</span>
+            </div>
+
             {bridgeHook.transactionHash && (
-              <div className="text-[11px] text-muted-foreground mb-4 p-2 rounded bg-[#18191c] break-all">
+              <div className="mb-4 break-all rounded-xl bg-[#151517] px-3 py-3 text-left text-[11px] leading-5 text-[#c5c6ca]">
                 TX: {bridgeHook.transactionHash}
               </div>
             )}
-            <div className="flex gap-2 w-full">
-              {bridgeHook.transactionHash ? (
+
+            <div
+              className={
+                bridgeTransactionUrl
+                  ? "grid grid-cols-2 gap-3 pl-9"
+                  : "pl-9"
+              }
+            >
+              {bridgeTransactionUrl ? (
                 <a
-                  href={(() => {
-                    const explorerUrls: Record<string, string> = {
-                      "arc-testnet": "https://testnet.arcscan.app/tx/",
-                      "base-sepolia": "https://sepolia.basescan.org/tx/",
-                      "optimism-sepolia": "https://sepolia-optimism.etherscan.io/tx/",
-                      "avalanche-fuji": "https://testnet.snowtrace.io/tx/",
-                      "arbitrum-sepolia": "https://sepolia.arbiscan.io/tx/",
-                      "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
-                      "linea-sepolia": "https://sepolia.lineascan.build/tx/",
-                      "polygon-amoy": "https://amoy.polygonscan.com/tx/",
-                      "sonic-testnet": "https://testnet.sonicscan.org/tx/",
-                      "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
-                    };
-                    const url = explorerUrls[toChainId || ""];
-                    console.log("Explorer URL:", url, "TxHash:", bridgeHook.transactionHash);
-                    return url ? url + bridgeHook.transactionHash : "#";
-                  })()}
+                  href={bridgeTransactionUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center rounded-full bg-blue-600 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gray-100"
                 >
-                  View Transaction ↗
+                  <span>View Transaction</span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-black" />
                 </a>
               ) : null}
               <button
                 type="button"
                 onClick={() => setShowSuccessModal(false)}
                 className={`${
-                  bridgeHook.transactionHash ? "flex-1" : "w-full"
-                } inline-flex items-center justify-center rounded-full bg-primary py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors`}
+                  bridgeTransactionUrl ? "w-full" : ""
+                } inline-flex h-11 items-center justify-center rounded-full bg-[#6faeff] px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#88bbff]`}
               >
                 Done
               </button>
             </div>
+
+            <div
+              className="hidden"
+            >
+              {bridgeTransactionUrl ? (
+                <a
+                  href={bridgeTransactionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-[0] transition-colors hover:bg-gray-100"
+                >
+                  View Transaction ↗
+                  <span className="text-sm font-medium text-black">
+                    View Transaction
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-black" />
+                </a>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className={`${
+                  bridgeTransactionUrl ? "w-full" : ""
+                } inline-flex h-11 items-center justify-center rounded-full bg-[#6faeff] px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#88bbff]`}
+              >
+                Done
+              </button>
+            </div>
+            </div>
           </motion.div>
-        </div>
+        </>
       )}
     </div>
   );
