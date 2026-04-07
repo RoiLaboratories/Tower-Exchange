@@ -15,15 +15,15 @@ import quantumLogo from "@/public/assets/quantum-logo.png";
 
 // Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750 },
+  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
+  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
   // TODO: Uncomment when DEX routes are integrated
-  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500 },
-  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600 },
-  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100 },
-  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300 },
-  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500 },
-  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100 },
+  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
+  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
+  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100, usdPrice: 0 },
+  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300, usdPrice: 0 },
+  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
+  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
 ];
 
 interface TokenModalProps {
