@@ -830,7 +830,7 @@ export const AIChat = () => {
                       transition={{ delay: index * 0.1, duration: 0.3 }}
                       whileHover={{ x: 4 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full text-left px-5 py-3.5 rounded-full border border-blue-500/30 hover:border-blue-500/50 transition-all text-gray-300 bg-transparent"
+                      className="w-full text-left px-5 py-3.5 rounded-full border border-primary/30 hover:border-primary/50 transition-all text-gray-300 bg-transparent"
                       onClick={() => handlePromptClick(prompt)}
                     >
                       <span className="text-sm">{prompt}</span>
