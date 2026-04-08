@@ -706,7 +706,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
               className="mb-4 text-xs text-muted-foreground space-y-1"
             >
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#18191c]">
-                <span>Circle Fee:</span>
+                <span>Estimated Fee:</span>
                 <span className="text-foreground font-medium">
                   {bridgeHook.estimatedFee} {fromDisplayToken.symbol}
                 </span>
