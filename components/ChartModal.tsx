@@ -14,19 +14,15 @@ interface ChartModalProps {
 
 const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState("24H");
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint is 1024px
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    setIsMounted(true);
   }, []);
 
   if (!isOpen) return null;
+
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
 
   return (
     <>
@@ -36,16 +32,16 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden"
       />
 
       {/* Modal */}
       <motion.div
-        initial={isMobile ? { y: "100%", opacity: 0 } : { x: "100%", opacity: 0 }}
-        animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
-        exit={isMobile ? { y: "100%", opacity: 0 } : { x: "100%", opacity: 0 }}
+        initial={isMobile ? { y: "100%", opacity: 0 } : { opacity: 0 }}
+        animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1 }}
+        exit={isMobile ? { y: "100%", opacity: 0 } : { opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed bottom-0 left-0 right-0 z-40 w-full h-[90vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-0 border-border/50 shadow-2xl rounded-t-2xl lg:relative lg:inset-auto lg:h-auto lg:w-[32rem] lg:shrink-0 lg:rounded-2xl lg:border lg:bottom-auto lg:left-auto lg:right-auto"
+        className={isMobile ? "fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-h-[70vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
         style={
           {
             scrollbarWidth: "none",
@@ -124,9 +120,9 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">
                 3200.23 USDC
               </h3>
-              <div className="grid grid-cols-3 sm:flex sm:items-center gap-4 sm:gap-6">
+              <div className="flex items-end gap-6">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">
+                  <p className="text-xs text-muted-foreground mb-1 whitespace-nowrap">
                     Market Cap
                   </p>
                   <p className="text-sm sm:text-base font-semibold text-foreground">
@@ -134,13 +130,13 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Volume</p>
+                  <p className="text-xs text-muted-foreground mb-1 whitespace-nowrap">Volume</p>
                   <p className="text-sm sm:text-base font-semibold text-foreground">
                     $8.0B
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Markets</p>
+                  <p className="text-xs text-muted-foreground mb-1 whitespace-nowrap">Markets</p>
                   <p className="text-sm sm:text-base font-semibold text-foreground">
                     5
                   </p>
