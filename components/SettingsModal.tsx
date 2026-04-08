@@ -11,7 +11,7 @@ interface SettingsModalProps {
   title?: string;
 }
 
-const PRESET_SLIPPAGE = [0.1, 0.2, 0.5];
+const PRESET_SLIPPAGE = [0.1, 0.2, 0.5, 1, 5];
 
 const SettingsModal = ({
   isOpen,
