@@ -13,7 +13,7 @@ import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
 import arbitrumSepoliaLogo from "@/public/assets/Arbitrum Sepolia logo (2).svg";
 import ethereumSepoliaLogo from "@/public/assets/EthLogo.svg";
-import lineaSepoliaLogo from "@/public/assets/linea-seeklogo.png";
+import lineaSepoliaLogo from "@/public/assets/Linea-Token_Round.svg";
 import polygonAmoyLogo from "@/public/assets/polygon.svg";
 import sonicTestnetLogo from "@/public/assets/S_token.svg";
 import unichainSepoliaLogo from "@/public/assets/Testnet.svg";
