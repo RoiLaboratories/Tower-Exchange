@@ -2,7 +2,7 @@
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
@@ -14,6 +14,17 @@ interface ChartModalProps {
 
 const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState("24H");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint is 1024px
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -30,11 +41,11 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
 
       {/* Modal */}
       <motion.div
-        initial={{ x: "100%", opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: "100%", opacity: 0 }}
+        initial={isMobile ? { y: "100%", opacity: 0 } : { x: "100%", opacity: 0 }}
+        animate={isMobile ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }}
+        exit={isMobile ? { y: "100%", opacity: 0 } : { x: "100%", opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="fixed inset-0 z-40 w-full overflow-x-hidden overflow-y-auto bg-[#18191b] border-0 border-border/50 shadow-2xl lg:relative lg:inset-auto lg:w-[32rem] lg:shrink-0 lg:rounded-2xl lg:border"
+        className="fixed bottom-0 left-0 right-0 z-40 w-full h-[90vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-0 border-border/50 shadow-2xl rounded-t-2xl lg:relative lg:inset-auto lg:h-auto lg:w-[32rem] lg:shrink-0 lg:rounded-2xl lg:border lg:bottom-auto lg:left-auto lg:right-auto"
         style={
           {
             scrollbarWidth: "none",
