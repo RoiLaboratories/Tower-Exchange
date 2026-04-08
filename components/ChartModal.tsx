@@ -41,7 +41,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1 }}
         exit={isMobile ? { y: "100%", opacity: 0 } : { opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className={isMobile ? "fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-h-[70vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
+        className={isMobile ? "fixed bottom-0 left-0 right-0 z-40 w-full max-h-[70vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-b border-border/50 shadow-2xl rounded-t-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
         style={
           {
             scrollbarWidth: "none",
@@ -49,9 +49,19 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
           } as React.CSSProperties
         }
       >
-        <div className="p-4 sm:p-6">
+        <div className="p-4 sm:p-6 relative">
+          {/* Close button - positioned at top right corner on mobile */}
+          <motion.button
+            onClick={onClose}
+            className="absolute top-4 right-4 lg:hidden p-2 rounded-lg hover:bg-secondary transition-colors z-10"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <X className="w-5 h-5 text-muted-foreground" />
+          </motion.button>
+
           {/* Header */}
-          <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:mb-6 lg:flex-row lg:items-center">
+          <div className="mb-4 flex flex-col items-start gap-4 sm:mb-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
@@ -78,25 +88,23 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               </h2>
             </div>
 
-            <div className="flex w-full items-center gap-1 lg:w-auto">
+            <div className="hidden lg:flex items-center gap-1">
               {/* Time period buttons */}
-              <div className="crup flex flex-1 gap-1 overflow-x-auto scrollbar-hide lg:flex-initial">
-                {["24H", "7D", "1M", "3M", "6M"].map((period) => (
-                  <motion.button
-                    key={period}
-                    onClick={() => setSelectedPeriod(period)}
-                    className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                      period === selectedPeriod
-                        ? "bg-[#151617] text-foreground border border-gray-700"
-                        : "text-muted-foreground hover:bg-secondary/50"
-                    }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {period}
-                  </motion.button>
-                ))}
-              </div>
+              {["24H", "7D", "1M", "3M", "6M"].map((period) => (
+                <motion.button
+                  key={period}
+                  onClick={() => setSelectedPeriod(period)}
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                    period === selectedPeriod
+                      ? "bg-[#151617] text-foreground border border-gray-700"
+                      : "text-muted-foreground hover:bg-secondary/50"
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {period}
+                </motion.button>
+              ))}
 
               {/* Close button */}
               <motion.button
@@ -107,6 +115,27 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               >
                 <X className="w-5 h-5 text-muted-foreground" />
               </motion.button>
+            </div>
+          </div>
+
+          {/* Mobile: Time period buttons */}
+          <div className="flex lg:hidden w-full items-center gap-1">
+            <div className="flex flex-1 gap-1 overflow-x-auto scrollbar-hide">
+              {["24H", "7D", "1M", "3M", "6M"].map((period) => (
+                <motion.button
+                  key={period}
+                  onClick={() => setSelectedPeriod(period)}
+                  className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                    period === selectedPeriod
+                      ? "bg-[#151617] text-foreground border border-gray-700"
+                      : "text-muted-foreground hover:bg-secondary/50"
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {period}
+                </motion.button>
+              ))}
             </div>
           </div>
 

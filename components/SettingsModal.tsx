@@ -59,7 +59,7 @@ const SettingsModal = ({
           <div className="p-6">
             <div>
               <h4 className="text-sm text-muted-foreground mb-3">Slippage</h4>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {PRESET_SLIPPAGE.map((value) => (
                   <motion.button
                     key={value}
@@ -78,6 +78,8 @@ const SettingsModal = ({
                     {value}%
                   </motion.button>
                 ))}
+              </div>
+              <div className="flex items-center gap-2 mt-3">
                 <motion.button
                   onClick={() => {
                     const parsed = parseFloat(customInput);
@@ -105,7 +107,7 @@ const SettingsModal = ({
                     }
                   }}
                   placeholder="0.0"
-                  className="w-20 bg-[#1a1b1e] border-0 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
+                  className="flex-1 sm:w-20 bg-[#1a1b1e] border-0 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
                 />
               </div>
             </div>

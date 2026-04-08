@@ -24,7 +24,7 @@ const AIAgentPage = () => {
   }, []);
 
   const tabs = [
-    { id: "recurring-buys", label: "Recurring Buys" },
+    { id: "recurring-buys", label: "Recurring Buy" },
     { id: "recurring-sell", label: "Recurring Sell" },
     { id: "portfolio", label: "Portfolio Analysis" },
   ];
@@ -64,17 +64,29 @@ const AIAgentPage = () => {
           <AIChat />
         </motion.div>
 
+        {/* Mobile Backdrop - Blur effect when panel opens */}
+        {showRightPanel && !isLargeScreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowRightPanel(false)}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+
         {/* Right Side - Trading Interface */}
         <AnimatePresence>
           {(showRightPanel || isLargeScreen) && (
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
+              initial={isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }}
+              animate={{ opacity: 1, x: 0, y: 0 }}
+              exit={isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }}
+              transition={{ duration: isLargeScreen ? 0.3 : 0.4 }}
               className={`
-                fixed lg:relative
-                inset-0 lg:inset-auto
+                ${isLargeScreen ? "lg:relative" : "fixed"}
+                ${!isLargeScreen ? "bottom-0 left-0 right-0 max-h-[70vh]" : "inset-auto"}
+                lg:inset-auto
                 z-40 lg:z-auto
                 lg:w-125 xl:w-150
                 flex flex-col
@@ -85,24 +97,16 @@ const AIAgentPage = () => {
                 backdropFilter: "blur(10px)",
               }}
             >
-              {/* Close button for mobile */}
-              <button
-                onClick={() => setShowRightPanel(false)}
-                className="lg:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-zinc-800 transition-colors z-50"
-              >
-                <X size={24} />
-              </button>
-
               {/* Tabs */}
               <div className="px-6 pt-6 pb-4 shrink-0">
-                <div className="flex gap-2 bg-zinc-900/50 rounded-xl p-1">
+                <div className="flex gap-2 bg-zinc-900/50 rounded-xl p-1 overflow-x-auto">
                   {tabs.map((tab) => (
                     <motion.button
                       key={tab.id}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-all text-sm ${
+                      className={`px-4 py-2.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap shrink-0 ${
                         activeTab === tab.id
                           ? "bg-zinc-800 text-white"
                           : "text-gray-400 hover:text-white"
