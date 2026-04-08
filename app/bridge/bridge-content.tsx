@@ -309,6 +309,19 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
     }
   };
 
+  const handleFiftyPercent = () => {
+    if (walletBalance && walletBalance !== "0.00") {
+      const fiftyPercentAmount = (parseFloat(walletBalance) * 0.5).toFixed(4);
+      setFromAmount(fiftyPercentAmount);
+    }
+  };
+
+  const handleMaxAmount = () => {
+    if (walletBalance && walletBalance !== "0.00") {
+      setFromAmount(walletBalance);
+    }
+  };
+
   const handleSwapChains = () => {
     setFromChainId(toChainId);
     setToChainId(fromChainId);
@@ -487,12 +500,14 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
                 )}
                 <button
                   type="button"
+                  onClick={handleFiftyPercent}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   50%
                 </button>
                 <button
                   type="button"
+                  onClick={handleMaxAmount}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Max
