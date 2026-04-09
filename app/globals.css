@@ -118,12 +118,12 @@ body {
 
 .chat-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-color: rgba(123, 184, 255, 0.45) transparent;
   scrollbar-gutter: stable;
 }
 
 .chat-scrollbar:hover {
-  scrollbar-color: rgba(123, 184, 255, 0.55) transparent;
+  scrollbar-color: rgba(123, 184, 255, 0.65) transparent;
 }
 
 .chat-scrollbar::-webkit-scrollbar {
@@ -135,7 +135,7 @@ body {
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: rgba(123, 184, 255, 0.45);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -144,7 +144,7 @@ body {
 }
 
 .chat-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(123, 184, 255, 0.55);
+  background: rgba(123, 184, 255, 0.65);
   background-clip: content-box;
 }
 

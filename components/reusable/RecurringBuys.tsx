@@ -167,7 +167,7 @@ export const RecurringBuys = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-6 space-y-5 border border-zinc-800/30"
+        className="space-y-4 rounded-[24px] border border-[#243046] bg-[#151517] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm sm:space-y-5 sm:rounded-[28px] sm:p-5"
       >
         <AmountInput amount={amount} onChange={setAmount} />
 
@@ -185,7 +185,7 @@ export const RecurringBuys = () => {
           availableTokens={availableTokensForBuy}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FrequencyField
             label="Frequency"
             value={frequency}
@@ -216,7 +216,7 @@ export const RecurringBuys = () => {
           whileTap={{ scale: 0.99 }}
           onClick={handleContinue}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm mt-2"
+          className="mt-1 w-full rounded-[16px] bg-white py-3 text-sm font-semibold text-black transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-2 sm:rounded-[18px]"
         >
           {isLoading ? "Creating Order..." : "Continue"}
         </motion.button>

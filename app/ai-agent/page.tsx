@@ -30,111 +30,116 @@ const AIAgentPage = () => {
   ];
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-100px)] text-white">
-      <TokenTicker />
+    <div className="relative flex min-h-[calc(100dvh-100px)] flex-col overflow-x-hidden text-white lg:h-full lg:min-h-0">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_85%,rgba(87,147,255,0.12),transparent_30%),radial-gradient(circle_at_75%_100%,rgba(35,57,94,0.16),transparent_34%),linear-gradient(180deg,#07080b_0%,#0a0b0f_45%,#0d1015_100%)]" />
 
-      {/* Mobile Toggle Button - Only visible on mobile */}
-      <div className="lg:hidden fixed bottom-40 right-6 z-50">
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setShowRightPanel(!showRightPanel)}
-          className="w-14 h-14 rounded-full bg-[#7BB8FF] text-white shadow-lg flex items-center justify-center"
-        >
-          {showRightPanel ? <X size={24} /> : <Plus size={24} />}
-        </motion.button>
-      </div>
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <TokenTicker />
 
-      <div
-        className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden"
-      >
-        {/* Left Side - AI Chat */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className={`flex-1 flex flex-col min-h-0 w-full lg:w-auto ${
-            showRightPanel ? "hidden lg:flex" : "flex"
-          }`}
-          style={{
-            background:
-              "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 100%)",
-          }}
-        >
-          <AIChat />
-        </motion.div>
+        <div className="fixed bottom-5 right-4 z-50 lg:hidden sm:bottom-6 sm:right-6">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setShowRightPanel(!showRightPanel)}
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#7BB8FF] text-[#081019] shadow-[0_16px_40px_rgba(123,184,255,0.35)] sm:h-14 sm:w-14"
+          >
+            {showRightPanel ? <X size={22} /> : <Plus size={22} />}
+          </motion.button>
+        </div>
 
-        {/* Mobile Backdrop - Blur effect when panel opens */}
-        {showRightPanel && !isLargeScreen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowRightPanel(false)}
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 lg:hidden"
-          />
-        )}
-
-        {/* Right Side - Trading Interface */}
-        <AnimatePresence>
-          {(showRightPanel || isLargeScreen) && (
+        <div className="mx-auto flex w-full max-w-[1320px] min-h-0 flex-1 flex-col px-3 pb-20 pt-3 sm:px-6 sm:pb-24 sm:pt-4 lg:px-8 lg:pb-8">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_16px_minmax(392px,452px)] lg:gap-4 xl:grid-cols-[minmax(0,1fr)_18px_minmax(405px,468px)]">
             <motion.div
-              initial={isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }}
-              animate={{ opacity: 1, x: 0, y: 0 }}
-              exit={isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }}
-              transition={{ duration: isLargeScreen ? 0.3 : 0.4 }}
-              className={`
-                ${isLargeScreen ? "lg:relative" : "fixed"}
-                ${!isLargeScreen ? "bottom-0 left-0 right-0 max-h-[70vh]" : "inset-auto"}
-                lg:inset-auto
-                z-40 lg:z-auto
-                lg:w-125 xl:w-150
-                flex flex-col
-                overflow-hidden
-              `}
-              style={{
-                background: "rgba(20, 20, 20, 0.6)",
-                backdropFilter: "blur(10px)",
-              }}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+              className={`flex h-[calc(100dvh-15.5rem)] min-h-[34rem] flex-col overflow-hidden sm:min-h-[620px] lg:h-full lg:min-h-0 ${showRightPanel ? "hidden lg:flex" : "flex"}`}
             >
-              {/* Tabs */}
-              <div className="px-6 pt-6 pb-4 shrink-0">
-                <div className="flex gap-2 bg-zinc-900/50 rounded-xl p-1 overflow-x-auto">
-                  {tabs.map((tab) => (
-                    <motion.button
-                      key={tab.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-4 py-2.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap shrink-0 ${
-                        activeTab === tab.id
-                          ? "bg-zinc-800 text-white"
-                          : "text-gray-400 hover:text-white"
-                      }`}
-                    >
-                      {tab.label}
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tab Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto px-6 pb-6">
-                <AnimatePresence mode="wait">
-                  {activeTab === "recurring-buys" && (
-                    <RecurringBuys key="buys" />
-                  )}
-                  {activeTab === "recurring-sell" && (
-                    <RecurringSell key="sell" />
-                  )}
-                  {activeTab === "portfolio" && (
-                    <PortfolioAnalysis key="portfolio" />
-                  )}
-                </AnimatePresence>
-              </div>
+              <AIChat />
             </motion.div>
-          )}
-        </AnimatePresence>
+
+            <div className="relative hidden lg:flex items-center justify-center">
+              <div className="h-[64%] w-px rounded-full bg-gradient-to-b from-transparent via-white/12 to-transparent" />
+              <div className="absolute h-20 w-1.5 rounded-full bg-white/35" />
+            </div>
+
+            {showRightPanel && !isLargeScreen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowRightPanel(false)}
+                className="fixed inset-0 z-30 bg-black/55 backdrop-blur-sm lg:hidden"
+              />
+            )}
+
+            <AnimatePresence>
+              {(showRightPanel || isLargeScreen) && (
+                <motion.div
+                  initial={
+                    isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }
+                  }
+                  animate={{ opacity: 1, x: 0, y: 0 }}
+                  exit={
+                    isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }
+                  }
+                  transition={{ duration: isLargeScreen ? 0.3 : 0.4 }}
+                  className={`z-40 flex flex-col overflow-hidden border border-[#263446]/70 bg-[#171a1f]/92 shadow-[0_28px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl ${
+                    isLargeScreen
+                      ? "relative h-full min-h-0 rounded-[24px] p-3 lg:shadow-[0_24px_64px_rgba(0,0,0,0.42)] xl:rounded-[26px] xl:p-3.5"
+                      : "fixed inset-x-3 bottom-3 top-[8.5rem] rounded-[24px] p-3 sm:inset-x-4 sm:bottom-4 sm:top-[9rem] sm:p-4"
+                  }`}
+                >
+                  {!isLargeScreen && (
+                    <div className="mb-4 flex justify-center lg:hidden">
+                      <div className="h-1.5 w-14 rounded-full bg-white/20" />
+                    </div>
+                  )}
+
+                  <div className="shrink-0 rounded-[10px] border border-white/[0.04] bg-[#1E1E1F] p-1.5 lg:p-1">
+                    <div className="grid w-full grid-cols-[0.92fr_0.92fr_1.16fr] gap-1.5 lg:gap-1 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
+                      {tabs.map((tab) => (
+                        <motion.button
+                          key={tab.id}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`min-w-0 whitespace-nowrap rounded-[4px] px-1.5 py-2.5 text-center text-[0.72rem] font-semibold tracking-[-0.01em] transition-all lg:px-2 lg:py-2 lg:text-[0.76rem] xl:px-3 xl:py-2.25 xl:text-[0.82rem] ${
+                            activeTab === tab.id
+                              ? "bg-[#363639] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                              : "text-[#8a909c] hover:text-white"
+                          }`}
+                        >
+                          {tab.label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`px-2 pb-2 pt-5 lg:px-1 lg:pb-1 lg:pt-3.5 xl:px-1.5 xl:pb-1.5 xl:pt-4 ${
+                      isLargeScreen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto"
+                    }`}
+                  >
+                    <div className="mx-auto w-full max-w-[360px] xl:max-w-[380px]">
+                      <AnimatePresence mode="wait">
+                        {activeTab === "recurring-buys" && (
+                          <RecurringBuys key="buys" />
+                        )}
+                        {activeTab === "recurring-sell" && (
+                          <RecurringSell key="sell" />
+                        )}
+                        {activeTab === "portfolio" && (
+                          <PortfolioAnalysis key="portfolio" />
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
   );

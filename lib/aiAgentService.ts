@@ -160,11 +160,13 @@ export const sendMessageToAIAgentStream = async (
 export const getConversationHistory = async (
   sessionId: string,
   userId: string
-): Promise<{ user_query: string | null; ai_response: string | null }[]> => {
+): Promise<
+  Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
+> => {
   try {
     const { data, error } = await supabase
       .from("ai_db")
-      .select("user_query, ai_response")
+      .select("created_at, user_query, ai_response")
       .eq("session_id", sessionId)
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
@@ -174,7 +176,9 @@ export const getConversationHistory = async (
       return [];
     }
 
-    return (data as { user_query: string | null; ai_response: string | null }[]) || [];
+    return (
+      data as Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
+    ) || [];
   } catch (error) {
     console.warn("Error fetching conversation history:", error);
     return [];

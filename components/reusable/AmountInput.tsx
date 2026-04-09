@@ -11,7 +11,7 @@ export const AmountInput = ({
   onChange,
   readOnly = false,
 }: AmountInputProps) => (
-  <div className="bg-black rounded-xl p-4">
+  <div className="rounded-[20px] border border-white/[0.04] bg-[#252526] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:rounded-[24px] sm:p-4 lg:p-2.5 xl:p-3">
     <input
       type="text"
       value={`$${amount}`}
@@ -19,7 +19,7 @@ export const AmountInput = ({
         onChange ? (e) => onChange(e.target.value.replace("$", "")) : undefined
       }
       readOnly={readOnly}
-      className="w-full bg-transparent text-3xl font-semibold text-white outline-none text-center"
+      className="w-full bg-transparent text-center text-[2.35rem] font-semibold tracking-tight text-white outline-none sm:text-[2.8rem] lg:text-[2.2rem] xl:text-[2.35rem]"
     />
   </div>
 );

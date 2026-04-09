@@ -18,10 +18,10 @@ export const FrequencyField = ({
   onClick,
 }: FrequencyFieldProps) => (
   <div>
-    <div className="flex items-center gap-2 mb-3">
-      <span className="text-sm font-medium text-white">
+    <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
+      <span className="whitespace-nowrap text-sm font-medium text-white">
         {label}
-        {optional && <span className="text-gray-600"> (Optional)</span>}
+        {optional && <span className="whitespace-nowrap text-gray-600"> (Optional)</span>}
       </span>
       {showInfo && <Info className="w-4 h-4 text-gray-500" />}
     </div>
@@ -29,7 +29,7 @@ export const FrequencyField = ({
     <Button
       variant="ghost"
       onClick={onClick}
-      className="w-full px-4 py-3 h-auto rounded-xl bg-zinc-950 hover:bg-zinc-900 transition-colors text-left justify-start cursor-pointer"
+      className="h-auto w-full cursor-pointer justify-start rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-left text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4"
     >
       <span className="text-white">{value}</span>
     </Button>

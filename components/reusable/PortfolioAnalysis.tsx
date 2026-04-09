@@ -35,7 +35,7 @@ export const PortfolioAnalysis = () => {
 
   const closedPositions = [
     {
-      pair: "ETH × USDC",
+      pair: "ETH x USDC",
       amount: "1 ETH = 3000 USDC",
       logos: {
         eth: ethLogo,
@@ -43,7 +43,7 @@ export const PortfolioAnalysis = () => {
       },
     },
     {
-      pair: "ETH × USDC",
+      pair: "ETH x USDC",
       amount: "1 ETH = 3200 USDC",
       logos: {
         eth: ethLogo,
@@ -58,28 +58,26 @@ export const PortfolioAnalysis = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="bg-zinc-900 rounded-xl sm:rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6"
+      className="space-y-4 rounded-[24px] border border-[#243046] bg-[#151517] p-4 sm:space-y-6 sm:rounded-[28px] sm:p-6 lg:space-y-4 lg:p-4 xl:space-y-6 xl:p-6"
     >
-      {/* Chart Section */}
-      <div className="bg-black rounded-xl p-3 sm:p-4">
-        {/* Tabs */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex gap-3 sm:gap-4">
-            <button className="text-white font-medium text-sm sm:text-base">
+      <div className="rounded-xl bg-black p-3 sm:p-4 lg:p-3 xl:p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 lg:flex-nowrap lg:gap-1.5">
+          <div className="flex items-center gap-3 sm:gap-4 lg:gap-2 xl:gap-3">
+            <button className="whitespace-nowrap text-sm font-medium text-white sm:text-base lg:text-[0.9rem] xl:text-base">
               PNL
             </button>
-            <button className="text-gray-500 text-sm sm:text-base">
+            <button className="whitespace-nowrap text-sm text-gray-500 sm:text-base lg:text-[0.9rem] xl:text-base">
               Volume
             </button>
           </div>
-          <div className="flex gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-1">
             {timeframes.map((tf) => (
               <motion.button
                 key={tf}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setTimeframe(tf)}
-                className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm ${
+                className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs sm:px-3 sm:text-sm lg:px-1.5 lg:py-0.5 lg:text-[0.68rem] xl:px-2 xl:py-1 xl:text-xs ${
                   timeframe === tf
                     ? "bg-[#7BB8FF] text-white"
                     : "text-gray-400 hover:text-white"
@@ -91,19 +89,15 @@ export const PortfolioAnalysis = () => {
           </div>
         </div>
 
-        {/* Chart Value */}
         <div className="mb-4">
-          <div className="text-xl sm:text-2xl font-bold text-white">
+          <div className="text-xl font-bold text-white sm:text-2xl lg:text-[1.4rem] xl:text-2xl">
             $44,238 USD
           </div>
-          <div className="text-xs sm:text-sm text-gray-400">
-            Jan , 2026 8:00 AM
-          </div>
+          <div className="text-xs text-gray-400 sm:text-sm">Jan , 2026 8:00 AM</div>
         </div>
 
-        {/* Chart Placeholder */}
-        <div className="h-24 sm:h-32 relative">
-          <svg className="w-full h-full" viewBox="0 0 400 100">
+        <div className="relative h-24 sm:h-32">
+          <svg className="h-full w-full" viewBox="0 0 400 100">
             <polyline
               points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
               fill="none"
@@ -114,9 +108,8 @@ export const PortfolioAnalysis = () => {
         </div>
       </div>
 
-      {/* Open Positions */}
       <div>
-        <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4">
+        <h3 className="mb-3 text-base font-semibold text-white sm:mb-4 sm:text-lg">
           Open Positions
         </h3>
         <div className="space-y-2">
@@ -127,44 +120,40 @@ export const PortfolioAnalysis = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
               whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
-              className="flex items-center justify-between p-3 sm:p-4 rounded-xl bg-zinc-950"
+              className="flex items-center justify-between rounded-xl bg-zinc-950 p-3 sm:p-4"
             >
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center overflow-hidden">
+                <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full sm:h-8 sm:w-8">
                   <Image
                     src={position.logo}
                     alt={position.token}
                     width={32}
                     height={32}
-                    className="w-full h-full object-contain"
+                    className="h-full w-full object-contain"
                   />
                 </div>
                 <div>
-                  <div className="text-white font-medium text-sm sm:text-base">
-                    {position.token}{" "}
-                    <span className="text-gray-400">{position.amount}</span>
+                  <div className="text-sm font-medium text-white sm:text-base">
+                    {position.token} <span className="text-gray-400">{position.amount}</span>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-white font-medium text-sm sm:text-base">
+                <div className="text-sm font-medium text-white sm:text-base">
                   {position.value}
                 </div>
-                <div className="text-green-400 text-xs sm:text-sm">
-                  {position.change}
-                </div>
+                <div className="text-xs text-green-400 sm:text-sm">{position.change}</div>
               </div>
             </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Closed Positions */}
       <div>
-        <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4">
+        <h3 className="mb-3 text-base font-semibold text-white sm:mb-4 sm:text-lg">
           Closed Positions
         </h3>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2 xl:flex-row">
           {closedPositions.map((position, index) => (
             <motion.div
               key={index}
@@ -172,34 +161,36 @@ export const PortfolioAnalysis = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
               whileHover={{ scale: 1.02 }}
-              className="flex-1 p-3 sm:p-4 rounded-xl bg-zinc-950 border border-zinc-800"
+              className="min-w-0 flex-1 rounded-xl border border-zinc-800 bg-zinc-950 p-3 sm:p-4 lg:p-3 xl:p-4"
             >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 <div className="flex -space-x-2">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border-2 border-zinc-950 overflow-hidden">
+                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-zinc-950 sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
                     <Image
                       src={position.logos.eth}
                       alt="ETH"
                       width={24}
                       height={24}
-                      className="w-full h-full object-contain"
+                      className="h-full w-full object-contain"
                     />
                   </div>
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border-2 border-zinc-950 overflow-hidden">
+                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-zinc-950 sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
                     <Image
                       src={position.logos.usdc}
                       alt="USDC"
                       width={24}
                       height={24}
-                      className="w-full h-full object-contain"
+                      className="h-full w-full object-contain"
                     />
                   </div>
                 </div>
-                <span className="text-white font-medium text-xs sm:text-sm">
+                <span className="whitespace-nowrap text-xs font-medium text-white sm:text-sm lg:text-[0.78rem] xl:text-sm">
                   {position.pair}
                 </span>
               </div>
-              <div className="text-gray-400 text-xs">{position.amount}</div>
+              <div className="text-xs text-gray-400 lg:text-[0.72rem] xl:text-xs">
+                {position.amount}
+              </div>
             </motion.div>
           ))}
         </div>

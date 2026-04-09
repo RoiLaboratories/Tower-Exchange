@@ -3,15 +3,15 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Info } from "lucide-react";
 import Image from "next/image";
-import { tokens } from "@/mockData/token";
+import { tokens, type Token } from "@/mockData/token";
 
 interface TokenDropdownProps {
   label: string;
-  selected: any;
-  onSelect: (token: any) => void;
+  selected: Token | null;
+  onSelect: (token: Token) => void;
   showInfo?: boolean;
   placeholder?: string;
-  availableTokens?: any[]; // Optional: limit available tokens
+  availableTokens?: Token[]; // Optional: limit available tokens
 }
 
 export const TokenDropdown = ({
@@ -27,7 +27,7 @@ export const TokenDropdown = ({
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
+      <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
         <span className="text-sm font-medium text-white">{label}</span>
         {showInfo && <Info className="w-4 h-4 text-gray-500" />}
       </div>
@@ -36,7 +36,7 @@ export const TokenDropdown = ({
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-950 hover:bg-black transition-colors"
+          className="flex w-full items-center gap-3 rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4"
         >
           {selected ? (
             <>
@@ -70,7 +70,7 @@ export const TokenDropdown = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-zinc-950 border border-zinc-800 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto"
+              className="absolute left-0 right-0 top-full z-50 mt-2 max-h-60 overflow-y-auto rounded-[16px] border border-white/[0.06] bg-[#1d1e20] shadow-xl sm:rounded-[18px]"
               style={
                 {
                   scrollbarWidth: "none",
@@ -89,7 +89,7 @@ export const TokenDropdown = ({
                     onSelect(token);
                     setIsOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-900 transition-colors"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/[0.04]"
                 >
                   <div className="w-6 h-6 rounded-full flex items-center justify-center overflow-hidden">
                     <Image

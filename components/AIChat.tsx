@@ -1,10 +1,16 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { sendMessageToAIAgent, createAIAgentSession, saveChatMessageToHistory, getConversationHistory } from "@/lib/aiAgentService";
+import {
+  sendMessageToAIAgent,
+  createAIAgentSession,
+  saveChatMessageToHistory,
+  getConversationHistory,
+  type ChatHistoryItem,
+} from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, MessageSquare, Trash2, Menu, X } from "lucide-react";
@@ -33,6 +39,49 @@ const quickPrompts = [
   "Provide overall analysis on the market",
 ];
 
+const GENERIC_CHAT_TITLES = new Set(["New Chat", "Chat"]);
+
+const formatSessionTitle = (text: string) => {
+  const summary = text.trim().replace(/\s+/g, " ");
+  if (!summary) return "New Chat";
+
+  return summary.length > 30 ? `${summary.slice(0, 30)}...` : summary;
+};
+
+const isGenericSessionTitle = (title: string) => {
+  const normalizedTitle = title.trim();
+  return !normalizedTitle || GENERIC_CHAT_TITLES.has(normalizedTitle);
+};
+
+const getHistorySessionMetadata = (
+  history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
+) => {
+  const firstUserMessage =
+    history.find((item) => item.user_query?.trim())?.user_query?.trim() || "";
+  const firstCreatedAt = history[0]?.created_at
+    ? new Date(history[0].created_at).getTime()
+    : Number.NaN;
+
+  return {
+    title: firstUserMessage ? formatSessionTitle(firstUserMessage) : "New Chat",
+    timestamp: Number.isFinite(firstCreatedAt) ? firstCreatedAt : Date.now(),
+    messageCount: history.reduce(
+      (count, item) => count + (item.user_query ? 1 : 0),
+      0
+    ),
+  };
+};
+
+const normalizeSession = (session: ChatSession): ChatSession => ({
+  ...session,
+  title: session.title?.trim() || "New Chat",
+  timestamp: Number.isFinite(session.timestamp) ? session.timestamp : Date.now(),
+  messageCount:
+    typeof session.messageCount === "number" && session.messageCount >= 0
+      ? session.messageCount
+      : 0,
+});
+
 export const AIChat = () => {
   const { user } = usePrivy();
   const swapExecution = useSwapExecution();
@@ -46,7 +95,6 @@ export const AIChat = () => {
   const [profileImageError, setProfileImageError] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [swapExecutionData, setSwapExecutionData] = useState<any>(null);
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
@@ -58,7 +106,9 @@ export const AIChat = () => {
       const sessionsData = localStorage.getItem(
         `tower-ai-sessions-${walletAddress}`
       );
-      return sessionsData ? JSON.parse(sessionsData) : [];
+      return sessionsData
+        ? (JSON.parse(sessionsData) as ChatSession[]).map(normalizeSession)
+        : [];
     } catch (error) {
       console.error("Error loading sessions:", error);
       return [];
@@ -77,9 +127,65 @@ export const AIChat = () => {
     }
   };
 
+  const syncSessionFromHistory = useCallback((
+    targetSessionId: string,
+    history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
+  ) => {
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress || history.length === 0) return;
+
+    const nextMetadata = getHistorySessionMetadata(history);
+
+    setSessions((prevSessions) => {
+      let changed = false;
+
+      const updatedSessions = prevSessions.map((session) => {
+        if (session.id !== targetSessionId) return session;
+
+        const shouldRefreshTimestamp =
+          isGenericSessionTitle(session.title) ||
+          session.messageCount === 0 ||
+          !Number.isFinite(session.timestamp);
+        const nextTitle = isGenericSessionTitle(session.title)
+          ? nextMetadata.title
+          : session.title;
+        const nextTimestamp = shouldRefreshTimestamp
+          ? nextMetadata.timestamp
+          : session.timestamp;
+        const nextMessageCount = Math.max(
+          session.messageCount,
+          nextMetadata.messageCount
+        );
+
+        if (
+          nextTitle !== session.title ||
+          nextTimestamp !== session.timestamp ||
+          nextMessageCount !== session.messageCount
+        ) {
+          changed = true;
+          return {
+            ...session,
+            title: nextTitle,
+            timestamp: nextTimestamp,
+            messageCount: nextMessageCount,
+          };
+        }
+
+        return session;
+      });
+
+      if (changed) {
+        saveSessions(walletAddress, updatedSessions);
+      }
+
+      return updatedSessions;
+    });
+  }, [user?.wallet?.address]);
+
   // Start a new chat
   const startNewChat = async () => {
-    if (!user?.wallet?.address) return;
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress) return;
 
     try {
       const newSessionId = uuidv4();
@@ -91,9 +197,11 @@ export const AIChat = () => {
       };
 
       // Add to sessions list
-      const updatedSessions = [newSession, ...sessions];
-      setSessions(updatedSessions);
-      saveSessions(user.wallet.address, updatedSessions);
+      setSessions((prevSessions) => {
+        const updatedSessions = [newSession, ...prevSessions];
+        saveSessions(walletAddress, updatedSessions);
+        return updatedSessions;
+      });
 
       // Switch to new session
       switchSession(newSessionId);
@@ -142,6 +250,7 @@ export const AIChat = () => {
           }
         });
         setMessages(loadedMessages);
+        syncSessionFromHistory(newSessionId, history);
       }
     } catch (error) {
       console.error("Error switching session:", error);
@@ -202,7 +311,7 @@ export const AIChat = () => {
           if (!userSessions.find((s) => s.id === sessionIdToUse)) {
             const newSession: ChatSession = {
               id: sessionIdToUse,
-              title: "Chat",
+              title: "New Chat",
               timestamp: Date.now(),
               messageCount: 0,
             };
@@ -242,6 +351,7 @@ export const AIChat = () => {
             }
           });
           setMessages(loadedMessages);
+          syncSessionFromHistory(sessionIdToUse, history);
         }
       } catch (err) {
         console.error("Failed to initialize session:", err);
@@ -253,11 +363,12 @@ export const AIChat = () => {
     };
 
     initializeSession();
-  }, [user?.wallet?.address]);
+  }, [syncSessionFromHistory, user?.wallet?.address]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
-    if (!user?.wallet?.address) {
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress) {
       setError("Please connect your wallet first");
       return;
     }
@@ -286,9 +397,9 @@ export const AIChat = () => {
 
       const response = await sendMessageToAIAgent({
         message: text,
-        userid: user.wallet.address,
+        userid: walletAddress,
         session_id: sessionId,
-        wallet_address: user.wallet.address,
+        wallet_address: walletAddress,
         chain_id: 5042002, // Arc testnet
         enable_wallet_access: enableWalletAccess,
         enable_swap_execution: enableSwap,
@@ -338,12 +449,10 @@ export const AIChat = () => {
           console.error("Transaction object is undefined in swap_execution data");
         }
 
-        setSwapExecutionData(response.data.swap_execution);
         setShowSwapConfirmation(true);
 
         // Auto-trigger swap execution flow
-        if (user?.wallet?.address) {
-          const walletAddress = user.wallet.address;
+        if (walletAddress) {
           try {
             if (!txData || !txData.to) {
               throw new Error(
@@ -438,29 +547,40 @@ export const AIChat = () => {
       }
 
       // Save chat to Supabase
-      await saveChatMessageToHistory(
-        user.wallet.address,
+      const savedChatMessage = await saveChatMessageToHistory(
+        walletAddress,
         sessionId,
         text,
         response.reply
       );
 
       // Update session title and message count
-      const updatedSessions = sessions.map((session) => {
-        if (session.id === sessionId) {
+      const conversationStartedAt = savedChatMessage?.created_at
+        ? new Date(savedChatMessage.created_at).getTime()
+        : Date.now();
+
+      setSessions((prevSessions) => {
+        const updatedSessions = prevSessions.map((session) => {
+          if (session.id !== sessionId) {
+            return session;
+          }
+
           return {
             ...session,
-            title:
-              session.title === "New Chat"
-                ? text.substring(0, 30) + (text.length > 30 ? "..." : "")
-                : session.title,
+            title: isGenericSessionTitle(session.title)
+              ? formatSessionTitle(text)
+              : session.title,
+            timestamp:
+              session.messageCount === 0
+                ? conversationStartedAt
+                : session.timestamp,
             messageCount: session.messageCount + 1,
           };
-        }
-        return session;
+        });
+
+        saveSessions(walletAddress, updatedSessions);
+        return updatedSessions;
       });
-      setSessions(updatedSessions);
-      saveSessions(user.wallet.address, updatedSessions);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to get response";
@@ -522,31 +642,37 @@ export const AIChat = () => {
     }
   };
 
+  const hasMessages = messages.length > 0;
+
   return (
-    <div className="flex-1 flex relative min-h-0 overflow-hidden">
-      {/* Sidebar - Collapsible Overlay */}
+    <div className="relative flex h-full min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/[0.06] bg-[#090b10] shadow-[0_22px_70px_rgba(0,0,0,0.36)] sm:rounded-[28px]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_82%,rgba(96,154,255,0.16),transparent_30%),radial-gradient(circle_at_58%_100%,rgba(51,88,148,0.22),transparent_38%),linear-gradient(180deg,#090a0d_0%,#0b0d11_46%,#10161e_100%)]" />
+
       <motion.div
-        initial={{ x: -250 }}
-        animate={{ x: sidebarOpen ? 0 : -250 }}
+        initial={false}
+        animate={{ x: sidebarOpen ? 0 : -320 }}
         transition={{ duration: 0.3 }}
-        className="absolute left-0 top-0 bottom-0 w-64 bg-zinc-900/80 backdrop-blur-sm border-r border-zinc-700/50 flex flex-col overflow-hidden z-50"
+        className="absolute inset-y-0 left-0 z-40 flex w-[min(88vw,18rem)] flex-col overflow-hidden border-r border-white/[0.06] bg-[#101319]/95 backdrop-blur-2xl sm:w-72"
       >
-        {/* New Chat Button */}
-        <button
-          onClick={startNewChat}
-          className="m-4 flex items-center gap-2 rounded-lg bg-[#7BB8FF] hover:bg-[#6AABFF] text-black px-4 py-2.5 font-medium transition-colors"
-        >
-          <Plus size={18} />
-          New Chat
-        </button>
+        <div className="border-b border-white/[0.06] px-4 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7f8796]">
+            Conversations
+          </p>
+          <button
+            onClick={() => {
+              handleReset();
+              startNewChat();
+            }}
+            className="mt-4 flex w-full items-center justify-start gap-2.5 rounded-2xl bg-[#7bb8ff] px-4 py-3 font-semibold text-[#081019] transition-colors hover:bg-[#90c3ff]"
+          >
+            <Plus size={18} />
+            New Chat
+          </button>
+        </div>
 
-        {/* Divider */}
-        <div className="h-px bg-zinc-700/50 mx-4" />
-
-        {/* Sessions List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
           {sessions.length === 0 ? (
-            <div className="text-gray-400 text-sm text-center py-4">
+            <div className="rounded-2xl border border-dashed border-white/[0.08] px-4 py-5 text-sm text-[#7f8796]">
               No conversations yet
             </div>
           ) : (
@@ -554,32 +680,34 @@ export const AIChat = () => {
               <motion.div
                 key={session.id}
                 whileHover={{ x: 4 }}
-                className={`group relative rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                className={`group relative cursor-pointer rounded-2xl border px-3 py-3 transition-colors ${
                   sessionId === session.id
-                    ? "bg-blue-600/20 border border-blue-500/50"
-                    : "hover:bg-zinc-800/50"
+                    ? "border-[#6daeff]/45 bg-[#162030]"
+                    : "border-transparent bg-white/[0.02] hover:border-white/[0.08] hover:bg-white/[0.04]"
                 }`}
                 onClick={() => switchSession(session.id)}
               >
-                <div className="flex items-start gap-2 min-w-0">
-                  <MessageSquare size={14} className="mt-1 shrink-0 text-gray-400" />
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#161c26] text-[#aeb6c4]">
+                    <MessageSquare size={15} />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-gray-300 truncate">
+                    <p className="truncate text-sm font-medium text-white">
                       {session.title}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-[#7f8796]">
                       {new Date(session.timestamp).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
 
-                {/* Delete Button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteSession(session.id);
                   }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-red-400 transition-opacity"
+                  className="absolute right-2 top-2 rounded-full p-1.5 text-[#8891a0] opacity-0 transition-opacity hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
+                  aria-label="Delete session"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -589,206 +717,243 @@ export const AIChat = () => {
         </div>
       </motion.div>
 
-      {/* Backdrop - Click to close sidebar */}
       {sidebarOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/30 z-40"
+          className="absolute inset-0 z-30 bg-black/40 backdrop-blur-[2px]"
         />
       )}
 
-      {/* Main Chat Area - Takes full space, sidebar overlays */}
-      <div className="flex-1 flex flex-col w-full overflow-hidden relative min-h-0">
-        {/* Sidebar Toggle Icon */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute top-4 left-4 p-2 rounded-lg hover:bg-zinc-800/50 text-gray-400 hover:text-white transition-colors z-10"
-          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-        >
-          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+      <div className="relative z-10 flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex items-center px-4 pt-4 sm:px-6 sm:pt-5 lg:px-7">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[#c1c7d3] transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white sm:h-10 sm:w-10"
+            aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+          >
+            {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
 
-        {/* Error notification */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`absolute top-16 left-4 right-4 sm:right-auto sm:max-w-md z-10 p-3 rounded-lg text-sm ${
+            className={`mx-4 mt-4 rounded-2xl border px-4 py-3 text-sm sm:mx-6 lg:mx-7 ${
               error === "Please connect your wallet first"
-                ? "bg-[#7BB8FF]/20 border border-[#7BB8FF]/50 text-[#A6CFFF]"
-                : "bg-red-500/20 border border-red-500/50 text-red-300"
+                ? "border-[#7bb8ff]/35 bg-[#7bb8ff]/12 text-[#a8d1ff]"
+                : "border-red-500/35 bg-red-500/12 text-red-300"
             }`}
           >
             {error}
           </motion.div>
         )}
 
-        {/* Messages Area - Scrollable with padding for fixed input */}
-        <div className="flex-1 min-h-0 overflow-hidden relative">
-          <div 
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="chat-scrollbar absolute inset-0 overflow-y-auto overscroll-contain pb-32 z-0"
+            className="chat-scrollbar absolute inset-0 overflow-y-scroll overscroll-contain pr-1"
           >
-            {messages.length > 0 && (
-            <div className="space-y-4 px-4 sm:px-6 lg:px-12 pt-12">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${
-                  msg.isUser ? "justify-end" : "justify-start"
-                }`}
-              >
-                {!msg.isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white">
-                    <Image
-                      src="/assets/chat_logo.svg"
-                      alt="Tower logo"
-                      width={32}
-                      height={32}
-                      className="object-contain"
-                    />
-                  </div>
-                )}
+            {hasMessages ? (
+              <div className="mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4 px-4 pb-8 pt-5 sm:px-6 sm:pb-32 sm:pt-7 lg:px-7">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-3 ${
+                      msg.isUser ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    {!msg.isUser && (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+                        <Image
+                          src="/assets/chat_logo.svg"
+                          alt="Tower logo"
+                          width={28}
+                          height={28}
+                          className="object-contain"
+                        />
+                      </div>
+                    )}
 
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`max-w-[80%] ${
-                    msg.isUser
-                      ? "bg-[#7BB8FF] text-white rounded-2xl px-5 py-3 transition-colors"
-                      : msg.text === "Trading Volume"
-                      ? "bg-zinc-900/50 text-white rounded-xl p-4 backdrop-blur-sm"
-                      : "bg-zinc-900/50 text-white rounded-xl px-5 py-3 backdrop-blur-sm"
-                  }`}
-                >
-                  {msg.text === "Trading Volume" ? (
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="font-semibold">Trading Volume</span>
-                        <div className="flex gap-2">
-                          {["24H", "7D", "30D", "ALL"].map((tf, idx) => (
-                            <button
-                              key={tf}
-                              className={`px-3 py-1 rounded-lg text-xs ${
-                                idx === 1
-                                  ? "bg-[#7BB8FF] text-white"
-                                  : "text-gray-400"
-                              }`}
-                            >
-                              {tf}
-                            </button>
-                          ))}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
+                        msg.isUser
+                          ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5"
+                          : msg.text === "Trading Volume"
+                          ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
+                          : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
+                      }`}
+                    >
+                      {msg.text === "Trading Volume" ? (
+                        <div>
+                          <div className="mb-4 flex items-center justify-between">
+                            <span className="font-semibold">Trading Volume</span>
+                            <div className="flex gap-2">
+                              {["24H", "7D", "30D", "ALL"].map((tf, idx) => (
+                                <button
+                                  key={tf}
+                                  className={`rounded-lg px-3 py-1 text-xs ${
+                                    idx === 1
+                                      ? "bg-[#7BB8FF] text-[#081019]"
+                                      : "text-gray-400"
+                                  }`}
+                                >
+                                  {tf}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mb-1 text-2xl font-bold">$44,238 USD</div>
+                          <div className="mb-4 text-sm text-gray-400">
+                            Jan, 2026 8:00 AM
+                          </div>
+                          <div className="relative h-32">
+                            <svg className="h-full w-full" viewBox="0 0 400 100">
+                              <polyline
+                                points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
+                                fill="none"
+                                stroke="#7bb8ff"
+                                strokeWidth="2"
+                              />
+                            </svg>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-2xl font-bold mb-1">$44,238 USD</div>
-                      <div className="text-sm text-gray-400 mb-4">
-                        Jan, 2026 8:00 AM
-                      </div>
-                      <div className="h-32 relative">
-                        <svg className="w-full h-full" viewBox="0 0 400 100">
-                          <polyline
-                            points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
-                            fill="none"
-                            stroke="#3b82f6"
-                            strokeWidth="2"
+                      ) : (
+                        <p className="text-sm leading-6 sm:leading-7">{msg.text}</p>
+                      )}
+                    </motion.div>
+
+                    {msg.isUser && (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.08] bg-[#2a313d]">
+                        {profilePictureUrl && !profileImageError ? (
+                          <Image
+                            src={profilePictureUrl}
+                            alt="User avatar"
+                            width={40}
+                            height={40}
+                            className="h-full w-full object-cover"
+                            onError={() => {
+                              console.error(
+                                "Failed to load profile image:",
+                                profilePictureUrl
+                              );
+                              setProfileImageError(true);
+                            }}
+                            unoptimized={true}
                           />
-                        </svg>
+                        ) : (
+                          <span className="text-sm font-semibold text-white">
+                            {user?.wallet?.address?.substring(0, 1).toUpperCase() ||
+                              "U"}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex justify-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+                      <Image
+                        src="/assets/chat_logo.svg"
+                        alt="Tower logo"
+                        width={28}
+                        height={28}
+                        className="object-contain"
+                      />
+                    </div>
+                    <div className="rounded-[24px] border border-white/[0.06] bg-[#14181f]/92 px-5 py-4 backdrop-blur-xl">
+                      <div className="flex gap-1">
+                        <motion.div
+                          animate={{ opacity: [0.4, 1, 0.4] }}
+                          transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                          className="h-2 w-2 rounded-full bg-gray-400"
+                        />
+                        <motion.div
+                          animate={{ opacity: [0.4, 1, 0.4] }}
+                          transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                          className="h-2 w-2 rounded-full bg-gray-400"
+                        />
+                        <motion.div
+                          animate={{ opacity: [0.4, 1, 0.4] }}
+                          transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                          className="h-2 w-2 rounded-full bg-gray-400"
+                        />
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-sm">{msg.text}</p>
-                  )}
-                </motion.div>
-
-                {msg.isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-gray-600">
-                    {profilePictureUrl && !profileImageError ? (
-                      <Image
-                        src={profilePictureUrl}
-                        alt="User avatar"
-                        width={32}
-                        height={32}
-                        className="object-cover w-full h-full"
-                        onError={() => {
-                          console.error("Failed to load profile image:", profilePictureUrl);
-                          setProfileImageError(true);
-                        }}
-                        unoptimized={true}
-                      />
-                    ) : (
-                      <span className="text-white text-sm font-semibold">
-                        {user?.wallet?.address?.substring(0, 1).toUpperCase() || "U"}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
-            ))}
+            ) : (
+              <div className="mx-auto flex min-h-full w-full max-w-[52rem] items-start px-4 pb-8 pt-6 sm:min-h-[calc(100%+10rem)] sm:items-end sm:px-6 sm:pb-28 sm:pt-10 lg:px-7">
+                <div className="w-full max-w-[24rem]">
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.35 }}
+                    className="relative mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.08] bg-[#0d1117] shadow-[0_18px_48px_rgba(0,0,0,0.42)]"
+                  >
+                    <MessageSquare className="h-6 w-6 text-white" />
+                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#7bb8ff] text-[#081019] shadow-[0_0_18px_rgba(123,184,255,0.45)]">
+                      <Plus className="h-3 w-3" />
+                    </span>
+                  </motion.div>
 
-            {isLoading && (
-              <div className="flex gap-3 justify-start">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white">
-                  <Image
-                    src="/assets/chat_logo.svg"
-                    alt="Tower logo"
-                    width={32}
-                    height={32}
-                    className="object-contain"
-                  />
-                </div>
-                <div className="bg-zinc-900/50 backdrop-blur-sm text-white rounded-xl px-5 py-3">
-                  <div className="flex gap-1">
-                    <motion.div
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-                      className="w-2 h-2 bg-gray-400 rounded-full"
-                    />
-                    <motion.div
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                      className="w-2 h-2 bg-gray-400 rounded-full"
-                    />
-                    <motion.div
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                      className="w-2 h-2 bg-gray-400 rounded-full"
-                    />
+                  <div className="flex flex-col gap-3">
+                    {quickPrompts.map((prompt, index) => (
+                      <motion.button
+                        key={prompt}
+                        initial={{ opacity: 0, x: -24 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.08, duration: 0.3 }}
+                        whileHover={{ x: 4 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`w-full max-w-[22rem] rounded-[20px] border px-4 py-3 text-left text-[0.9rem] leading-6 transition-all sm:w-fit sm:min-w-[14rem] sm:max-w-none sm:whitespace-nowrap sm:rounded-full sm:px-5 sm:py-3.5 sm:text-[0.92rem] ${
+                          activePrompt === prompt
+                            ? "border-[#8ec3ff] bg-[#162234] text-white shadow-[0_0_0_1px_rgba(142,195,255,0.15)]"
+                            : "border-[#5f9ef0]/70 bg-[#0f131a]/95 text-[#e6ebf3] hover:border-[#8ec3ff] hover:bg-[#141b25]"
+                        }`}
+                        onClick={() => handlePromptClick(prompt)}
+                      >
+                        {prompt}
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
               </div>
             )}
           </div>
-        )}
+
+          {hasMessages && (!isAtBottom || !isAtTop) && (
+            <motion.button
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              onClick={isAtBottom ? scrollToTop : scrollToBottom}
+              className="absolute bottom-5 left-1/2 z-10 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border border-white/[0.08] bg-[#11151c]/95 text-white shadow-[0_12px_32px_rgba(0,0,0,0.32)] backdrop-blur-xl transition-colors hover:border-white/[0.16] hover:bg-[#171d27] sm:bottom-28"
+              aria-label={isAtBottom ? "Scroll to top" : "Scroll to bottom"}
+            >
+              {isAtBottom ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+            </motion.button>
+          )}
         </div>
 
-        {/* Scroll Button */}
-        {(!isAtBottom || !isAtTop) && (
-          <motion.button
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            onClick={isAtBottom ? scrollToTop : scrollToBottom}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full bg-[#7BB8FF] hover:bg-[#6AABFF] text-white flex items-center justify-center shadow-lg transition-colors"
-            aria-label={isAtBottom ? "Scroll to top" : "Scroll to bottom"}
-          >
-            {isAtBottom ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
-          </motion.button>
-        )}
-        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-32 bg-gradient-to-t from-[#0d1015] via-[#0d1015]/96 to-transparent sm:block sm:h-40" />
 
-        {/* Bottom Container: Logo, Prompts, and Input - Fixed at bottom of chat area */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-6 lg:px-12 py-4 bg-gradient-to-t from-[#0f1012] from-60% via-[#0f1012]/98 to-[#0f1012]/90">
-          <div className="w-full max-w-2xl mx-auto">
-            {/* Transaction Confirmation Display */}
+        <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-0 lg:px-7">
+          <div className="mx-auto w-full max-w-[52rem]">
             {showSwapConfirmation && (
-              <div className="mb-4">
+              <div className="mb-3 w-full max-w-[28rem] sm:mb-4">
                 <TransactionConfirmation
-                  status={swapExecution.status as any}
+                  status={swapExecution.status}
                   statusMessage={swapExecution.statusMessage}
                   transactionHash={swapExecution.transactionHash}
                   blockNumber={swapExecution.blockNumber}
@@ -801,67 +966,34 @@ export const AIChat = () => {
               </div>
             )}
 
-            {/* Logo and Prompts - Only show when no messages */}
-            {messages.length === 0 && (
-              <div className="mb-6">
-                {/* Logo */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                  className="w-12 h-12 rounded-full flex items-center justify-center bg-white mb-8"
-                >
-                  <Image
-                    src="/assets/chat_logo.svg"
-                    alt="Tower logo"
-                    width={48}
-                    height={48}
-                    className="object-contain"
-                  />
-                </motion.div>
-
-                {/* Quick Prompts */}
-                <div className="space-y-3 max-w-md">
-                  {quickPrompts.map((prompt, index) => (
-                    <motion.button
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1, duration: 0.3 }}
-                      whileHover={{ x: 4 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full text-left px-5 py-3.5 rounded-full border border-primary/30 hover:border-primary/50 transition-all text-gray-300 bg-transparent"
-                      onClick={() => handlePromptClick(prompt)}
-                    >
-                      <span className="text-sm">{prompt}</span>
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Input */}
-            <div className="relative">
-              <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask Tower anything..."
-                className="w-full px-5 py-3.5 pr-12 rounded-full bg-transparent border border-zinc-700/50 focus:border-zinc-600/50 outline-none text-white placeholder-gray-500 text-sm transition-all"
-              />
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => handleSendMessage(message)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center"
+            <div className="w-full max-w-none sm:max-w-[30rem]">
+              <div
+                className="relative rounded-[20px] border border-white/[0.06] px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.36)] sm:rounded-[22px] sm:px-4 sm:py-2.5"
+                style={{ backgroundColor: "#131314" }}
               >
-                <ArrowUp className="w-4 h-4 text-black" />
-              </motion.button>
+                <input
+                  type="text"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask Tower anything..."
+                  className="h-8 w-full pr-10 text-[0.88rem] text-white outline-none placeholder:text-[#6d7380]"
+                  style={{ backgroundColor: "#131314" }}
+                />
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => handleSendMessage(message)}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black sm:right-2.5"
+                  aria-label="Send message"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </motion.button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    );
-  };
+  );
+};

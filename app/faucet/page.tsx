@@ -154,9 +154,9 @@ export default function FaucetPage() {
                   href={card.panel.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                  className="flex w-full min-w-0 items-start gap-2 text-sm font-medium text-primary hover:underline"
                 >
-                  {card.panel.href}
+                  <span className="min-w-0 break-all">{card.panel.href}</span>
                   <ExternalLink className="w-4 h-4 shrink-0" />
                 </a>
               </div>
