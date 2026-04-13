@@ -178,6 +178,7 @@ export const RecurringSell = () => {
           selected={selectedSellToken}
           onSelect={setSelectedSellToken}
           showInfo
+          infoMessage="Select which token you want to sell regularly"
         />
 
         <TokenDropdown
@@ -185,6 +186,7 @@ export const RecurringSell = () => {
           selected={selectedConvertToken}
           onSelect={setSelectedConvertToken}
           showInfo
+          infoMessage="Select which token you want to receive from your sales"
           availableTokens={availableTokensForSell}
         />
 
@@ -193,14 +195,17 @@ export const RecurringSell = () => {
             label="Frequency"
             value={frequency}
             showInfo
+            infoMessage="Choose how often you want to execute this order"
             onClick={() => setShowFrequencyModal(true)}
           />
           <FrequencyField
             label="End Date"
             value={endDate}
             showInfo
+            infoMessage="Set when you want this recurring order to stop executing"
             optional
             onClick={() => setShowDatePicker(true)}
+            tooltipDirection="right"
           />
         </div>
 

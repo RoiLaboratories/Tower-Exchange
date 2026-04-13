@@ -37,7 +37,7 @@ const AIAgentPage = () => {
         <TokenTicker />
 
         {!showRightPanel && (
-          <div className="fixed bottom-[15rem] right-4 z-50 lg:hidden sm:bottom-[17rem] sm:right-6">
+          <div className="fixed bottom-[10rem] right-4 z-50 lg:hidden sm:bottom-[17rem] sm:right-6">
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}

@@ -178,6 +178,7 @@ export const RecurringBuys = () => {
           selected={selectedPayToken}
           onSelect={setSelectedPayToken}
           showInfo
+          infoMessage="Select which token you'll use to make your regular purchases"
         />
 
         <TokenDropdown
@@ -185,6 +186,9 @@ export const RecurringBuys = () => {
           selected={selectedBuyToken}
           onSelect={setSelectedBuyToken}
           availableTokens={availableTokensForBuy}
+          showInfo
+          infoMessage="Select which token you want to buy regularly"
+
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -192,14 +196,17 @@ export const RecurringBuys = () => {
             label="Frequency"
             value={frequency}
             showInfo
+            infoMessage="Choose how often you want to execute this order"
             onClick={() => setShowFrequencyModal(true)}
           />
           <FrequencyField
             label="End Date"
             value={endDate}
             showInfo
+            infoMessage="Set when you want this recurring order to stop executing"
             optional
             onClick={() => setShowDatePicker(true)}
+            tooltipDirection="right"
           />
         </div>
 

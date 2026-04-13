@@ -122,7 +122,7 @@ export const DatePicker = ({
                 onClick={previousMonth}
                 className="h-8 w-8"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 text-white" />
               </Button>
               <h3 className="text-lg font-semibold text-white min-w-45 text-center">
                 {monthNames[month]} {year}
@@ -133,7 +133,7 @@ export const DatePicker = ({
                 onClick={nextMonth}
                 className="h-8 w-8"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 text-white" />
               </Button>
             </div>
             <Button
@@ -142,7 +142,7 @@ export const DatePicker = ({
               onClick={onClose}
               className="h-8 w-8 cursor-pointer"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4 text-white" />
             </Button>
           </div>
 
@@ -170,7 +170,7 @@ export const DatePicker = ({
                 disabled={isPastDate(day)}
                 className={`aspect-square h-auto text-sm ${
                   isPastDate(day)
-                    ? "opacity-30 cursor-not-allowed"
+                    ? "text-gray-500 cursor-not-allowed"
                     : isSelectedDate(day)
                     ? "bg-white text-black hover:bg-white/90 font-semibold"
                     : isToday(day)

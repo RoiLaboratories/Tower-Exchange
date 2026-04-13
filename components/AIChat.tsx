@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, Info } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   sendMessageToAIAgent,
@@ -100,6 +100,8 @@ export const AIChat = () => {
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Load sessions from localStorage
@@ -366,6 +368,33 @@ export const AIChat = () => {
 
     initializeSession();
   }, [syncSessionFromHistory, user?.wallet?.address]);
+
+  // Detect if device is touch-enabled
+  useEffect(() => {
+    const isTouchEnabled = () => {
+      return (
+        window.matchMedia("(pointer:coarse)").matches ||
+        ("ontouchstart" in window) ||
+        (navigator.maxTouchPoints > 0)
+      );
+    };
+    setIsTouchDevice(isTouchEnabled());
+  }, []);
+
+  // Close tooltip when clicking outside (for touch devices)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[aria-label="Trading volume information"]')) {
+        setShowInfoTooltip(false);
+      }
+    };
+
+    if (showInfoTooltip && isTouchDevice) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [showInfoTooltip, isTouchDevice]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -789,7 +818,30 @@ export const AIChat = () => {
                       {msg.text === "Trading Volume" ? (
                         <div>
                           <div className="mb-4 flex items-center justify-between">
-                            <span className="font-semibold">Trading Volume</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">Trading Volume</span>
+                              <div className="relative group">
+                                <button
+                                  onClick={() => isTouchDevice && setShowInfoTooltip(!showInfoTooltip)}
+                                  onMouseEnter={() => !isTouchDevice && setShowInfoTooltip(true)}
+                                  onMouseLeave={() => !isTouchDevice && setShowInfoTooltip(false)}
+                                  className="p-1 text-gray-400 group-hover:text-white transition-colors"
+                                  aria-label="Trading volume information"
+                                >
+                                  <Info size={16} />
+                                </button>
+                                {showInfoTooltip && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="absolute top-full mt-2 left-0 z-50 w-48 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md"
+                                  >
+                                    Your total trading volume across 24H, 7D, 30D, or all-time periods.
+                                  </motion.div>
+                                )}
+                              </div>
+                            </div>
                             <div className="flex gap-2">
                               {["24H", "7D", "30D", "ALL"].map((tf, idx) => (
                                 <button
@@ -894,13 +946,13 @@ export const AIChat = () => {
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.35 }}
-                    className="mb-6 flex h-14 w-14 items-center justify-center"
+                    className="mb-8 flex h-20 w-20 items-center justify-center"
                   >
                     <Image
                       src={chatLogo}
                       alt="Tower chat logo"
-                      width={32}
-                      height={32}
+                      width={48}
+                      height={48}
                       className="object-contain"
                     />
                   </motion.div>

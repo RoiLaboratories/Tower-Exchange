@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Info } from "lucide-react";
 import Image from "next/image";
@@ -12,6 +12,7 @@ interface TokenDropdownProps {
   showInfo?: boolean;
   placeholder?: string;
   availableTokens?: Token[]; // Optional: limit available tokens
+  infoMessage?: string;
 }
 
 export const TokenDropdown = ({
@@ -21,15 +22,68 @@ export const TokenDropdown = ({
   showInfo = false,
   placeholder = "Select Token",
   availableTokens,
+  infoMessage = "Select which token you'll use to make your regular purchases",
 }: TokenDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const displayTokens = availableTokens || tokens;
+
+  // Detect if device is touch-enabled
+  useEffect(() => {
+    const isTouchEnabled = () => {
+      return (
+        window.matchMedia("(pointer:coarse)").matches ||
+        ("ontouchstart" in window) ||
+        (navigator.maxTouchPoints > 0)
+      );
+    };
+    setIsTouchDevice(isTouchEnabled());
+  }, []);
+
+  // Close tooltip when clicking outside (for touch devices)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-info-button]')) {
+        setShowTooltip(false);
+      }
+    };
+
+    if (showTooltip && isTouchDevice) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [showTooltip, isTouchDevice]);
 
   return (
     <div>
       <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
         <span className="text-sm font-medium text-white">{label}</span>
-        {showInfo && <Info className="w-4 h-4 text-gray-500" />}
+        {showInfo && (
+          <div className="relative group">
+            <button
+              data-info-button
+              onClick={() => isTouchDevice && setShowTooltip(!showTooltip)}
+              onMouseEnter={() => !isTouchDevice && setShowTooltip(true)}
+              onMouseLeave={() => !isTouchDevice && setShowTooltip(false)}
+              className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+              aria-label={`${label} information`}
+            >
+              <Info className="w-4 h-4" />
+            </button>
+            {showTooltip && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="absolute left-0 top-full mt-1 z-50 w-48 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal"
+              >
+                {infoMessage}
+              </motion.div>
+            )}
+          </div>
+        )}
       </div>
       <div className="relative">
         <motion.button
