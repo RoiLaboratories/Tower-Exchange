@@ -676,8 +676,8 @@ export const AIChat = () => {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-1 overflow-hidden sm:rounded-[28px] sm:border sm:border-white/[0.06] sm:bg-[#090b10] sm:shadow-[0_22px_70px_rgba(0,0,0,0.36)]">
-      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_16%_82%,rgba(96,154,255,0.16),transparent_30%),radial-gradient(circle_at_58%_100%,rgba(51,88,148,0.22),transparent_38%),linear-gradient(180deg,#090a0d_0%,#0b0d11_46%,#10161e_100%)] sm:block" />
+    <div className="relative flex h-full min-h-0 flex-1 overflow-hidden sm:rounded-[28px] sm:border sm:border-white/[0.06] sm:bg-[#090b10] sm:shadow-[0_22px_70px_rgba(0,0,0,0.36)] lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none">
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_16%_82%,rgba(96,154,255,0.16),transparent_30%),radial-gradient(circle_at_58%_100%,rgba(51,88,148,0.22),transparent_38%),linear-gradient(180deg,#090a0d_0%,#0b0d11_46%,#10161e_100%)] sm:block lg:hidden" />
 
       <motion.div
         initial={false}
@@ -996,7 +996,7 @@ export const AIChat = () => {
           )}
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-32 bg-gradient-to-t from-[#0d1015] via-[#0d1015]/96 to-transparent sm:block sm:h-40" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-32 bg-gradient-to-t from-[#0d1015] via-[#0d1015]/96 to-transparent sm:block sm:h-40 lg:hidden" />
 
         <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-0 lg:px-7">
           <div className="mx-auto w-full max-w-[52rem]">
