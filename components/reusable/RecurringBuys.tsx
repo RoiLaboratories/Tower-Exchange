@@ -206,7 +206,7 @@ export const RecurringBuys = () => {
             infoMessage="Set when you want this recurring order to stop executing"
             optional
             onClick={() => setShowDatePicker(true)}
-            tooltipDirection="right"
+            tooltipDirection="responsive"
           />
         </div>
 

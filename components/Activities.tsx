@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
-import arcLogo from "@/public/assets/arc_logo_1-removebg-preview.png";
+import arcLogo from "@/public/assets/Arc Testnet logo.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
 
 interface ActivitiesProps {

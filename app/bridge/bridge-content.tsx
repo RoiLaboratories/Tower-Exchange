@@ -886,7 +886,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
               </button>
             </div>
 
-            <div className="mb-3 pl-6 text-[0.95rem] leading-6 text-[#e4e4e6]">
+            <div className="mb-3 text-[0.95rem] leading-6 text-[#e4e4e6]">
               <p>
                 Your tokens are being bridged to{" "}
                 <span className="font-semibold text-white">
@@ -901,7 +901,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
               </p>
             </div>
 
-            <div className="mb-4 flex items-center gap-1.5 pl-6 text-xs text-[#a3a4a8]">
+            <div className="mb-4 flex items-center gap-1.5 text-xs text-[#a3a4a8]">
               <svg
                 width="12"
                 height="12"
@@ -943,8 +943,8 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
             <div
               className={
                 bridgeTransactionUrl
-                  ? "grid grid-cols-2 gap-3 pl-9"
-                  : "pl-9"
+                  ? "grid grid-cols-2 gap-3"
+                  : ""
               }
             >
               {bridgeTransactionUrl ? (

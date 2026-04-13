@@ -11,7 +11,7 @@ interface FrequencyFieldProps {
   optional?: boolean;
   onClick?: () => void;
   infoMessage?: string;
-  tooltipDirection?: 'left' | 'right';
+  tooltipDirection?: 'left' | 'right' | 'responsive';
 }
 
 export const FrequencyField = ({
@@ -77,7 +77,13 @@ export const FrequencyField = ({
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className={`absolute top-full mt-1 z-50 w-56 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${tooltipDirection === 'left' ? 'left-0' : 'right-0'}`}
+                className={`absolute top-full mt-1 z-50 w-56 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${
+                  tooltipDirection === 'left' 
+                    ? 'left-0' 
+                    : tooltipDirection === 'right' 
+                    ? 'right-0' 
+                    : 'left-0 sm:left-auto sm:right-0'
+                }`}
               >
                 {infoMessage}
               </motion.div>
