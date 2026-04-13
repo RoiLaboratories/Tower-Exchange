@@ -23,6 +23,7 @@ import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
 import { usePrivy } from "@privy-io/react-auth";
+import { AppErrorModal } from "@/components/AppErrorModal";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
@@ -443,11 +444,17 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
   };
 
   return (
-    <div className="h-full">
-    <div className="relative rounded-2xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden overflow-y-auto h-full flex flex-col">
-      {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
+    <>
+      <AppErrorModal 
+        error={bridgeHook.error} 
+        onClose={bridgeHook.clearError} 
+        title="Bridge operation failed" 
+      />
+      <div className="h-full">
+        <div className="relative rounded-2xl border border-border bg-[#191A1C] px-6 pt-5 pb-6 overflow-hidden overflow-y-auto h-full flex flex-col">
+          {/* Header */}
+          <div className="mb-5 flex items-center justify-between">
+                <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
               <button
                 type="button"
                 onClick={() => onNavigateToSwap ? onNavigateToSwap() : router.push("/")}
@@ -675,28 +682,6 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
             <Plus className="h-3 w-3 text-white" />
             <span className="text-white">Add receiving wallet</span>
           </div>
-
-          {/* Error message display */}
-          {bridgeHook.error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 flex items-start gap-3 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2"
-            >
-              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-xs font-medium text-red-500">
-                  {bridgeHook.error}
-                </p>
-              </div>
-              <button
-                onClick={bridgeHook.clearError}
-                className="text-red-500/60 hover:text-red-500 text-xs"
-              >
-                ✕
-              </button>
-            </motion.div>
-          )}
 
           {/* Circle fee and estimated time info */}
           {fromChainId && toChainId && (
@@ -1015,6 +1000,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
           </motion.div>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

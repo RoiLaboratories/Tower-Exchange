@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Info } from "lucide-react";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 interface Router {
   id: string;
@@ -77,7 +78,9 @@ export default function RouterDisplay({
     "bg-gray-500/10 text-gray-300";
 
   return (
-    <div className="w-full">
+    <>
+      <AppErrorModal error={error} onClose={() => setError(null)} onRetry={()=>{ setLoading(true); }} title="Failed to load routers" />
+      <div className="w-full">
       <motion.div
         className="p-3 bg-secondary/50 rounded-lg border border-primary/20 hover:border-primary/40 transition-colors cursor-pointer"
         onClick={() => !isAutoSelected && setIsOpen(!isOpen)}
@@ -138,12 +141,6 @@ export default function RouterDisplay({
             className="absolute z-50 mt-2 w-full max-w-md bg-secondary border border-primary/20 rounded-lg shadow-lg overflow-hidden"
           >
             <div className="max-h-96 overflow-y-auto p-2">
-              {error && (
-                <div className="p-3 text-xs text-red-400 bg-red-500/10 rounded-md mb-2">
-                  {error}
-                </div>
-              )}
-
               {loading ? (
                 <div className="p-4 text-center text-muted-foreground text-sm">
                   Loading available routers...
@@ -196,6 +193,7 @@ export default function RouterDisplay({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </>
   );
 }

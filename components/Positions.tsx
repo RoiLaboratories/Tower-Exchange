@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletHoldings } from "@/lib/useWalletHoldings";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 interface PositionsProps {
   walletAddress?: string | null;
@@ -53,18 +54,20 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
   }, [displayHoldings, onTotalValueChange, walletAddress, loading, walletHoldings.length]);
 
   return (
-    <motion.div
-      key="positions"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      className="rounded-2xl overflow-hidden"
-      style={{
-        backgroundColor: "hsl(220, 20%, 10%)",
-        border: "1px solid hsl(220, 15%, 18%)",
-      }}
-    >
+    <>
+      <AppErrorModal error={error} onClose={() => {}} title="Failed to load holdings" />
+      <motion.div
+        key="positions"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="rounded-2xl overflow-hidden"
+        style={{
+          backgroundColor: "hsl(220, 20%, 10%)",
+          border: "1px solid hsl(220, 15%, 18%)",
+        }}
+      >
       <motion.button
         whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
         transition={{ duration: 0.2 }}
@@ -106,20 +109,6 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 border-2 border-gray-600 border-t-primary rounded-full animate-spin" />
                   <p className="text-gray-400">Loading wallet holdings...</p>
-                </div>
-              </motion.div>
-            )}
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center justify-center py-20 px-6"
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <p className="text-red-400 font-medium">Error loading holdings</p>
-                  <p className="text-gray-400 text-sm">{error}</p>
                 </div>
               </motion.div>
             )}
@@ -253,7 +242,8 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </>
   );
 };
 

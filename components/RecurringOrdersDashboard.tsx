@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/lib/recurringOrderService";
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
 import CancelOrderConfirmationModal from "@/components/CancelOrderConfirmationModal";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 export const RecurringOrdersDashboard = () => {
   const { user } = usePrivy();
@@ -195,41 +196,27 @@ export const RecurringOrdersDashboard = () => {
     );
   }
 
-  if (error) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-red-500/20 backdrop-blur-sm rounded-2xl p-8 border border-red-500/50"
-      >
-        <p className="text-red-400">{error}</p>
-        <button
-          onClick={loadOrders}
-          className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm transition-colors"
-        >
-          Try Again
-        </button>
-      </motion.div>
-    );
-  }
-
-  if (orders.length === 0) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-8 text-center border border-zinc-800/30"
-      >
-        <p className="text-zinc-400">No recurring orders yet</p>
-        <p className="text-zinc-500 text-sm mt-2">Create a recurring buy or sell order to get started</p>
-      </motion.div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Orders List */}
-      <motion.div
+    <>
+      <AppErrorModal 
+        error={error} 
+        onClose={() => setError(null)} 
+        onRetry={loadOrders}
+        title="Failed to load recurring orders" 
+      />
+      {orders.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-8 text-center border border-zinc-800/30"
+        >
+          <p className="text-zinc-400">No recurring orders yet</p>
+          <p className="text-zinc-500 text-sm mt-2">Create a recurring buy or sell order to get started</p>
+        </motion.div>
+      ) : (
+        <div className="space-y-6">
+          {/* Orders List */}
+          <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl border border-zinc-800/30 overflow-hidden"
@@ -466,6 +453,8 @@ export const RecurringOrdersDashboard = () => {
           />
         )}
       </AnimatePresence>
-    </div>
+        </div>
+      )}
+    </>
   );
 };

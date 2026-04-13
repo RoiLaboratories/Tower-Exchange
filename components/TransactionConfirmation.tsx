@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, AlertCircle, Loader, Copy, ExternalLink } from "lucide-react";
+import { CheckCircle, Loader, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
 interface TransactionConfirmationProps {
@@ -11,6 +11,8 @@ interface TransactionConfirmationProps {
   blockNumber?: number;
   error?: string | null;
   onClose?: () => void;
+  title?: string;
+  errorLayout?: "inline" | "stacked";
 }
 
 export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = ({
@@ -20,8 +22,14 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
   blockNumber,
   error,
   onClose,
+  title,
+  errorLayout = "inline",
 }) => {
   const [copied, setCopied] = useState(false);
+  const showInlineError =
+    status === "error" && Boolean(error) && errorLayout === "inline";
+  const showStackedError =
+    status === "error" && Boolean(error) && errorLayout === "stacked";
 
   const handleCopyHash = () => {
     if (transactionHash) {
@@ -47,7 +55,7 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
       case "confirmed":
         return <CheckCircle size={24} className="text-green-500" />;
       case "error":
-        return <AlertCircle size={24} className="text-red-500" />;
+        return null;
       default:
         return null;
     }
@@ -85,19 +93,33 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
     }
   };
 
+  const statusTitle = title ?? getStatusText();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-lg border p-4 ${getStatusColor()}`}
+      className={`rounded-lg border ${showInlineError ? "px-3 py-3 sm:p-4" : "p-4"} ${getStatusColor()}`}
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-1">{getStatusIcon()}</div>
+      <div className={showInlineError || showStackedError ? "block" : "flex items-start gap-3"}>
+        {!showInlineError && (
+          <div className="mt-1 shrink-0">{getStatusIcon()}</div>
+        )}
 
-        <div className="flex-1">
-          <h3 className="font-semibold text-white mb-1">{getStatusText()}</h3>
-          {statusMessage && (
-            <p className="text-sm text-gray-300 mb-3">{statusMessage}</p>
+        <div className="min-w-0 flex-1">
+          {showInlineError ? (
+            <p className="text-left text-sm leading-5 text-red-400">
+              {error}
+            </p>
+          ) : (
+            <>
+              <h3 className="mb-1 font-semibold text-white">{statusTitle}</h3>
+              {showStackedError ? (
+                <p className="text-sm text-red-400">{error}</p>
+              ) : statusMessage && (
+                <p className="mb-3 text-sm text-gray-300">{statusMessage}</p>
+              )}
+            </>
           )}
 
           {transactionHash && (
@@ -137,7 +159,7 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
             <p className="text-xs text-gray-400">Block: {blockNumber}</p>
           )}
 
-          {error && (
+          {error && !showInlineError && !showStackedError && (
             <p className="text-sm text-red-400 mt-2">{error}</p>
           )}
 

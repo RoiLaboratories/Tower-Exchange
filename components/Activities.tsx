@@ -7,6 +7,7 @@ import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
 import arcLogo from "@/public/assets/arc_logo_1-removebg-preview.png";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 interface ActivitiesProps {
   isWalletConnected?: boolean;
@@ -144,9 +145,9 @@ const Activities = ({
     );
   }
 
-  // Show error state
-  if (error) {
-    return (
+  return (
+    <>
+      <AppErrorModal error={error} onClose={() => setError(null)} title="Failed to load activities" />
       <motion.div
         key="activities"
         initial={{ opacity: 0, y: 20 }}
@@ -159,30 +160,7 @@ const Activities = ({
           border: "1px solid hsl(220, 15%, 18%)",
         }}
       >
-        <div className="flex flex-col items-center justify-center py-20 px-6">
-          <p className="text-red-400 mb-2">{error}</p>
-          <p className="text-gray-400 text-sm text-center">
-            Please check your Supabase configuration.
-          </p>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      key="activities"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-      className="rounded-2xl overflow-hidden"
-      style={{
-        backgroundColor: "hsl(220, 20%, 10%)",
-        border: "1px solid hsl(220, 15%, 18%)",
-      }}
-    >
-      {activities.length > 0 ? (
+        {activities.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -372,6 +350,7 @@ const Activities = ({
         </motion.div>
       )}
     </motion.div>
+    </>
   );
 };
 

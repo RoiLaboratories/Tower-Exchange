@@ -8,6 +8,7 @@ import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
 import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("positions");
@@ -96,17 +97,19 @@ const Profile = () => {
   };
 
   return (
-    <div className="text-white min-h-screen">
-      {/* Token Ticker */}
-      <TokenTicker />
+    <>
+      <AppErrorModal error={uploadError} onClose={() => setUploadError(null)} title="Upload failed" />
+      <div className="text-white min-h-screen">
+        {/* Token Ticker */}
+        <TokenTicker />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Profile Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-6 py-12">
+          {/* Profile Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
           className="mb-12"
         >
           <h1 className="text-4xl font-bold mb-8">Profile</h1>
@@ -169,17 +172,6 @@ const Profile = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              {uploadError && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="mb-3 p-3 bg-red-500/20 border border-red-500/50 rounded-lg"
-                >
-                  <p className="text-red-400 text-xs">{uploadError}</p>
-                </motion.div>
-              )}
-
               <div className="flex items-center gap-3 mb-2">
                 <p className="text-gray-200 font-semibold">
                   {authenticated ? "Connected" : "Not Connected"}
@@ -272,7 +264,8 @@ const Profile = () => {
           )}
         </AnimatePresence>
       </main>
-    </div>
+      </div>
+    </>
   );
 };
 

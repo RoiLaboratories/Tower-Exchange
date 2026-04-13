@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { RecurringBuys } from "@/components/reusable/RecurringBuys";
 import { RecurringSell } from "@/components/reusable/RecurringSell";
 import { PortfolioAnalysis } from "@/components/reusable/PortfolioAnalysis";
@@ -36,16 +36,18 @@ const AIAgentPage = () => {
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <TokenTicker />
 
-        <div className="fixed bottom-5 right-4 z-50 lg:hidden sm:bottom-6 sm:right-6">
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            onClick={() => setShowRightPanel(!showRightPanel)}
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-[#7BB8FF] text-[#081019] shadow-[0_16px_40px_rgba(123,184,255,0.35)] sm:h-14 sm:w-14"
-          >
-            {showRightPanel ? <X size={22} /> : <Plus size={22} />}
-          </motion.button>
-        </div>
+        {!showRightPanel && (
+          <div className="fixed bottom-[15rem] right-4 z-50 lg:hidden sm:bottom-[17rem] sm:right-6">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setShowRightPanel(true)}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-[#7BB8FF] text-[#081019] shadow-[0_16px_40px_rgba(123,184,255,0.35)] sm:h-14 sm:w-14"
+            >
+              <Plus size={22} />
+            </motion.button>
+          </div>
+        )}
 
         <div className="mx-auto flex w-full max-w-[1320px] min-h-0 flex-1 flex-col px-3 pb-20 pt-3 sm:px-6 sm:pb-24 sm:pt-4 lg:px-8 lg:pb-8">
           <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_16px_minmax(392px,452px)] lg:gap-4 xl:grid-cols-[minmax(0,1fr)_18px_minmax(405px,468px)]">
@@ -87,7 +89,7 @@ const AIAgentPage = () => {
                   className={`z-40 flex flex-col overflow-hidden border border-[#263446]/70 bg-[#171a1f]/92 shadow-[0_28px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl ${
                     isLargeScreen
                       ? "relative h-full min-h-0 rounded-[24px] p-3 lg:shadow-[0_24px_64px_rgba(0,0,0,0.42)] xl:rounded-[26px] xl:p-3.5"
-                      : "fixed inset-x-3 bottom-3 top-[8.5rem] rounded-[24px] p-3 sm:inset-x-4 sm:bottom-4 sm:top-[9rem] sm:p-4"
+                      : "fixed inset-x-0 bottom-0 top-[8.5rem] rounded-t-[24px] rounded-b-none border-b-0 border-x-0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:top-[9rem] sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pt-4"
                   }`}
                 >
                   {!isLargeScreen && (

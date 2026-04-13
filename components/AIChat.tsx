@@ -13,10 +13,12 @@ import {
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
-import { Plus, MessageSquare, Trash2, Menu, X } from "lucide-react";
+import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
 import { submitSwapFee } from "@/lib/swapExecutionService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
+import { AppErrorModal } from "@/components/AppErrorModal";
+import chatLogo from "@/public/assets/chat_logo.svg";
 
 interface Message {
   id: number;
@@ -645,8 +647,8 @@ export const AIChat = () => {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-1 overflow-hidden rounded-[24px] border border-white/[0.06] bg-[#090b10] shadow-[0_22px_70px_rgba(0,0,0,0.36)] sm:rounded-[28px]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_82%,rgba(96,154,255,0.16),transparent_30%),radial-gradient(circle_at_58%_100%,rgba(51,88,148,0.22),transparent_38%),linear-gradient(180deg,#090a0d_0%,#0b0d11_46%,#10161e_100%)]" />
+    <div className="relative flex h-full min-h-0 flex-1 overflow-hidden sm:rounded-[28px] sm:border sm:border-white/[0.06] sm:bg-[#090b10] sm:shadow-[0_22px_70px_rgba(0,0,0,0.36)]">
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_16%_82%,rgba(96,154,255,0.16),transparent_30%),radial-gradient(circle_at_58%_100%,rgba(51,88,148,0.22),transparent_38%),linear-gradient(180deg,#090a0d_0%,#0b0d11_46%,#10161e_100%)] sm:block" />
 
       <motion.div
         initial={false}
@@ -688,8 +690,14 @@ export const AIChat = () => {
                 onClick={() => switchSession(session.id)}
               >
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#161c26] text-[#aeb6c4]">
-                    <MessageSquare size={15} />
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#161c26]">
+                    <Image
+                      src={chatLogo}
+                      alt="Tower chat logo"
+                      width={18}
+                      height={18}
+                      className="object-contain"
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-white">
@@ -738,20 +746,7 @@ export const AIChat = () => {
           </button>
         </div>
 
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`mx-4 mt-4 rounded-2xl border px-4 py-3 text-sm sm:mx-6 lg:mx-7 ${
-              error === "Please connect your wallet first"
-                ? "border-[#7bb8ff]/35 bg-[#7bb8ff]/12 text-[#a8d1ff]"
-                : "border-red-500/35 bg-red-500/12 text-red-300"
-            }`}
-          >
-            {error}
-          </motion.div>
-        )}
+        <AppErrorModal error={error} onClose={() => setError(null)} title="Operation failed" />
 
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -771,7 +766,7 @@ export const AIChat = () => {
                     {!msg.isUser && (
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
                         <Image
-                          src="/assets/chat_logo.svg"
+                          src={chatLogo}
                           alt="Tower logo"
                           width={28}
                           height={28}
@@ -863,7 +858,7 @@ export const AIChat = () => {
                   <div className="flex justify-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
                       <Image
-                        src="/assets/chat_logo.svg"
+                        src={chatLogo}
                         alt="Tower logo"
                         width={28}
                         height={28}
@@ -899,12 +894,15 @@ export const AIChat = () => {
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.35 }}
-                    className="relative mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.08] bg-[#0d1117] shadow-[0_18px_48px_rgba(0,0,0,0.42)]"
+                    className="mb-6 flex h-14 w-14 items-center justify-center"
                   >
-                    <MessageSquare className="h-6 w-6 text-white" />
-                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#7bb8ff] text-[#081019] shadow-[0_0_18px_rgba(123,184,255,0.45)]">
-                      <Plus className="h-3 w-3" />
-                    </span>
+                    <Image
+                      src={chatLogo}
+                      alt="Tower chat logo"
+                      width={32}
+                      height={32}
+                      className="object-contain"
+                    />
                   </motion.div>
 
                   <div className="flex flex-col gap-3">
@@ -951,7 +949,7 @@ export const AIChat = () => {
         <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-0 lg:px-7">
           <div className="mx-auto w-full max-w-[52rem]">
             {showSwapConfirmation && (
-              <div className="mb-3 w-full max-w-[28rem] sm:mb-4">
+              <div className="mb-3 w-full max-w-none sm:mb-4 sm:max-w-[28rem]">
                 <TransactionConfirmation
                   status={swapExecution.status}
                   statusMessage={swapExecution.statusMessage}

@@ -10,6 +10,7 @@ import { FrequencyModal } from "../FrequencyModal";
 import { DatePicker } from "../DatePicker";
 import RecurringOrderNotification from "../RecurringOrderNotification";
 import { createRecurringOrder, logOrderCreation } from "@/lib/recurringOrderService";
+import { AppErrorModal } from "@/components/AppErrorModal";
 
 // Helper function to format date as MM/DD/YYYY
 const formatDateToString = (date: Date): string => {
@@ -162,6 +163,7 @@ export const RecurringSell = () => {
 
   return (
     <>
+      <AppErrorModal error={error} onClose={() => setError(null)} title="Failed to create order" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -201,16 +203,6 @@ export const RecurringSell = () => {
             onClick={() => setShowDatePicker(true)}
           />
         </div>
-
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg"
-          >
-            <p className="text-red-400 text-sm">{error}</p>
-          </motion.div>
-        )}
 
         <motion.button
           whileHover={{ scale: 1.01 }}
