@@ -221,6 +221,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     async (status: "Successful" | "Failed", txHash?: string | null) => {
       try {
         if (!user?.wallet?.address) return;
+        const amountUsd = (parseFloat(sellAmount) || 0) * sellToken.usdPrice;
         await supabase.from("activities").insert({
           wallet_address: user.wallet.address.toLowerCase(),
           type: "Swap",
@@ -230,13 +231,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           destination_network_name: "Arc",
           status,
           amount: parseFloat(sellAmount) || null,
+          amount_usd: amountUsd || null,
           transaction_hash: txHash || null,
+          timestamp: new Date().toISOString(),
         });
       } catch (e) {
         console.error("Error logging swap activity:", e);
       }
     },
-    [sellToken.symbol, receiveToken?.symbol, sellAmount, user?.wallet?.address]
+    [sellToken.symbol, receiveToken?.symbol, sellAmount, user?.wallet?.address, sellToken.usdPrice]
   );
 
   // Actual wallet balances - only for swappable tokens (currently USDC and EURC)

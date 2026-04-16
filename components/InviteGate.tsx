@@ -47,7 +47,8 @@ export default function InviteGate({ children }: InviteGateProps) {
     setIsConnectingWallet(false);
   };
 
-  const shouldGate = !hasAccess;
+  // Only show gate to new users who haven't authenticated before
+  const shouldGate = !hasAccess && !authenticated;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -212,7 +213,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                       >
                         Tower is invite-only
                       </h1>
-                      <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#6E7178] whitespace-nowrap">
+                      <p className="max-w-[21rem] text-[0.8rem] leading-6 text-[#6E7178] whitespace-nowrap">
                         Beta access requires an invite from an existing user
                       </p>
                     </div>
@@ -271,8 +272,8 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </form>
 
                     <div className="mt-5 space-y-3">
-                      <p className="text-[0.8rem] leading-6 text-white whitespace-nowrap">
-                        Don&apos;t have an invite code, Join{" "}
+                      <p className="text-[0.8rem] leading-6 text-white whitespace-nowrap pl-0">
+                        Don&apos;t have an invite code? Join{" "}
                         <a
                           href={DISCORD_INVITE_URL}
                           target="_blank"
