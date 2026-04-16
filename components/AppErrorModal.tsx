@@ -20,9 +20,13 @@ export const AppErrorModal = ({
   dismissLabel = "Close",
   title = "Something went wrong",
 }: AppErrorModalProps) => {
+  const isInviteGateOpen =
+    typeof document !== "undefined" &&
+    document.body.dataset.inviteGateOpen === "true";
+
   return (
     <AnimatePresence>
-      {error && (
+      {error && !isInviteGateOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

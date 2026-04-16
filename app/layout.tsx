@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Sora, Cinzel } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import InviteGate from "@/components/InviteGate";
 import { PrivyProvider } from "@/components/providers/PrivyProvider";
 
 const sora = Sora({
@@ -40,19 +42,21 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} ${cinzel.variable}  antialiased`} suppressHydrationWarning>
         <PrivyProvider>
-          <div className="flex flex-col min-h-screen relative">
-            <Header />
-            <div className="flex-1 pt-20 min-h-0">
-              {children}
+          <InviteGate>
+            <div className="flex flex-col min-h-screen relative">
+              <Header />
+              <div className="flex-1 pt-20 min-h-0">
+                {children}
+              </div>
+              <Footer />
             </div>
-            <Footer />
-          </div>
+          </InviteGate>
         </PrivyProvider>
       </body>
     </html>

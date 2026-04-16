@@ -41,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local invite code batches
+supabase/.temp/invite-codes.generated.json
+supabase/.temp/invite-codes.generated.sql

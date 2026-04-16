@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:invite-codes": "node scripts/generate-invite-codes.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-solana-kit": "^1.4.1",
