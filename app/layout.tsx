@@ -19,14 +19,14 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "Tower Exchange - The AI powered DEX aggregator and portfolio management tool",
-  description: "Trade cryptocurrencies with ease on Tower Exchange",
+  title: "Tower Exchange - The Native Stablecoin DEX Aggregator",
+  description: "Trade Stablecoins with ease on Tower Exchange",
   icons: {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "Tower Exchange - AI-Powered DEX & Portfolio Manager",
-    description: "Trade cryptocurrencies with ease on Tower Exchange. AI-powered DEX aggregator with portfolio management.",
+    title: "Tower Exchange - The Native Stablecoin DEX Aggregator",
+    description: "Trade Stablecoins with ease on Tower Exchange. AI-powered DEX aggregator with portfolio management.",
     images: [
       {
         url: "/assets/og-image.png",
