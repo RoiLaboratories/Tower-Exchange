@@ -279,7 +279,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                           href={DISCORD_INVITE_URL}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff]"
+                          className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff]"
                         >
                           Discord
                         </a>{" "}
@@ -294,7 +294,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                             type="button"
                             onClick={handleConnectWallet}
                             disabled={isConnectingWallet}
-                            className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] disabled:cursor-wait disabled:text-[#88bfff]"
+                            className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff] disabled:cursor-wait disabled:text-[#88bfff]"
                           >
                             {isConnectingWallet
                               ? "Connecting Wallet"
