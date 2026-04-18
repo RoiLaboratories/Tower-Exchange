@@ -214,7 +214,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                       >
                         Tower is invite-only
                       </h1>
-                      <p className="max-w-[21rem] text-[0.8rem] leading-6 text-[#6E7178] whitespace-nowrap">
+                      <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#6E7178]">
                         Beta access requires an invite from an existing user
                       </p>
                     </div>
@@ -273,19 +273,19 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </form>
 
                     <div className="mt-5 space-y-3">
-                      <p className="text-[0.8rem] leading-6 text-white whitespace-nowrap pl-0">
+                      <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-white">
                         Don&apos;t have an invite code? Join{" "}
                         <a
                           href={DISCORD_INVITE_URL}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary underline decoration-primary/55 underline-offset-4 transition-colors hover:text-[#9cccff]"
+                          className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff]"
                         >
                           Discord
                         </a>{" "}
                         to get one
                       </p>
-                      <p className="text-[0.8rem] leading-6 text-[#7B7E85] whitespace-nowrap">
+                      <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
                         Already used your code?{" "}
                         {authenticated ? (
                           <span className="text-primary">Wallet Connected</span>
@@ -294,7 +294,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                             type="button"
                             onClick={handleConnectWallet}
                             disabled={isConnectingWallet}
-                            className="text-primary underline decoration-primary/55 underline-offset-4 transition-colors hover:text-[#9cccff] disabled:cursor-wait disabled:text-[#88bfff]"
+                            className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] disabled:cursor-wait disabled:text-[#88bfff]"
                           >
                             {isConnectingWallet
                               ? "Connecting Wallet"
