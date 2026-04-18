@@ -61,13 +61,13 @@ export const TokenDropdown = ({
       <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
         <span className="text-sm font-medium text-white">{label}</span>
         {showInfo && (
-          <div className="relative group">
+          <div className="relative group flex items-center">
             <button
               data-info-button
               onClick={() => isTouchDevice && setShowTooltip(!showTooltip)}
               onMouseEnter={() => !isTouchDevice && setShowTooltip(true)}
               onMouseLeave={() => !isTouchDevice && setShowTooltip(false)}
-              className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+              className="flex items-center p-0 text-gray-500 hover:text-gray-300 transition-colors"
               aria-label={`${label} information`}
             >
               <Info className="w-4 h-4" />

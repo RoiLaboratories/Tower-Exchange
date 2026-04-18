@@ -718,24 +718,13 @@ export const AIChat = () => {
                 }`}
                 onClick={() => switchSession(session.id)}
               >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#161c26]">
-                    <Image
-                      src={chatLogo}
-                      alt="Tower chat logo"
-                      width={18}
-                      height={18}
-                      className="object-contain"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white">
-                      {session.title}
-                    </p>
-                    <p className="mt-1 text-xs text-[#7f8796]">
-                      {new Date(session.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">
+                    {session.title}
+                  </p>
+                  <p className="mt-1 text-xs text-[#7f8796]">
+                    {new Date(session.timestamp).toLocaleDateString()}
+                  </p>
                 </div>
 
                 <button
@@ -996,9 +985,9 @@ export const AIChat = () => {
           )}
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-32 bg-gradient-to-t from-[#0d1015] via-[#0d1015]/96 to-transparent sm:block sm:h-40 lg:hidden" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#090b10] via-[#090b10]/95 to-transparent sm:block" />
 
-        <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-0 lg:px-7">
+        <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-8 lg:px-7">
           <div className="mx-auto w-full max-w-[52rem]">
             {showSwapConfirmation && (
               <div className="mb-3 w-full max-w-none sm:mb-4 sm:max-w-[28rem]">

@@ -48,6 +48,41 @@ export interface BridgeActivityParams {
   status?: "Successful" | "Failed" | "Pending";
 }
 
+// Interface for swap fee recording
+export interface SwapFeeParams {
+  walletAddress: string;
+  tokenAddress: string;
+  tokenSymbol: string;
+  feeAmount: string;
+  feeAmountUsd?: string;
+  feeBasisPoints: number;
+  totalAmount: string;
+  transactionHash?: string;
+  blockNumber?: number;
+  status?: "Pending" | "Recorded" | "Confirmed" | "Failed";
+  errorMessage?: string;
+  activityId?: string;
+}
+
+// Swap fee row type from database
+export interface SwapFeeRow {
+  id: string;
+  wallet_address: string;
+  swap_activity_id: string | null;
+  token_address: string;
+  token_symbol: string;
+  fee_amount: number;
+  fee_amount_usd: number | null;
+  fee_basis_points: number;
+  total_amount: number;
+  transaction_hash: string | null;
+  block_number: number | null;
+  status: "Pending" | "Recorded" | "Confirmed" | "Failed";
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Register a bridge transaction in the activities table
  */
@@ -84,6 +119,116 @@ export async function registerBridgeActivity(
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     console.error("Error registering bridge activity:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Register a swap fee in the swap_fees table
+ * Records platform fees collected from swap transactions for tracking and analytics
+ */
+export async function registerSwapFee(
+  params: SwapFeeParams
+): Promise<{ success: boolean; error?: string; id?: string }> {
+  try {
+    const { data, error } = await supabase.from("swap_fees").insert([
+      {
+        wallet_address: params.walletAddress.toLowerCase(),
+        token_address: params.tokenAddress.toLowerCase(),
+        token_symbol: params.tokenSymbol,
+        fee_amount: parseFloat(params.feeAmount),
+        fee_amount_usd: params.feeAmountUsd ? parseFloat(params.feeAmountUsd) : null,
+        fee_basis_points: params.feeBasisPoints,
+        total_amount: parseFloat(params.totalAmount),
+        transaction_hash: params.transactionHash || null,
+        block_number: params.blockNumber || null,
+        swap_activity_id: params.activityId || null,
+        status: params.status || "Recorded",
+        error_message: params.errorMessage || null,
+      },
+    ]).select();
+
+    if (error) {
+      console.error("Error registering swap fee:", error);
+      return { success: false, error: error.message };
+    }
+
+    const feeId = data?.[0]?.id;
+    console.log("Swap fee registered:", {
+      id: feeId,
+      token: params.tokenSymbol,
+      feeAmount: params.feeAmount,
+      feeAmountUsd: params.feeAmountUsd,
+      transactionHash: params.transactionHash,
+    });
+    return { success: true, id: feeId };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error registering swap fee:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Get swap fees for a specific wallet
+ */
+export async function getSwapFeesByWallet(
+  walletAddress: string,
+  limit: number = 50
+): Promise<{ success: boolean; fees?: SwapFeeRow[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from("swap_fees")
+      .select("*")
+      .eq("wallet_address", walletAddress.toLowerCase())
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("Error fetching swap fees:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, fees: data || [] };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error fetching swap fees:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Update swap fee status and block number after fee collection transaction is confirmed
+ */
+export async function updateSwapFeeConfirmation(
+  feeId: string,
+  transactionHash: string,
+  blockNumber: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from("swap_fees")
+      .update({
+        transaction_hash: transactionHash,
+        block_number: blockNumber,
+        status: "Confirmed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", feeId);
+
+    if (error) {
+      console.error("Error updating swap fee confirmation:", error);
+      return { success: false, error: error.message };
+    }
+
+    console.log("Swap fee confirmation updated:", { feeId, transactionHash, blockNumber });
+    return { success: true };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error updating swap fee confirmation:", errorMessage);
     return { success: false, error: errorMessage };
   }
 }

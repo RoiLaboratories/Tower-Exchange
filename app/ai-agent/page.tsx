@@ -71,7 +71,12 @@ const AIAgentPage = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setShowRightPanel(false)}
-                className="fixed inset-0 z-30 bg-black/55 backdrop-blur-sm lg:hidden"
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-30 bg-black/55 backdrop-blur-sm sm:backdrop-blur lg:hidden"
+                style={{
+                  willChange: "opacity",
+                  WebkitAcceleratedCompositing: true,
+                } as any}
               />
             )}
 
@@ -85,12 +90,18 @@ const AIAgentPage = () => {
                   exit={
                     isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }
                   }
-                  transition={{ duration: isLargeScreen ? 0.3 : 0.4 }}
-                  className={`z-40 flex flex-col overflow-hidden border border-[#263446]/70 bg-[#171a1f]/92 shadow-[0_28px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl ${
+                  transition={{ duration: isLargeScreen ? 0.3 : 0.35, ease: "easeOut" }}
+                  className={`z-40 flex flex-col overflow-hidden border border-[#263446]/70 bg-[#171a1f]/92 shadow-[0_28px_80px_rgba(0,0,0,0.48)] backdrop-blur-md sm:backdrop-blur-xl ${
                     isLargeScreen
                       ? "relative h-full min-h-0 rounded-[24px] p-3 lg:shadow-[0_24px_64px_rgba(0,0,0,0.42)] xl:rounded-[26px] xl:p-3.5"
                       : "fixed inset-x-0 bottom-0 top-[8.5rem] rounded-t-[24px] rounded-b-none border-b-0 border-x-0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:top-[9rem] sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pt-4"
                   }`}
+                  style={{
+                    willChange: isLargeScreen ? "transform, opacity" : "transform, opacity",
+                    WebkitAcceleratedCompositing: true,
+                    transform: isLargeScreen ? undefined : "translateZ(0)",
+                    backfaceVisibility: "hidden",
+                  } as any}
                 >
                   {!isLargeScreen && (
                     <div className="mb-4 flex justify-center lg:hidden">
@@ -120,8 +131,12 @@ const AIAgentPage = () => {
 
                   <div
                     className={`px-2 pb-2 pt-5 lg:px-1 lg:pb-1 lg:pt-3.5 xl:px-1.5 xl:pb-1.5 xl:pt-4 ${
-                      isLargeScreen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto"
+                      isLargeScreen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto overscroll-contain"
                     }`}
+                    style={{
+                      WebkitOverflowScrolling: "touch",
+                      scrollBehavior: "smooth",
+                    } as any}
                   >
                     <div className="mx-auto w-full max-w-[360px] xl:max-w-[380px]">
                       <AnimatePresence mode="wait">

@@ -44,7 +44,7 @@ import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
-import { supabase } from "@/lib/supabase";
+import { supabase, registerSwapFee, updateSwapFeeConfirmation } from "@/lib/supabase";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
@@ -1178,6 +1178,35 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
             });
 
+            // Record the fee in the database
+            let registerResult: any = null;
+            const feeAmount = feeResult.data?.feeAmount || feeResult.feeAmount || "0";
+            const transactionHash = feeResult.data?.transactionHash || feeResult.transactionHash;
+            if (userAddress && feeAmount !== "0") {
+              const feeUsdValue = (parseFloat(feeAmount) || 0) * receiveToken.usdPrice;
+              registerResult = await registerSwapFee({
+                walletAddress: userAddress,
+                tokenAddress: outputTokenForFee,
+                tokenSymbol: receiveToken.symbol,
+                feeAmount: feeAmount,
+                feeAmountUsd: feeUsdValue.toString(),
+                feeBasisPoints: 25,
+                totalAmount: feeCollectorOutput,
+                transactionHash: transactionHash,
+                status: "Recorded",
+              });
+
+              if (registerResult.success) {
+                console.log("[SwapCard] Fee recorded in database:", {
+                  feeId: registerResult.id,
+                  feeAmount,
+                  feeAmountUsd: feeUsdValue,
+                });
+              } else {
+                console.warn("[SwapCard] Failed to record fee in database:", registerResult.error);
+              }
+            }
+
             // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
             // This ensures the user receives their tokens before we query the balance
             if (feeResult.data?.transactionHash || feeResult.transactionHash) {
@@ -1191,11 +1220,23 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                   const feeReceipt = await eip1193Provider.request({
                     method: 'eth_getTransactionReceipt',
                     params: [feeDistributionTxHash],
-                  }) as { status: string } | null;
+                  }) as { status: string; blockNumber: string } | null;
                   
                   if (feeReceipt && feeReceipt.status === '0x1') {
                     console.log("[SwapCard] Fee distribution transaction confirmed!");
                     feeDistributionConfirmed = true;
+
+                    // Update fee confirmation status with block number
+                    if (registerResult && registerResult.success && registerResult.id) {
+                      const blockNumber = parseInt(feeReceipt.blockNumber, 16);
+                      await updateSwapFeeConfirmation(
+                        registerResult.id,
+                        feeDistributionTxHash,
+                        blockNumber
+                      ).catch((err) => {
+                        console.warn("[SwapCard] Failed to update fee confirmation:", err);
+                      });
+                    }
                     break;
                   }
                 } catch (err) {
