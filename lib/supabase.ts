@@ -16,6 +16,71 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+/**
+ * Token decimals mapping for Arc testnet
+ * Used to convert wei amounts to human-readable token amounts
+ */
+const TOKEN_DECIMALS_MAP: Record<string, number> = {
+  // Normalize addresses to lowercase
+  '0x3600000000000000000000000000000000000000': 6, // USDC
+  '0xd40fcaa5d2ce963c5dabc2bf59e268489ad7bce4': 6, // WUSDC (QuantumExchange)
+  '0x911b4000d3422f482f4062a913885f7b035382df': 18, // WUSDC (Synthra)
+  '0xcd304d2a421bfed31d45f0054af8e8a6a4cf3eae': 18, // QTM
+  '0x89b50855aa3be2f677cd6303cec089b5f319d72a': 6, // EURC
+  '0x175cdb1d338945f0d851a741ccf787d343e57952': 18, // USDT
+  '0xc5124c846c6e6307986988dfb7e743327aa05f19': 18, // SYN
+  '0xbe7477bf91526fc9988c8f33e91b6db687119d45': 6, // SWPRC
+  '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c': 6, // USYC
+};
+
+/**
+ * Get token decimals by address
+ */
+function getTokenDecimals(tokenAddress: string): number {
+  const normalized = tokenAddress.toLowerCase();
+  return TOKEN_DECIMALS_MAP[normalized] || 18; // Default to 18 if not found
+}
+
+/**
+ * Convert wei amount to token amount based on decimals
+ * @param amount - Amount in wei (as string or number)
+ * @param decimals - Token decimals
+ * @returns Amount in human-readable format (as number)
+ */
+export function formatTokenAmount(amount: string | number, decimals: number = 18): number {
+  try {
+    // Handle BigInt or regular number string
+    let amountBigInt: bigint;
+    
+    if (typeof amount === 'string') {
+      amountBigInt = BigInt(amount);
+    } else {
+      amountBigInt = BigInt(Math.floor(amount));
+    }
+    
+    // Divide by 10^decimals
+    const divisor = BigInt(10) ** BigInt(decimals);
+    const result = Number(amountBigInt) / Number(divisor);
+    
+    return result;
+  } catch (error) {
+    console.error(`Error formatting token amount ${amount} with decimals ${decimals}:`, error);
+    // Fallback: treat as already formatted
+    return typeof amount === 'string' ? parseFloat(amount) : amount;
+  }
+}
+
+/**
+ * Convert wei amount to token amount using token address
+ * @param amount - Amount in wei (as string or number)
+ * @param tokenAddress - Token contract address
+ * @returns Amount in human-readable format (as number)
+ */
+export function formatTokenAmountByAddress(amount: string | number, tokenAddress: string): number {
+  const decimals = getTokenDecimals(tokenAddress);
+  return formatTokenAmount(amount, decimals);
+}
+
 // Activity type definitions matching the database schema
 export interface ActivityRow {
   id: string;
@@ -126,20 +191,33 @@ export async function registerBridgeActivity(
 /**
  * Register a swap fee in the swap_fees table
  * Records platform fees collected from swap transactions for tracking and analytics
+ * Automatically converts wei amounts to human-readable token amounts based on token decimals
  */
 export async function registerSwapFee(
   params: SwapFeeParams
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
+    // Convert wei amounts to token amounts using token decimals
+    const tokenDecimals = getTokenDecimals(params.tokenAddress);
+    const formattedFeeAmount = formatTokenAmount(params.feeAmount, tokenDecimals);
+    const formattedTotalAmount = formatTokenAmount(params.totalAmount, tokenDecimals);
+
+    console.log(`[Supabase] Converting fee amounts for ${params.tokenSymbol} (${tokenDecimals} decimals):`, {
+      feeAmountWei: params.feeAmount,
+      feeAmountFormatted: formattedFeeAmount,
+      totalAmountWei: params.totalAmount,
+      totalAmountFormatted: formattedTotalAmount,
+    });
+
     const { data, error } = await supabase.from("swap_fees").insert([
       {
         wallet_address: params.walletAddress.toLowerCase(),
         token_address: params.tokenAddress.toLowerCase(),
         token_symbol: params.tokenSymbol,
-        fee_amount: parseFloat(params.feeAmount),
+        fee_amount: formattedFeeAmount,
         fee_amount_usd: params.feeAmountUsd ? parseFloat(params.feeAmountUsd) : null,
         fee_basis_points: params.feeBasisPoints,
-        total_amount: parseFloat(params.totalAmount),
+        total_amount: formattedTotalAmount,
         transaction_hash: params.transactionHash || null,
         block_number: params.blockNumber || null,
         swap_activity_id: params.activityId || null,
@@ -154,11 +232,12 @@ export async function registerSwapFee(
     }
 
     const feeId = data?.[0]?.id;
-    console.log("Swap fee registered:", {
+    console.log("Swap fee registered successfully:", {
       id: feeId,
       token: params.tokenSymbol,
-      feeAmount: params.feeAmount,
+      feeAmount: formattedFeeAmount,
       feeAmountUsd: params.feeAmountUsd,
+      totalAmount: formattedTotalAmount,
       transactionHash: params.transactionHash,
     });
     return { success: true, id: feeId };
@@ -197,6 +276,22 @@ export async function getSwapFeesByWallet(
     console.error("Error fetching swap fees:", errorMessage);
     return { success: false, error: errorMessage };
   }
+}
+
+/**
+ * Format a swap fee row for display
+ * Ensures fee amounts are properly formatted with appropriate decimal places
+ */
+export function formatSwapFeeForDisplay(
+  fee: SwapFeeRow
+): SwapFeeRow & { fee_amount_display: string; total_amount_display: string } {
+  const decimals = getTokenDecimals(fee.token_address);
+  
+  return {
+    ...fee,
+    fee_amount_display: fee.fee_amount.toFixed(Math.min(decimals, 8)),
+    total_amount_display: fee.total_amount.toFixed(Math.min(decimals, 8)),
+  };
 }
 
 /**
