@@ -1,0 +1,177 @@
+/* RainbowKit Theme Customization - Matches Tower Finance Design */
+
+/* Font Stack - Apply Sora font to all RainbowKit elements */
+.rainbowkit-connect-button,
+.rainbowkit-menu,
+.rainbowkit-modal,
+.rainbowkit-button,
+.rainbowkit-text {
+  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Connect Button Styling */
+[data-rk] [data-testid="rk-connect-button"] {
+  background-color: #7bb8ff !important;
+  color: #0a0b0d !important;
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  padding: 0.5rem 1.5rem !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(123, 184, 255, 0.15) !important;
+}
+
+[data-rk] [data-testid="rk-connect-button"]:hover {
+  opacity: 0.9 !important;
+  transform: scale(1.02) !important;
+}
+
+[data-rk] [data-testid="rk-connect-button"]:active {
+  transform: scale(0.98) !important;
+}
+
+/* Button text styling - ensure dark text on light background */
+[data-rk] [data-testid="rk-connect-button"] span,
+[data-rk] [data-testid="rk-connect-button"] div {
+  color: #0a0b0d !important;
+  font-weight: 600 !important;
+}
+
+/* Responsive sizing for mobile */
+@media (max-width: 640px) {
+  [data-rk] [data-testid="rk-connect-button"] {
+    padding: 0.375rem 0.75rem !important;
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Modal Styling */
+[role="alertdialog"],
+.rainbowkit-modal,
+div[style*="position: fixed"] [style*="background"] {
+  background-color: hsl(220 20% 10%) !important;
+  color: hsl(210 40% 98%) !important;
+  border: 1px solid hsl(220 15% 18%) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+/* Modal Backdrop */
+[role="alertdialog"] ~ div,
+div[style*="backdrop-filter"],
+div[style*="background: rgba(0, 0, 0"] {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Modal Buttons */
+[role="alertdialog"] button,
+.rainbowkit-modal button {
+  border-radius: 0.75rem !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Primary Action Button in Modal */
+[role="alertdialog"] button[type="button"]:not([role]):not(:disabled),
+[role="alertdialog"] button:first-of-type,
+.rainbowkit-modal button:first-of-type {
+  background-color: #7bb8ff !important;
+  color: #0a0b0d !important;
+  border: none !important;
+}
+
+[role="alertdialog"] button[type="button"]:not([role]):not(:disabled):hover,
+[role="alertdialog"] button:first-of-type:hover,
+.rainbowkit-modal button:first-of-type:hover {
+  opacity: 0.9 !important;
+  background-color: #7bb8ff !important;
+}
+
+/* Secondary/Cancel Button */
+[role="alertdialog"] button[type="button"]:disabled,
+[role="alertdialog"] button:last-of-type,
+.rainbowkit-modal button:last-of-type {
+  background-color: hsl(220 20% 14%) !important;
+  color: hsl(210 40% 98%) !important;
+  border: 1px solid hsl(220 15% 18%) !important;
+}
+
+[role="alertdialog"] button[type="button"]:disabled:hover,
+[role="alertdialog"] button:last-of-type:hover,
+.rainbowkit-modal button:last-of-type:hover {
+  background-color: hsl(220 20% 16%) !important;
+}
+
+/* Wallet List Items */
+[data-rk] button[data-rk] {
+  background-color: hsl(220 20% 14%) !important;
+  color: hsl(210 40% 98%) !important;
+  border: 1px solid hsl(220 15% 18%) !important;
+  border-radius: 0.75rem !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-rk] button[data-rk]:hover {
+  background-color: hsl(220 20% 16%) !important;
+  border-color: #7bb8ff !important;
+}
+
+/* Account Status / Balance in RainbowKit surfaces */
+[role="alertdialog"] span,
+.rainbowkit-account-status,
+[data-rk] button[data-rk] span,
+[data-rk] button[data-rk] div {
+  color: hsl(210 40% 98%) !important;
+}
+
+/* Hide the native balance line in RainbowKit's built-in account modal */
+[role="dialog"][aria-labelledby="rk_account_modal_title"]
+  div:has(> #rk_profile_title)
+  + div:has(> #rk_profile_title) {
+  display: none !important;
+}
+
+/* Preserve Tower custom wallet button colors inside RainbowKit root */
+[data-rk] [data-tower-wallet-button="true"],
+[data-rk] [data-tower-wallet-button="true"] span,
+[data-rk] [data-tower-wallet-button="true"] svg {
+  color: #0a0b0d !important;
+}
+
+/* Outlined/Border Inputs */
+[data-rk] input[type="text"],
+[data-rk] input[type="search"],
+.rainbowkit-input {
+  background-color: hsl(220 20% 12%) !important;
+  color: hsl(210 40% 98%) !important;
+  border: 1px solid hsl(220 15% 18%) !important;
+  border-radius: 0.75rem !important;
+}
+
+[data-rk] input[type="text"]:focus,
+[data-rk] input[type="search"]:focus,
+.rainbowkit-input:focus {
+  border-color: #7bb8ff !important;
+  box-shadow: 0 0 0 3px rgba(123, 184, 255, 0.1) !important;
+}
+
+/* Scroll styling for modals */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(220 20% 10%);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(220 15% 20%);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 15% 25%);
+}

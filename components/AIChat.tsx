@@ -3,7 +3,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { ArrowUp, ArrowDown, Info } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
 import {
   sendMessageToAIAgent,
   createAIAgentSession,
@@ -18,6 +17,7 @@ import { useSwapExecution } from "@/lib/useSwapExecution";
 import { submitSwapFee } from "@/lib/swapExecutionService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import chatLogo from "@/public/assets/chat_logo.svg";
 
 interface Message {
@@ -85,7 +85,7 @@ const normalizeSession = (session: ChatSession): ChatSession => ({
 });
 
 export const AIChat = () => {
-  const { user } = usePrivy();
+  const { user } = useRainbowKitAuth();
   const swapExecution = useSwapExecution();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1007,8 +1007,11 @@ export const AIChat = () => {
 
             <div className="w-full max-w-none sm:max-w-[30rem]">
               <div
-                className="relative rounded-[20px] border border-white/[0.06] px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.36)] sm:rounded-[22px] sm:px-4 sm:py-2.5"
-                style={{ backgroundColor: "#131314" }}
+                className="tower-chat-input-shell relative rounded-[20px] border border-white/[0.06] px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.36)] focus-within:border-white/[0.06] focus-within:outline-none focus-within:ring-0 sm:rounded-[22px] sm:px-4 sm:py-2.5"
+                style={{
+                  backgroundColor: "#131314",
+                  WebkitTapHighlightColor: "transparent",
+                }}
               >
                 <input
                   type="text"
@@ -1016,8 +1019,16 @@ export const AIChat = () => {
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ask Tower anything..."
-                  className="h-8 w-full pr-10 text-[0.88rem] text-white outline-none placeholder:text-[#6d7380]"
-                  style={{ backgroundColor: "#131314" }}
+                  className="tower-chat-input h-8 w-full appearance-none border-0 bg-transparent pr-12 text-[0.88rem] text-white outline-none ring-0 placeholder:text-[#6d7380] focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  style={{
+                    outline: "none",
+                    boxShadow: "none",
+                    borderRadius: 0,
+                    caretColor: "#ffffff",
+                    WebkitAppearance: "none",
+                    appearance: "none",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
                 />
                 <motion.button
                   whileHover={{ scale: 1.06 }}

@@ -9,22 +9,22 @@
  * This module uses browser APIs (window.ethereum) and must run on the client-side
  */
 
-import { PublicClient, createPublicClient, http, Chain as ViemChain, createWalletClient } from "viem";
 import {
-  mainnet,
-  sepolia,
-  base,
+  PublicClient,
+  createPublicClient,
+  createWalletClient,
+  http,
+  Chain as ViemChain,
+  type EIP1193Provider,
+} from "viem";
+import {
   baseSepolia,
-  optimism,
   optimismSepolia,
-  arbitrum,
   arbitrumSepolia,
-  avalanche,
   avalancheFuji,
 } from "viem/chains";
 
 // Bridge Kit adapters and chain definitions
-import { BridgeKit } from "@circle-fin/bridge-kit";
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { createSolanaKitAdapterFromProvider } from "@circle-fin/adapter-solana-kit";
@@ -186,6 +186,127 @@ export const SUPPORTED_CHAINS = {
   },
 };
 
+const SUPPORTED_EVM_CIRCLE_CHAINS = [
+  ArcTestnet,
+  BaseSepolia,
+  OptimismSepolia,
+  AvalancheFuji,
+  ArbitrumSepolia,
+  EthereumSepolia,
+  LineaSepolia,
+  PolygonAmoy,
+  SonicTestnet,
+  UnichainSepolia,
+] as const;
+
+const BRIDGE_STEP_RECEIPT_TIMEOUT_MS = 5 * 60 * 1000;
+const BRIDGE_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000;
+const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
+  "burn",
+  "depositForBurn",
+  "fetchAttestation",
+  "mint",
+]);
+
+type BridgeProgressSnapshot = {
+  lastStep?: string;
+  lastTxHash?: string;
+  lastExplorerUrl?: string;
+  events: Array<{
+    step: string;
+    txHash?: string;
+    explorerUrl?: string;
+  }>;
+};
+
+function getBridgeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+
+  return "Unknown bridge error";
+}
+
+function isBridgeTimeoutError(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return (
+    normalizedMessage.includes("timeout") ||
+    normalizedMessage.includes("timed out") ||
+    normalizedMessage.includes("execution exceeded")
+  );
+}
+
+function isBridgeNetworkError(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return (
+    normalizedMessage.includes("network") ||
+    normalizedMessage.includes("connection") ||
+    normalizedMessage.includes("rpc") ||
+    normalizedMessage.includes("fetch failed")
+  );
+}
+
+function hasActionableBridgeProgress(progress: BridgeProgressSnapshot): boolean {
+  return progress.events.some((event) =>
+    ACTIONABLE_PENDING_BRIDGE_STEPS.has(event.step)
+  );
+}
+
+function createPendingBridgeMessage(progress: BridgeProgressSnapshot): string {
+  switch (progress.lastStep) {
+    case "mint":
+      return "Bridge mint transaction was submitted and is still confirming on the destination chain. Check your wallet or the explorer while it finishes.";
+    case "fetchAttestation":
+      return "Bridge burn transaction succeeded and Circle is still finalizing the attestation. The transfer is still in progress.";
+    case "burn":
+    case "depositForBurn":
+      return "Bridge burn transaction was submitted and is still settling on the source chain. The transfer is still in progress.";
+    default:
+      return "Bridge transaction was submitted and is still processing on-chain. Check your wallet or the explorer while it finishes.";
+  }
+}
+
+function withBridgeTransactionTimeouts<T>(adapter: T): T {
+  const candidate = adapter as T & {
+    waitForTransaction?: (
+      txHash: string,
+      config: { confirmations?: number; timeout?: number } | undefined,
+      chain: unknown
+    ) => Promise<unknown>;
+    __towerBridgeTimeoutPatched?: boolean;
+  };
+
+  if (
+    !candidate ||
+    typeof candidate.waitForTransaction !== "function" ||
+    candidate.__towerBridgeTimeoutPatched
+  ) {
+    return adapter;
+  }
+
+  const originalWaitForTransaction = candidate.waitForTransaction.bind(candidate);
+  candidate.waitForTransaction = (txHash, config, chain) =>
+    originalWaitForTransaction(
+      txHash,
+      {
+        ...config,
+        timeout: config?.timeout ?? BRIDGE_STEP_RECEIPT_TIMEOUT_MS,
+      },
+      chain
+    );
+  candidate.__towerBridgeTimeoutPatched = true;
+
+  return adapter;
+}
+
 /**
  * Circle's bridge fee configuration
  * Circle automatically deducts a fee (~0.00013 USDC) from the bridge amount
@@ -205,6 +326,10 @@ export interface BridgeRequest {
   token: string; // Token symbol, usually "USDC"
   toAddress?: string; // Destination wallet address
   sourceAddress?: string; // Source wallet address
+  // Optional: For RainbowKit/wagmi integration - provide pre-configured viem clients
+  publicClient?: any; // PublicClient from usePublicClient();
+  walletClient?: any; // WalletClient from useWalletClient();
+  chain?: any; // Chain object from useAccount() or useChainId();
 }
 
 // Bridge response
@@ -214,6 +339,7 @@ export interface BridgeResponse {
   status?: string;
   error?: string;
   estimatedTime?: string;
+  message?: string; // Additional info message (e.g., pending settlement status)
 }
 
 // Token configuration
@@ -227,26 +353,123 @@ export interface SupportedToken {
 }
 
 /**
- * Create a single Bridge Kit adapter that supports all EVM chains
+ * Create a single Bridge Kit adapter for the bridgeable EVM testnets we support
  */
 /**
  * Create a Bridge Kit adapter from the browser wallet provider
  * Uses Circle's createViemAdapterFromProvider factory function for user-controlled transactions
+ * 
+ * Works with both Privy and RainbowKit/wagmi
  */
-async function createBridgeKitAdapter(): Promise<any> {
+async function createBridgeKitAdapter(): Promise<
+  Awaited<ReturnType<typeof createViemAdapterFromProvider>>
+> {
   // Get the EIP1193 provider from the browser window
-  const provider = (window as any).ethereum;
+  let provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
   
-  if (!provider) {
-    throw new Error("No wallet provider found. Please connect your wallet.");
+  // For RainbowKit: Check if provider exists and has the expected methods
+  if (provider) {
+    console.log("Wallet provider found at window.ethereum", {
+      hasRequest: typeof (provider as any).request === "function",
+      providerName: (provider as any).name || "unknown",
+    });
+  } else {
+    console.warn("No provider at window.ethereum - checking for RainbowKit/wagmi providers");
+    
+    // Try to find wagmi-injected providers
+    if ((window as any).ethereum) {
+      provider = (window as any).ethereum;
+      console.log("Found wagmi provider at window.ethereum");
+    } else {
+      throw new Error(
+        "No wallet provider found. Please ensure RainbowKit/MetaMask is installed and connected. " +
+        "If using RainbowKit, verify the wallet connector is properly configured."
+      );
+    }
+  }
+
+  if (!provider || typeof (provider as any).request !== "function") {
+    throw new Error(
+      "Provider does not have EIP1193 methods. " +
+      "This may indicate RainbowKit is not properly connected. " +
+      "Please check your wallet connection in the browser."
+    );
   }
 
   // Use Circle's factory function with the browser provider directly
-  // This creates a user-controlled adapter that connects to the wallet
-  const adapter = await createViemAdapterFromProvider({
-    provider,
-  });
+  // This automatically handles wallet client creation from the provider
+  // Route read-only calls through our API to avoid CORS issues
+  // CRITICAL: let viem retry aggressively, but also extend the transaction receipt
+  // wait at the adapter layer because AppKit calls waitForTransaction without a timeout.
+  try {
+    const adapter = await createViemAdapterFromProvider({
+      provider,
+      getPublicClient: ({ chain }) =>
+        createPublicClient({
+          chain,
+          transport: http(`/api/rpc/${chain.id}`, {
+            retryCount: 10, // Retry up to 10 times for slow testnets
+            timeout: 180000, // Per-request RPC timeout
+          }),
+          // Polling settings for transaction receipt - helps with slower block times
+          pollingInterval: 2000, // Poll every 2 seconds instead of viem's default
+        }),
+      capabilities: {
+        addressContext: "user-controlled",
+        supportedChains: [...SUPPORTED_EVM_CIRCLE_CHAINS],
+      },
+    });
 
+    console.log("Bridge adapter created successfully with extended receipt timeout");
+    return withBridgeTransactionTimeouts(adapter);
+  } catch (error) {
+    console.error("Failed to create bridge adapter:", error);
+    throw new Error(
+      `Bridge adapter creation failed: ${error instanceof Error ? error.message : String(error)}. ` +
+      `This may indicate the wallet provider is not compatible with Circle's Bridge Kit. ` +
+      `If using RainbowKit, ensure your wallet connector supports EIP1193.`
+    );
+  }
+}
+
+/**
+ * Create a Bridge Kit adapter from pre-configured viem clients
+ * This is specifically for RainbowKit/wagmi integration
+ * 
+ * Usage (from a React component with wagmi hooks):
+ * ```tsx
+ * const publicClient = usePublicClient();
+ * const { data: walletClient } = useWalletClient();
+ * const adapter = await createBridgeKitAdapterFromClients(publicClient, walletClient, chain);
+ * ```
+ */
+export async function createBridgeKitAdapterFromClients(
+  publicClient: PublicClient | undefined,
+  walletClient: any | undefined,
+  chain: any,
+): Promise<any> {
+  if (!publicClient) {
+    throw new Error("Public client not available. RainbowKit may not be connected.");
+  }
+  
+  if (!walletClient) {
+    throw new Error("Wallet client not available. RainbowKit wallet may not be connected.");
+  }
+
+  if (!chain) {
+    throw new Error("Chain information is required.");
+  }
+
+  // Create a simple adapter that directly returns the provided clients
+  // This bypasses Circle's factory and uses our already-configured wagmi clients
+  const adapter = {
+    getPublicClient: async () => publicClient,
+    getWalletClient: async () => walletClient,
+    // Metadata for Circle
+    getSupportedChains: async () => [...SUPPORTED_EVM_CIRCLE_CHAINS],
+  };
+
+  console.log("Bridge adapter created from RainbowKit/wagmi clients");
   return adapter;
 }
 
@@ -354,6 +577,9 @@ function createEVMPublicClient(chainId: number, rpcUrl: string): PublicClient {
 export async function bridgeTokens(
   request: BridgeRequest
 ): Promise<BridgeResponse> {
+  const bridgeProgress: BridgeProgressSnapshot = { events: [] };
+  (window as any).__lastBridgeProgress = bridgeProgress;
+
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
     const toChainConfig = SUPPORTED_CHAINS[request.toChain as keyof typeof SUPPORTED_CHAINS];
@@ -390,7 +616,7 @@ export async function bridgeTokens(
       }
     }
 
-    console.log("Bridge Request (Client-Side with Privy Wallet):", {
+    console.log("Bridge Request:", {
       from: fromChainConfig.name,
       to: toChainConfig.name,
       amount: request.amount,
@@ -398,9 +624,10 @@ export async function bridgeTokens(
       destination: request.toAddress,
       sourceChainId: fromChainConfig.chainId,
       destChainId: toChainConfig.chainId,
+      hasCustomClients: !!request.publicClient,
     });
 
-    // Use Circle's recommended client-side bridge with browser wallet (Privy)
+    // Use Circle's recommended client-side bridge with browser wallet
     const kit = await initializeCircleSDK();
     
     // Get the proper chain objects from Circle's definitions
@@ -527,14 +754,105 @@ export async function bridgeTokens(
       };
     }
 
-    // Fee collection disabled - execute bridge without custom fees
-    const result = await kit.bridge({
-      from: { adapter: fromAdapter, chain: fromChainObj },
-      to: { adapter: toAdapter, chain: toChainObj },
-      amount: request.amount,
-      token: "USDC",
-    });
+    // Ensure wallet is properly connected by requesting accounts before bridge
+    try {
+      const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+      if (provider) {
+        const accounts = await provider.request({
+          method: "eth_requestAccounts",
+        }) as string[];
+        console.log("Wallet accounts confirmed before bridge:", accounts[0]);
+      }
+    } catch (e) {
+      console.warn("Could not confirm wallet accounts:", e);
+      // Continue anyway - wallet might still be connected from adapter
+    }
 
+    // Fee collection disabled - execute bridge without custom fees
+    console.log("Starting bridge execution...");
+    console.log("Bridge adapter info:", {
+      fromChain: (fromChainObj as any).name,
+      toChain: (toChainObj as any).name,
+      adapterReady: !!fromAdapter,
+      walletConnected: !!fromAdapter,
+    });
+    
+    const startTime = Date.now();
+    const bridgeEventHandler = (event: any) => {
+      const step =
+        typeof event?.method === "string" ? event.method : "unknown";
+      const values =
+        event && typeof event === "object" && event.values && typeof event.values === "object"
+          ? event.values
+          : {};
+      const txHash =
+        typeof (values as Record<string, unknown>).txHash === "string"
+          ? ((values as Record<string, unknown>).txHash as string)
+          : undefined;
+      const explorerUrl =
+        typeof (values as Record<string, unknown>).explorerUrl === "string"
+          ? ((values as Record<string, unknown>).explorerUrl as string)
+          : undefined;
+
+      bridgeProgress.lastStep = step;
+      if (txHash) {
+        bridgeProgress.lastTxHash = txHash;
+      }
+      if (explorerUrl) {
+        bridgeProgress.lastExplorerUrl = explorerUrl;
+      }
+      bridgeProgress.events.push({ step, txHash, explorerUrl });
+
+      (window as any).__lastBridgeProgress = bridgeProgress;
+      console.log(`Bridge event [${step}]`, { txHash, explorerUrl, values });
+    };
+
+    let timeoutId: number | undefined;
+    let result: unknown;
+
+    kit.on("*", bridgeEventHandler);
+
+    try {
+      const bridgeDestination: Record<string, unknown> = {
+        adapter: toAdapter,
+        chain: toChainObj,
+      };
+
+      if (request.toAddress) {
+        bridgeDestination.recipientAddress = request.toAddress;
+      }
+
+      // Add a longer execution timeout so slow attestations do not fail too early.
+      const bridgePromise = kit.bridge({
+        from: { adapter: fromAdapter, chain: fromChainObj },
+        to: bridgeDestination as any,
+        amount: request.amount,
+        token: "USDC",
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(
+            new Error(
+              `Bridge timeout: Execution exceeded ${
+                BRIDGE_EXECUTION_TIMEOUT_MS / 60000
+              } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
+            )
+          );
+        }, BRIDGE_EXECUTION_TIMEOUT_MS);
+      });
+
+      // Race between bridge execution and timeout
+      result = await Promise.race([bridgePromise, timeoutPromise]);
+    } finally {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      kit.off("*", bridgeEventHandler);
+    }
+
+    const elapsedTime = Date.now() - startTime;
+    console.log(`Bridge execution completed in ${elapsedTime}ms`);
     console.log("Bridge transaction result:", result);
     console.log("Result type:", typeof result);
     console.log("Result keys:", result && typeof result === "object" ? Object.keys(result as object) : "null/undefined");
@@ -545,7 +863,13 @@ export async function bridgeTokens(
     if ((result as any)?.steps && Array.isArray((result as any).steps)) {
       console.log("Result steps count:", (result as any).steps.length);
       (result as any).steps.forEach((step: any, index: number) => {
-        console.log(`Step ${index}:`, { name: step.name, state: step.state, txHash: step.txHash });
+        const stepDetails: any = {
+          name: step.name,
+          state: step.state,
+        };
+        if (step.txHash) stepDetails.txHash = step.txHash;
+        if (step.error) stepDetails.error = String(step.error);
+        console.log(`Step ${index} (${step.name}):`, stepDetails);
       });
     }
     
@@ -556,6 +880,8 @@ export async function bridgeTokens(
     // Extract transaction hash and check result status
     let txHash: string | undefined;
     let errorMessage: string | undefined;
+    let pendingMessage: string | undefined;
+    let shouldTreatAsPending = false;
 
     if (typeof result === "string") {
       // If result is just a string, it's the transaction hash
@@ -598,8 +924,9 @@ export async function bridgeTokens(
         }
       }
 
-      // Check steps array for any errors
+      // Check steps array for any errors or stuck pending steps
       if (Array.isArray(resultObj.steps)) {
+        // First check for explicit errors
         const failedStep = resultObj.steps.find((step: any) => step.state === "error");
         if (failedStep?.error) {
           const stepError = failedStep.error;
@@ -609,6 +936,54 @@ export async function bridgeTokens(
           } else {
             errorMessage = String(stepError);
           }
+        }
+        
+        // Check for stuck pending steps (especially burn and mint which are longer operations)
+        const pendingSteps = resultObj.steps.filter((step: any) => step.state === "pending");
+        if (pendingSteps.length > 0) {
+          const stuckSteps = pendingSteps.map((s: any) => s.name).join(", ");
+          
+          // If we have multiple pending steps or non-approve pending steps, this likely means they're stuck
+          if (pendingSteps.length > 1 || (pendingSteps[0]?.name !== "approve" && resultObj.state !== "pending")) {
+            errorMessage = errorMessage || 
+              `Bridge appeared to complete but steps are still pending: ${stuckSteps}. ` + 
+              `This may indicate the transaction is waiting for on-chain settlement. ` +
+              `Check the explorer or try again in a few moments.`;
+          }
+        }
+
+        const submittedBridgeStep = [...resultObj.steps]
+          .reverse()
+          .find(
+            (step: any) =>
+              ACTIONABLE_PENDING_BRIDGE_STEPS.has(step.name) &&
+              typeof step.txHash === "string"
+          );
+
+        const actionableFailedStep = resultObj.steps.find(
+          (step: any) =>
+            step.state === "error" &&
+            ACTIONABLE_PENDING_BRIDGE_STEPS.has(step.name)
+        );
+
+        const actionableFailedStepMessage =
+          actionableFailedStep?.errorMessage ||
+          (actionableFailedStep?.error
+            ? getBridgeErrorMessage(actionableFailedStep.error)
+            : "");
+
+        if (
+          submittedBridgeStep?.txHash &&
+          (isBridgeTimeoutError(actionableFailedStepMessage) ||
+            isBridgeNetworkError(actionableFailedStepMessage))
+        ) {
+          shouldTreatAsPending = true;
+          txHash = txHash || submittedBridgeStep.txHash;
+          pendingMessage = createPendingBridgeMessage({
+            lastStep: actionableFailedStep?.name || submittedBridgeStep.name,
+            lastTxHash: submittedBridgeStep.txHash,
+            events: [],
+          });
         }
       }
 
@@ -622,8 +997,21 @@ export async function bridgeTokens(
       }
     }
 
+    if (shouldTreatAsPending) {
+      return {
+        success: true,
+        status: "pending",
+        estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
+        transactionHash: txHash,
+        message:
+          pendingMessage ||
+          "Bridge transaction was submitted and is still settling on-chain.",
+      };
+    }
+
     // Success only if state is success AND no step errors
     const isSuccess = (result as any)?.state === "success" && !errorMessage;
+    const isPending = (result as any)?.state === "pending";
 
     if (isSuccess && txHash) {
       return {
@@ -640,6 +1028,21 @@ export async function bridgeTokens(
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
       };
+    } else if (isPending) {
+      // Bridge is in pending state - it's processing but not yet complete
+      // This is normal for burn/mint steps which require on-chain settlement
+      const pendingSteps = (result as any)?.steps
+        ?.filter((s: any) => s.state === "pending")
+        .map((s: any) => s.name)
+        .join(", ") || "settlement";
+      
+      return {
+        success: true,
+        status: "pending",
+        estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
+        transactionHash: txHash,
+        message: `Bridge is in progress. Waiting for ${pendingSteps} to complete on-chain. This typically takes 2-5 minutes.`,
+      };
     } else {
       return {
         success: false,
@@ -648,10 +1051,55 @@ export async function bridgeTokens(
     }
   } catch (error) {
     console.error("Bridge error:", error);
+
+    const rawErrorMessage = getBridgeErrorMessage(error);
+
+    if (
+      bridgeProgress.lastTxHash &&
+      hasActionableBridgeProgress(bridgeProgress) &&
+      (isBridgeTimeoutError(rawErrorMessage) ||
+        isBridgeNetworkError(rawErrorMessage))
+    ) {
+      console.warn(
+        "Treating bridge error as pending because a bridge transaction was already submitted",
+        {
+          error: rawErrorMessage,
+          lastStep: bridgeProgress.lastStep,
+          txHash: bridgeProgress.lastTxHash,
+        }
+      );
+
+      return {
+        success: true,
+        status: "pending",
+        estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
+        transactionHash: bridgeProgress.lastTxHash,
+        message: createPendingBridgeMessage(bridgeProgress),
+      };
+    }
+
+    let errorMessage = rawErrorMessage;
+
+    // Check for specific error patterns
+    if (isBridgeTimeoutError(rawErrorMessage)) {
+      errorMessage =
+        "Bridge transaction is taking longer than expected. The bridge may still be pending on-chain. Check your wallet for pending transactions, then try again once the network settles.";
+    } else if (isBridgeNetworkError(rawErrorMessage)) {
+      errorMessage =
+        "Network connection error during bridge. The RPC endpoint may be unavailable. Check your connection and try again.";
+    } else if (
+      rawErrorMessage.toLowerCase().includes("user rejected") ||
+      rawErrorMessage.toLowerCase().includes("rejected")
+    ) {
+      errorMessage = "Transaction rejected by wallet. Please check your wallet and try again.";
+    } else if (rawErrorMessage.toLowerCase().includes("insufficient")) {
+      errorMessage = "Insufficient balance or insufficient gas for bridge transaction.";
+    }
+    
+    console.error("Final bridge error message:", errorMessage);
     return {
       success: false,
-      error:
-        error instanceof Error ? error.message : "Unknown bridge error",
+      error: errorMessage,
     };
   }
 }

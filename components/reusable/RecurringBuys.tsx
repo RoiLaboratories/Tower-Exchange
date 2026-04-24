@@ -1,7 +1,7 @@
 "use client";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { tokens } from "@/mockData/token";
 import { TokenDropdown } from "./TokenDropdown";
 import { FrequencyField } from "./FrequencyField";
@@ -11,21 +11,13 @@ import { DatePicker } from "../DatePicker";
 import RecurringOrderNotification from "../RecurringOrderNotification";
 import { createRecurringOrder, logOrderCreation } from "@/lib/recurringOrderService";
 import { AppErrorModal } from "@/components/AppErrorModal";
-
-// Helper function to format date as MM/DD/YYYY
-const formatDateToString = (date: Date): string => {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${month}/${day}/${year}`;
-};
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
+import { signBrowserWalletMessage } from "@/lib/browser-wallet";
 
 export const RecurringBuys = () => {
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const { user } = useRainbowKitAuth();
   const walletAddress = user?.wallet?.address;
 
-  // Calculate today's date
   const today = new Date();
   const todayFormatted = `${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}/${today.getFullYear()}`;
 
@@ -40,7 +32,6 @@ export const RecurringBuys = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNotification, setShowNotification] = useState(false);
-  const [notificationFrequency, setNotificationFrequency] = useState<string>("");
   const [notificationData, setNotificationData] = useState<{
     amount: string;
     sourceToken: string;
@@ -48,9 +39,8 @@ export const RecurringBuys = () => {
     frequency: string;
   } | null>(null);
 
-  // Filter tokens to exclude the selected pay token
   const availableTokensForBuy = tokens.filter(
-    (token) => token.symbol !== selectedPayToken.symbol
+    (token) => token.symbol !== selectedPayToken.symbol,
   );
 
   const handleContinue = async () => {
@@ -73,45 +63,18 @@ export const RecurringBuys = () => {
     setError(null);
 
     try {
-      // Step 1: Create message to sign
-      const message = `I authorize Tower Finance to set up a recurring ${frequency} ${selectedPayToken.symbol} → ${selectedBuyToken.symbol} buy order for ${amount} ${selectedPayToken.symbol}`;
-      
+      const message = `I authorize Tower Finance to set up a recurring ${frequency} ${selectedPayToken.symbol} -> ${selectedBuyToken.symbol} buy order for ${amount} ${selectedPayToken.symbol}`;
+
       let signature: string | undefined;
 
       try {
-        // Step 2: Get the wallet and sign the message
-        const connectedWallet = wallets.find(
-          (w) => w.address?.toLowerCase() === walletAddress.toLowerCase()
-        );
-
-        if (!connectedWallet) {
-          throw new Error("Connected wallet not found");
-        }
-
-        // Get the EIP-1193 provider from the wallet
-        const eip1193Provider = await connectedWallet.getEthereumProvider();
-
-        if (!eip1193Provider) {
-          throw new Error("Failed to get wallet provider");
-        }
-
-        // Convert message to hex
-        const messageHex = "0x" + Buffer.from(message).toString("hex");
-
-        // Request signature - WALLET WILL PROMPT USER
-        signature = await eip1193Provider.request({
-          method: "personal_sign",
-          params: [messageHex, walletAddress],
-        }) as string;
-
-        console.log("✅ Message signed successfully:", signature);
+        signature = await signBrowserWalletMessage(message, walletAddress);
+        console.log("Message signed successfully:", signature);
       } catch (signError) {
-        console.warn("⚠️ Signature request failed:", signError);
-        // Proceed without signature (optional - can require it)
+        console.warn("Signature request failed:", signError);
       }
 
-      // Step 3: Create the recurring order in the database
-      const order = await createRecurringOrder(
+      await createRecurringOrder(
         walletAddress,
         "buy",
         selectedPayToken.symbol,
@@ -119,10 +82,9 @@ export const RecurringBuys = () => {
         parseFloat(amount),
         frequency,
         endDate,
-        signature
+        signature,
       );
 
-      // Reset form
       setSelectedBuyToken(null);
       setAmount("10.00");
       setFrequency("Weekly");
@@ -130,27 +92,24 @@ export const RecurringBuys = () => {
       const newTodayFormatted = `${String(newToday.getMonth() + 1).padStart(2, "0")}/${String(newToday.getDate()).padStart(2, "0")}/${newToday.getFullYear()}`;
       setEndDate(newTodayFormatted);
 
-      // Capture notification data with current values
       setNotificationData({
         amount,
         sourceToken: selectedPayToken.symbol,
-        targetToken: selectedBuyToken?.symbol || "",
+        targetToken: selectedBuyToken.symbol,
         frequency,
       });
       setShowNotification(true);
 
-      // Log order creation activity
       try {
         await logOrderCreation(
           walletAddress,
           selectedPayToken.symbol,
-          selectedBuyToken?.symbol || "",
+          selectedBuyToken.symbol,
           "buy",
-          parseFloat(amount)
+          parseFloat(amount),
         );
       } catch (logError) {
         console.error("Error logging order creation:", logError);
-        // Don't fail the order creation if logging fails
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to create recurring buy order";
@@ -188,7 +147,6 @@ export const RecurringBuys = () => {
           availableTokens={availableTokensForBuy}
           showInfo
           infoMessage="Select which token you want to buy regularly"
-
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

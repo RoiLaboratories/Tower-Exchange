@@ -11,7 +11,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { 
   fetchArcBalance, 
   fetchERC20Balance,
@@ -46,6 +45,8 @@ import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
 import { supabase, registerSwapFee, updateSwapFeeConfirmation } from "@/lib/supabase";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
+import { getBrowserWalletChainId, getBrowserWalletProvider } from "@/lib/browser-wallet";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 // Currently only USDC and EURC are swappable via XyloNet
@@ -107,9 +108,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
 
 const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) => {
   const router = useRouter();
-  // Privy hook
-  const { user, login, authenticated } = usePrivy();
-  const { wallets } = useWallets();
+  const { user, login, authenticated } = useRainbowKitAuth();
   
   // Tower Exchange DEX Aggregator hook
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
@@ -130,20 +129,19 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
   // Monitor chain ID changes
   useEffect(() => {
-    if (!authenticated || typeof window === "undefined") return;
+    if (!authenticated) {
+      setChainId(null);
+      return;
+    }
+
+    let isMounted = true;
 
     const checkChainId = async () => {
       try {
-        const connectedWallet = wallets.find(
-          (w) => w.address?.toLowerCase() === user?.wallet?.address?.toLowerCase()
-        );
-        
-        if (connectedWallet) {
-          const provider = await connectedWallet.getEthereumProvider();
-          if (provider) {
-            const currentChainId = await provider.request({ method: "eth_chainId" });
-            setChainId(currentChainId as string);
-          }
+        const currentChainId = await getBrowserWalletChainId();
+
+        if (isMounted) {
+          setChainId(currentChainId);
         }
       } catch (error) {
         console.error("Error checking chain ID:", error);
@@ -157,24 +155,29 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       setChainId(newChainId);
     };
 
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const { ethereum } = window as any;
-      ethereum.on?.("chainChanged", handleChainChanged);
-      return () => ethereum.removeListener?.("chainChanged", handleChainChanged);
+    try {
+      const provider = getBrowserWalletProvider();
+      provider.on?.("chainChanged", handleChainChanged);
+
+      return () => {
+        isMounted = false;
+        provider.removeListener?.("chainChanged", handleChainChanged);
+      };
+    } catch {
+      return () => {
+        isMounted = false;
+      };
     }
-  }, [authenticated, user, wallets]);
+  }, [authenticated, user?.wallet?.address]);
 
   // Check if on Arc Testnet
   const isOnArcTestnet = chainId === ARC_CHAIN_HEX;
 
   // Function to switch/add Arc Testnet network
   const switchToArcTestnet = async () => {
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      throw new Error("No Ethereum provider found");
-    }
+    const ethereum = getBrowserWalletProvider();
 
     try {
-      const { ethereum } = window as any;
       await ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: ARC_CHAIN_HEX }],
@@ -183,7 +186,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       // This error code indicates that the chain has not been added to MetaMask
       if (switchError.code === 4902) {
         try {
-          await (window as any).ethereum.request({
+          await ethereum.request({
             method: "wallet_addEthereumChain",
             params: ARC_ADD_NETWORK_PARAMS,
           });
@@ -403,7 +406,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     }
   }, [user?.wallet?.address]);
 
-  // Sync wallet connection with Privy authentication
+  // Sync wallet connection state with the active browser wallet
   useEffect(() => {
     if (authenticated && user) {
       setIsWalletConnected(true);
@@ -589,7 +592,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
     try {
       setSwapState("loading");
-      // Trigger Privy login modal
+      // Trigger the RainbowKit wallet modal
       await login();
       setIsWalletConnected(true);
       setSwapState("idle");
@@ -611,6 +614,8 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         throw new Error("Wallet not connected");
       }
 
+      const eip1193Provider = getBrowserWalletProvider();
+
       if (!receiveToken) {
         throw new Error("Please select a receive token");
       }
@@ -622,39 +627,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           // Wait a moment for chain switch to complete
           await new Promise((resolve) => setTimeout(resolve, 1000));
           // Re-check chain ID
-          const connectedWallet = wallets.find(
-            (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
-          );
-          if (connectedWallet) {
-            const provider = await connectedWallet.getEthereumProvider();
-            if (provider) {
-              const currentChainId = await provider.request({ method: "eth_chainId" });
-              if (currentChainId !== ARC_CHAIN_HEX) {
-                throw new Error("Please switch to Arc Testnet to continue");
-              }
-            }
+          const currentChainId = await getBrowserWalletChainId(eip1193Provider);
+          if (currentChainId !== ARC_CHAIN_HEX) {
+            throw new Error("Please switch to Arc Testnet to continue");
           }
         } catch (networkError: any) {
           throw new Error(
             networkError.message || "Please switch to Arc Testnet network to perform swaps"
           );
         }
-      }
-
-      // Get the connected wallet
-      const connectedWallet = wallets.find(
-        (w) => w.address?.toLowerCase() === user.wallet?.address?.toLowerCase()
-      );
-
-      if (!connectedWallet) {
-        throw new Error("Connected wallet not found. Please reconnect your wallet.");
-      }
-
-      // Get the provider from the connected wallet
-      const eip1193Provider = await connectedWallet.getEthereumProvider();
-      
-      if (!eip1193Provider) {
-        throw new Error("Failed to get wallet provider");
       }
 
       // Use the EIP1193 provider directly to send transactions

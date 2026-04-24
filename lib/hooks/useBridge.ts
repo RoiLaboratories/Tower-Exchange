@@ -27,6 +27,8 @@ export interface BridgeState {
   estimatedFee: string;
   estimatedTime: string;
   transactionHash?: string;
+  status?: string; // "pending" or "completed"
+  message?: string; // Additional info message for pending status
 }
 
 export function useBridge() {
@@ -150,6 +152,8 @@ export function useBridge() {
             isBridging: false,
             success: true,
             transactionHash: result.transactionHash,
+            status: result.status,
+            message: result.message,
             error: null,
           }));
         } else {
@@ -192,6 +196,8 @@ export function useBridge() {
       success: false,
       estimatedFee: "0.00",
       estimatedTime: "2-5 minutes",
+      status: undefined,
+      message: undefined,
     });
   }, []);
 

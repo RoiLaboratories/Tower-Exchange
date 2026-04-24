@@ -2,17 +2,17 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { usePrivy } from "@privy-io/react-auth";
 import TokenTicker from "@/components/TokenTicker";
 import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
 import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("positions");
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user } = useRainbowKitAuth();
   const [chainId, setChainId] = useState<string | null>(null);
   const [totalPortfolioValue, setTotalPortfolioValue] = useState("$0.00");
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);

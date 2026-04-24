@@ -10,8 +10,8 @@ import {
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
 
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import { cn } from "@/lib/utils";
 
 const ACCESS_SESSION_KEY = "towerInviteAccessSession";
@@ -33,7 +33,7 @@ export default function InviteGate({ children }: InviteGateProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const { authenticated, login, user, ready } = usePrivy();
+  const { authenticated, login, user, ready } = useRainbowKitAuth();
 
   const grantAccess = () => {
     if (typeof window !== "undefined") {
@@ -48,7 +48,7 @@ export default function InviteGate({ children }: InviteGateProps) {
   };
 
   // Only show gate to new users who haven't authenticated before
-  // Wait for Privy to be ready to avoid flashing gate for authenticated users
+  // Wait for the wallet state to hydrate to avoid flashing the gate for connected users
   const shouldGate = ready && !hasAccess && !authenticated;
 
   useEffect(() => {

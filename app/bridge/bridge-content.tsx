@@ -22,8 +22,8 @@ import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
-import { usePrivy } from "@privy-io/react-auth";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
@@ -118,7 +118,7 @@ const BRIDGE_CHAINS: BridgeChain[] = [
 export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSwap?: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, login, authenticated } = usePrivy();
+  const { user, login, authenticated } = useRainbowKitAuth();
   const bridgeHook = useBridge();
 
   const [fromAmount, setFromAmount] = useState("0.00");
@@ -351,6 +351,9 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
     });
 
     if (result.success) {
+      const isPending = result.status === "pending";
+      const statusLabel = isPending ? "Pending" : "Successful";
+      
       // Register bridge transaction in Supabase
       await registerBridgeActivity({
         walletAddress: user.wallet?.address || "",
@@ -360,7 +363,7 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
         token: fromToken?.symbol || "USDC",
         transactionHash: result.transactionHash,
         fee: bridgeHook.estimatedFee,
-        status: "Successful",
+        status: statusLabel,
       });
 
       // Show success modal after a small delay
@@ -368,17 +371,26 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
         setShowSuccessModal(true);
       }, 1000);
       
-      // Reset form and refetch balances after successful bridge
-      setTimeout(() => {
-        bridgeHook.resetBridgeState();
-        setFromAmount("0.00");
-        setToAmount("0.00");
-        setShowSuccessModal(false);
-        
-        // Refetch wallet balances after bridge completes
-        fetchWalletBalance();
-        fetchToChainBalance();
-      }, 8500);
+      // For completed transactions, reset form after 8.5 seconds
+      // For pending transactions, keep the form and let user monitor progress
+      if (!isPending) {
+        setTimeout(() => {
+          bridgeHook.resetBridgeState();
+          setFromAmount("0.00");
+          setToAmount("0.00");
+          setShowSuccessModal(false);
+          
+          // Refetch wallet balances after bridge completes
+          fetchWalletBalance();
+          fetchToChainBalance();
+        }, 8500);
+      } else {
+        // For pending transactions, just close the modal after showing status
+        // Keep form visible so user can see the transaction remains in progress
+        setTimeout(() => {
+          setShowSuccessModal(false);
+        }, 5000);
+      }
     }
   }, [
     user,
@@ -899,6 +911,12 @@ export default function BridgePageContent({ onNavigateToSwap }: { onNavigateToSw
                   {bridgeHook.estimatedTime}
                 </span>
               </p>
+              
+              {bridgeHook.status === "pending" && (
+                <p className="mt-2 text-sm text-[#f59e0b]">
+                  ⏳ {bridgeHook.message || "Your transaction is being settled on-chain. Please wait..."}
+                </p>
+              )}
             </div>
 
             <div className="mb-4 flex items-center gap-1.5 text-xs text-[#a3a4a8]">

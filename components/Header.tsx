@@ -1,11 +1,107 @@
 "use client";
 import { Settings, Menu, X, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { HeaderWalletAvatar } from "@/components/wallet/TowerWalletAvatar";
+
+interface WalletConnectButtonProps {
+  compact?: boolean;
+}
+
+const WalletConnectButton = ({
+  compact = false,
+}: WalletConnectButtonProps) => {
+  return (
+    <ConnectButton.Custom>
+      {({
+        account,
+        chain,
+        mounted,
+        openAccountModal,
+        openChainModal,
+        openConnectModal,
+      }) => {
+        if (!mounted) {
+          return (
+            <div
+              aria-hidden="true"
+              className={compact ? "h-10 w-12 opacity-0" : "h-10 w-44 opacity-0"}
+            />
+          );
+        }
+
+        if (!account || !chain) {
+          return (
+            <button
+              type="button"
+              onClick={openConnectModal}
+              className={`inline-flex items-center justify-center rounded-full border border-primary bg-primary font-semibold text-background transition-all hover:opacity-90 ${
+                compact
+                  ? "px-3 py-2 text-xs"
+                  : "px-4 py-2 text-sm shadow-[0_4px_12px_rgba(123,184,255,0.18)]"
+              }`}
+            >
+              {compact ? "Connect" : "Connect Wallet"}
+            </button>
+          );
+        }
+
+        if (chain.unsupported) {
+          return (
+            <button
+              type="button"
+              onClick={openChainModal}
+              className={`inline-flex items-center justify-center rounded-full border border-destructive/40 bg-destructive/10 font-semibold text-destructive transition-colors hover:bg-destructive/15 ${
+                compact ? "px-3 py-2 text-xs" : "px-4 py-2 text-sm"
+              }`}
+            >
+              Wrong network
+            </button>
+          );
+        }
+
+        if (compact) {
+          return (
+            <button
+              type="button"
+              onClick={openAccountModal}
+              data-tower-wallet-button="true"
+              className="group inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary px-2.5 py-2 text-background shadow-[0_8px_24px_rgba(123,184,255,0.22)] transition-opacity hover:opacity-90"
+            >
+              <HeaderWalletAvatar
+                address={account.address}
+                ensImage={account.ensAvatar}
+              />
+              <ChevronDown className="h-4 w-4 text-background/70 transition-colors group-hover:text-background" />
+              <span className="sr-only">Open wallet menu</span>
+            </button>
+          );
+        }
+
+        return (
+          <button
+            type="button"
+            onClick={openAccountModal}
+            data-tower-wallet-button="true"
+            className="group inline-flex items-center overflow-hidden rounded-full border border-primary/70 bg-primary text-background shadow-[0_12px_30px_rgba(123,184,255,0.24)] transition-opacity hover:opacity-90"
+          >
+            <span className="flex items-center gap-2 px-3 py-2 text-sm font-semibold">
+              <HeaderWalletAvatar
+                address={account.address}
+                ensImage={account.ensAvatar}
+              />
+              <span className="text-background">{account.displayName}</span>
+              <ChevronDown className="h-4 w-4 text-background/70 transition-colors group-hover:text-background" />
+            </span>
+          </button>
+        );
+      }}
+    </ConnectButton.Custom>
+  );
+};
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -15,7 +111,6 @@ const Header = () => {
   const [tradeDropdownOpen, setTradeDropdownOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const { user, login, logout, authenticated } = usePrivy();
 
   const tradeOptions = [
     { name: "Swap", path: "/" },
@@ -58,23 +153,6 @@ const Header = () => {
     if (disabled) return;
     router.push(path);
     closeMobileMenu();
-  };
-
-  const formatAddress = (address: string) => {
-    if (address.length <= 8) return address;
-    return `${address.substring(0, 4)}...${address.substring(
-      address.length - 4,
-    )}`;
-  };
-
-  const getDisplayAddress = () => {
-    if (user?.wallet?.address) {
-      return formatAddress(user.wallet.address);
-    }
-    if (user?.email?.address) {
-      return user.email.address;
-    }
-    return null;
   };
 
   return (
@@ -300,21 +378,7 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="hidden sm:block"
           >
-            {authenticated ? (
-              <Button
-                className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 py-2 text-sm sm:text-base text-black font-semibold flex items-center gap-2"
-                onClick={() => logout()}
-              >
-                <span>{getDisplayAddress()}</span>
-              </Button>
-            ) : (
-              <Button
-                className="bg-primary hover:opacity-90 rounded-full px-4 sm:px-6 text-sm sm:text-base text-black font-semibold"
-                onClick={() => login()}
-              >
-                Connect Wallet
-              </Button>
-            )}
+            <WalletConnectButton />
           </motion.div>
 
           {/* Mobile Connect Button */}
@@ -323,21 +387,7 @@ const Header = () => {
             whileTap={{ scale: 0.95 }}
             className="block sm:hidden"
           >
-            {authenticated ? (
-              <Button
-                className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold flex items-center gap-1.5"
-                onClick={() => logout()}
-              >
-                <span>{getDisplayAddress()}</span>
-              </Button>
-            ) : (
-              <Button
-                className="gradient-primary hover:opacity-90 rounded-full px-3 py-2 text-xs text-black font-semibold"
-                onClick={() => login()}
-              >
-                Connect
-              </Button>
-            )}
+            <WalletConnectButton compact />
           </motion.div>
 
           {/* Mobile Menu Button */}

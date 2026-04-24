@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { usePrivy } from "@privy-io/react-auth";
 import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/lib/recurringOrderService";
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
 import CancelOrderConfirmationModal from "@/components/CancelOrderConfirmationModal";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
 export const RecurringOrdersDashboard = () => {
-  const { user } = usePrivy();
+  const { user } = useRainbowKitAuth();
   const walletAddress = user?.wallet?.address;
 
   const [orders, setOrders] = useState<RecurringOrder[]>([]);

@@ -3,13 +3,13 @@
  */
 
 import { useState, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import {
   executeSwapFlow,
   notifyBackendConfirmation,
   TransactionData,
   ConfirmationResult,
 } from "./swapExecutionService";
+import { useRainbowKitAuth } from "./use-rainbowkit-auth";
 
 export interface SwapExecutionState {
   status: "idle" | "signing" | "broadcasting" | "confirming" | "confirmed" | "error";
@@ -21,7 +21,7 @@ export interface SwapExecutionState {
 }
 
 export const useSwapExecution = () => {
-  const { user } = usePrivy();
+  const { user } = useRainbowKitAuth();
   const [state, setState] = useState<SwapExecutionState>({
     status: "idle",
     loading: false,

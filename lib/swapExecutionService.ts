@@ -2,6 +2,8 @@
  * Swap Execution Service - Handles transaction signing, broadcasting, and confirmation
  */
 
+import { getBrowserWalletProvider } from "@/lib/browser-wallet";
+
 export interface TransactionData {
   to: string;
   data: string;
@@ -80,8 +82,8 @@ const validateTransaction = (transaction: TransactionData, walletAddress: string
 };
 
 /**
- * Sign and send a transaction using Privy's embedded wallet
- * This uses window.ethereum provider which Privy injects
+ * Sign and send a transaction using the connected browser wallet
+ * This uses the active injected provider exposed at window.ethereum
  */
 export const signTransactionWithPrivy = async (
   transaction: TransactionData,
@@ -91,13 +93,10 @@ export const signTransactionWithPrivy = async (
     // Validate transaction object
     validateTransaction(transaction, walletAddress);
 
-    // Get the ethereum provider from window (injected by Privy)
-    const provider = (window as any).ethereum;
-    if (!provider) {
-      throw new Error("Ethereum provider not available. Please ensure Privy wallet is connected.");
-    }
+    // Get the active injected wallet provider from the browser
+    const provider = getBrowserWalletProvider();
 
-    console.log("Validated transaction. Attempting to sign with Privy wallet:", {
+    console.log("Validated transaction. Attempting to sign with browser wallet:", {
       to: transaction.to,
       from: walletAddress,
       data: `${transaction.data.substring(0, 66)}...`,
@@ -105,7 +104,7 @@ export const signTransactionWithPrivy = async (
       gasLimit: transaction.gasLimit,
     });
 
-    // Prepare the transaction object for Privy
+    // Prepare the transaction object for the connected wallet
     const txObject = {
       to: transaction.to,
       from: walletAddress,
@@ -114,9 +113,8 @@ export const signTransactionWithPrivy = async (
       gasLimit: transaction.gasLimit,
     };
 
-    // Sign the transaction via eth_sendTransaction (Privy handles the UI)
-    // This will show Privy's wallet confirmation screen
-    console.log("Sending transaction to Privy for signing...");
+    // Sign the transaction via eth_sendTransaction
+    console.log("Sending transaction to wallet for signing...");
     const transactionHash = await provider.request({
       method: "eth_sendTransaction",
       params: [txObject],
@@ -142,7 +140,7 @@ export const signTransactionWithPrivy = async (
     let detailedMessage = "Failed to sign transaction";
     if (error instanceof Error) {
       detailedMessage = error.message;
-      // Check for common Privy/MetaMask error patterns
+      // Check for common wallet error patterns
       if (error.message.includes("Invalid \"to\" address")) {
         detailedMessage = `Transaction rejected: Invalid router address. This may indicate the DEX router address is not properly configured on Arc testnet.`;
       } else if (error.message.includes("insufficient funds")) {
@@ -157,16 +155,16 @@ export const signTransactionWithPrivy = async (
 };
 
 /**
- * Broadcast transaction to Arc network (if needed - Privy usually handles this)
- * If we have a transaction hash from Privy, we can skip this and go straight to polling
+ * Broadcast transaction to Arc network if the wallet returned a signed payload
+ * If we already have a transaction hash from the wallet, we can skip straight to polling
  */
 export const broadcastTransaction = async (
   signedTx: string
 ): Promise<BroadcastResult> => {
   try {
-    // If signedTx is already a transaction hash (from Privy), we're done
+    // If signedTx is already a transaction hash, we're done
     if (signedTx.startsWith("0x") && signedTx.length === 66) {
-      console.log("Transaction already broadcasted by Privy:", signedTx);
+      console.log("Transaction already broadcasted by wallet:", signedTx);
       return {
         transactionHash: signedTx,
         status: "pending",
@@ -315,7 +313,7 @@ export const executeSwapFlow = async (
     onStatusChange("signing", { message: "Requesting wallet signature..." });
     const signResult = await signTransactionWithPrivy(transaction, walletAddress);
 
-    // Step 2: Broadcast transaction (may be skipped if already broadcasted by Privy)
+    // Step 2: Broadcast transaction (may be skipped if already broadcasted by wallet)
     onStatusChange("broadcasting", {
       message: "Broadcasting transaction to Arc network...",
     });
