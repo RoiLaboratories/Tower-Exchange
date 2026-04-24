@@ -46,7 +46,11 @@ import RouterDisplay from "./RouterDisplay";
 import { supabase, registerSwapFee, updateSwapFeeConfirmation } from "@/lib/supabase";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
-import { getBrowserWalletChainId, getBrowserWalletProvider } from "@/lib/browser-wallet";
+import {
+  getBrowserWalletChainId,
+  getBrowserWalletProvider,
+  type BrowserWalletTransactionReceipt,
+} from "@/lib/browser-wallet";
 
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 // Currently only USDC and EURC are swappable via XyloNet
@@ -819,7 +823,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           console.log("Approval transaction sent:", approveTxHash);
 
           // Wait for approval confirmation - poll until receipt is found
-          let approvalReceipt = null;
+          let approvalReceipt: BrowserWalletTransactionReceipt | null = null;
           let approvalRetries = 0;
           const maxApprovalRetries = 30; // Wait up to 30 seconds
 
@@ -830,7 +834,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               approvalReceipt = await eip1193Provider.request({
                 method: "eth_getTransactionReceipt",
                 params: [approveTxHash],
-              });
+              }) as BrowserWalletTransactionReceipt | null;
 
               if (approvalReceipt) {
                 if (approvalReceipt.status === "0x0") {
@@ -1026,7 +1030,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       console.log("Swap transaction executed with hash:", txHash);
       
       // Wait for transaction receipt to verify success
-      let receipt = null;
+      let receipt: BrowserWalletTransactionReceipt | null = null;
       let retries = 0;
       const maxRetries = 30; // Try for up to 30 seconds (1 second intervals)
       
@@ -1037,7 +1041,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           receipt = await eip1193Provider.request({
             method: 'eth_getTransactionReceipt',
             params: [txHash],
-          });
+          }) as BrowserWalletTransactionReceipt | null;
           
           if (receipt) {
             console.log("Transaction receipt received:", receipt);

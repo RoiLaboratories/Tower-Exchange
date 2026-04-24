@@ -7,9 +7,26 @@ type BrowserWalletRequestArguments = {
   params?: readonly unknown[] | object;
 };
 
+export type BrowserWalletTransactionReceipt = {
+  status?: string;
+  blockNumber?: string;
+  gasUsed?: string;
+  [key: string]: unknown;
+};
+
 export type BrowserWalletProvider = {
   request(args: BrowserWalletRequestArguments): Promise<unknown>;
+  on?(eventName: "chainChanged", listener: (chainId: string) => void): void;
+  on?(eventName: "accountsChanged", listener: (accounts: string[]) => void): void;
   on?(eventName: string, listener: (...args: unknown[]) => void): void;
+  removeListener?(
+    eventName: "chainChanged",
+    listener: (chainId: string) => void,
+  ): void;
+  removeListener?(
+    eventName: "accountsChanged",
+    listener: (accounts: string[]) => void,
+  ): void;
   removeListener?(eventName: string, listener: (...args: unknown[]) => void): void;
 };
 
