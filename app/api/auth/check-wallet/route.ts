@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const LEGACY_ACCESS_TABLES = [
+  "activities",
+  "ai_chat_messages",
+  "ai_chat_sessions",
+  "recurring_orders",
+] as const;
+
 function createSupabaseRouteClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,6 +22,24 @@ function createSupabaseRouteClient() {
       persistSession: false,
     },
   });
+}
+
+async function hasWalletRecord(
+  supabase: ReturnType<typeof createSupabaseRouteClient>,
+  table: (typeof LEGACY_ACCESS_TABLES)[number],
+  normalizedWalletAddress: string,
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .select("id")
+    .ilike("wallet_address", normalizedWalletAddress)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Failed to query ${table}: ${error.message}`);
+  }
+
+  return Array.isArray(data) && data.length > 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -34,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseRouteClient();
 
-    // Check if the wallet address has redeemed an invite code
+    // First honor invite-code redemptions from the gate flow.
     const { data, error } = await supabase
       .from("invite_code_redemptions")
       .select("id")
@@ -52,13 +77,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Wallet is registered if there's at least one redemption record
-    const isRegistered = data && data.length > 0;
+    const hasInviteRedemption = Array.isArray(data) && data.length > 0;
+    const legacyMatches = hasInviteRedemption
+      ? []
+      : await Promise.all(
+          LEGACY_ACCESS_TABLES.map((table) =>
+            hasWalletRecord(supabase, table, normalizedWalletAddress),
+          ),
+        );
+
+    // Treat existing Privy-era wallets with app history as already admitted.
+    const isRegistered =
+      hasInviteRedemption || legacyMatches.some((match) => match);
 
     return NextResponse.json({
       success: true,
       isRegistered,
       walletAddress: normalizedWalletAddress,
+      accessSource: hasInviteRedemption
+        ? "invite-redemption"
+        : isRegistered
+          ? "legacy-wallet"
+          : null,
     });
   } catch (error) {
     console.error("Error checking wallet registration:", error);

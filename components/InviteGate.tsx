@@ -117,8 +117,8 @@ export default function InviteGate({ children }: InviteGateProps) {
   }, [shouldGate]);
 
   const isAccessButtonDisabled = useMemo(() => {
-    return !inviteCode.trim() || isSubmitting;
-  }, [inviteCode, isSubmitting]);
+    return !inviteCode.trim() || isSubmitting || isCheckingRegistration;
+  }, [inviteCode, isSubmitting, isCheckingRegistration]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -177,10 +177,11 @@ export default function InviteGate({ children }: InviteGateProps) {
     }
   };
 
-  // Check if newly connected wallet is registered after authentication
+  // Check if a connected wallet already has access through an invite redemption
+  // or through legacy Privy-era app activity.
   useEffect(() => {
     const checkWalletRegistration = async () => {
-      if (!authenticated || !user?.wallet?.address || isCheckingRegistration) {
+      if (!authenticated || !user?.wallet?.address) {
         return;
       }
 
@@ -201,7 +202,12 @@ export default function InviteGate({ children }: InviteGateProps) {
           isRegistered?: boolean;
         };
 
-        // If wallet not registered, reset hasAccess to show invite form
+        if (result.success && result.isRegistered) {
+          grantAccess();
+          return;
+        }
+
+        // If wallet not registered, reset hasAccess to show invite form.
         if (result.success && result.isRegistered === false) {
           clearStoredAccess();
           setHasAccess(false);
@@ -215,7 +221,7 @@ export default function InviteGate({ children }: InviteGateProps) {
     };
 
     checkWalletRegistration();
-  }, [authenticated, user?.wallet?.address, isCheckingRegistration]);
+  }, [authenticated, user?.wallet?.address]);
 
   return (
     <>
@@ -300,7 +306,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                       >
                         Tower is invite-only
                       </h1>
-                      <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#6E7178]">
+                     <p className="mx-auto whitespace-nowrap text-[0.68rem] leading-5 text-[#6E7178] sm:max-w-[21rem] sm:text-[0.8rem] sm:leading-6">
                         Beta access requires an invite from an existing user
                       </p>
                     </div>
@@ -367,9 +373,8 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </form>
 
                     <div className="mt-5 space-y-3">
-                      <p className="mx-auto flex max-w-full items-center justify-center gap-1 whitespace-nowrap text-[0.72rem] leading-5 text-white sm:text-[0.76rem]">
-                        <span>Don&apos;t have an invite code?</span>
-                        <span>Join</span>
+                      <p className="mx-auto max-w-[17rem] text-[0.72rem] leading-5 text-white sm:max-w-[21rem] sm:text-[0.76rem]">
+                        <span>Don&apos;t have an invite code? Join </span>
                         <a
                           href={DISCORD_INVITE_URL}
                           target="_blank"
@@ -378,7 +383,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                         >
                           Discord
                         </a>
-                        <span>or</span>
+                        <span> or </span>
                         <a
                           href={TELEGRAM_INVITE_URL}
                           target="_blank"
@@ -387,7 +392,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                         >
                           Telegram
                         </a>
-                        <span>to get one</span>
+                        <span> to get one</span>
                       </p>
                       {!authenticated ? (
                         <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
@@ -400,6 +405,10 @@ export default function InviteGate({ children }: InviteGateProps) {
                           >
                             Connect Wallet
                           </button>
+                        </p>
+                      ) : isCheckingRegistration ? (
+                        <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
+                          Checking wallet access...
                         </p>
                       ) : null}
                     </div>
