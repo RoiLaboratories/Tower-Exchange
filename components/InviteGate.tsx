@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   type FormEvent,
   type ReactNode,
   useEffect,
@@ -10,6 +11,7 @@ import {
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 
 import { ErrorBadge } from "@/components/ui/error-badge";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -35,6 +37,51 @@ const normalizeWalletAddress = (walletAddress?: string | null) => {
 
   const normalizedWalletAddress = walletAddress.trim().toLowerCase();
   return normalizedWalletAddress || null;
+};
+
+const getPrivyWalletAddresses = (privyUser: unknown) => {
+  const typedPrivyUser = privyUser as
+    | {
+        wallet?: { address?: string | null } | null;
+        linkedAccounts?: unknown[];
+      }
+    | null
+    | undefined;
+  const walletAddresses = new Set<string>();
+
+  const primaryWalletAddress = normalizeWalletAddress(
+    typedPrivyUser?.wallet?.address,
+  );
+  if (primaryWalletAddress) {
+    walletAddresses.add(primaryWalletAddress);
+  }
+
+  for (const linkedAccount of typedPrivyUser?.linkedAccounts ?? []) {
+    if (!linkedAccount || typeof linkedAccount !== "object") {
+      continue;
+    }
+
+    const typedLinkedAccount = linkedAccount as {
+      address?: string | null;
+      chainType?: string | null;
+    };
+
+    if (
+      typedLinkedAccount.chainType &&
+      typedLinkedAccount.chainType !== "ethereum"
+    ) {
+      continue;
+    }
+
+    const linkedWalletAddress = normalizeWalletAddress(
+      typedLinkedAccount.address,
+    );
+    if (linkedWalletAddress) {
+      walletAddresses.add(linkedWalletAddress);
+    }
+  }
+
+  return Array.from(walletAddresses);
 };
 
 const clearLegacyInviteAccess = () => {
@@ -140,7 +187,7 @@ const getInviteErrorLabel = (message?: string | null) => {
     normalized.includes("unable to verify") ||
     normalized.includes("unexpected error")
   ) {
-    return "Enter code to continue.";
+    return "Unable to verify code.";
   }
 
   return message && message.length <= 32 ? message : "Invalid invite code.";
@@ -155,42 +202,63 @@ export default function InviteGate({ children }: InviteGateProps) {
   const [accessState, setAccessState] = useState<InviteAccessState>(() =>
     readStoredAccessState(),
   );
+  const [lastCheckedWalletAddress, setLastCheckedWalletAddress] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCheckingRegistration, setIsCheckingRegistration] = useState(false);
   const [isFinalizingInvite, setIsFinalizingInvite] = useState(false);
   const { authenticated, login, user, ready } = useRainbowKitAuth();
+  const {
+    authenticated: privyAuthenticated,
+    ready: privyReady,
+    user: privyUser,
+  } = usePrivy();
 
   const currentWalletAddress = normalizeWalletAddress(user?.wallet?.address);
+  const legacyPrivyWalletAddresses = useMemo(
+    () => getPrivyWalletAddresses(privyUser),
+    [privyUser],
+  );
   const hasPendingInviteAccess = accessState.status === "pending-invite";
   const hasWalletAccess =
     accessState.status === "wallet-verified" &&
     currentWalletAddress !== null &&
     accessState.walletAddress === currentWalletAddress;
+  const hasLegacyPrivyWalletAccess =
+    privyReady &&
+    privyAuthenticated &&
+    currentWalletAddress !== null &&
+    legacyPrivyWalletAddresses.includes(currentWalletAddress);
 
-  const setLockedAccess = (nextError: string | null = null) => {
+  const requireInviteForWallet = useCallback((
+    walletAddress: string | null,
+    nextError: string | null = null,
+  ) => {
     persistAccessState(LOCKED_ACCESS_STATE);
     setAccessState(LOCKED_ACCESS_STATE);
+    setLastCheckedWalletAddress(walletAddress);
     setInviteCode("");
     setSubmitError(nextError);
     setIsSubmitting(false);
     setIsConnectingWallet(false);
+    setIsCheckingRegistration(false);
     setIsFinalizingInvite(false);
-  };
+  }, []);
 
   const setPendingInviteAccess = () => {
     const nextAccessState: InviteAccessState = { status: "pending-invite" };
 
     persistAccessState(nextAccessState);
     setAccessState(nextAccessState);
+    setLastCheckedWalletAddress(null);
     setInviteCode("");
     setSubmitError(null);
     setIsSubmitting(false);
     setIsConnectingWallet(false);
   };
 
-  const grantWalletAccess = (walletAddress: string) => {
+  const grantWalletAccess = useCallback((walletAddress: string) => {
     const nextAccessState: InviteAccessState = {
       status: "wallet-verified",
       walletAddress,
@@ -198,22 +266,71 @@ export default function InviteGate({ children }: InviteGateProps) {
 
     persistAccessState(nextAccessState);
     setAccessState(nextAccessState);
+    setLastCheckedWalletAddress(walletAddress);
     setInviteCode("");
     setSubmitError(null);
     setIsSubmitting(false);
     setIsConnectingWallet(false);
     setIsCheckingRegistration(false);
     setIsFinalizingInvite(false);
-  };
+  }, []);
 
   useEffect(() => {
     clearLegacyInviteAccess();
   }, []);
 
+  useEffect(() => {
+    if (!authenticated || !currentWalletAddress) {
+      setLastCheckedWalletAddress(null);
+    }
+  }, [authenticated, currentWalletAddress]);
+
+  useEffect(() => {
+    if (
+      !ready ||
+      !privyReady ||
+      !authenticated ||
+      !currentWalletAddress ||
+      hasWalletAccess ||
+      !hasLegacyPrivyWalletAccess
+    ) {
+      return;
+    }
+
+    grantWalletAccess(currentWalletAddress);
+  }, [
+    authenticated,
+    currentWalletAddress,
+    grantWalletAccess,
+    hasLegacyPrivyWalletAccess,
+    hasWalletAccess,
+    privyReady,
+    ready,
+  ]);
+
   // Keep the app locked until the connected wallet has been explicitly verified.
   // Invite-code users may connect after entering a code, but the wallet must still
   // be finalized against that invite before the app is unlocked.
   const shouldGate = !ready || !authenticated || !hasWalletAccess;
+
+  const shouldShowInviteForm =
+    ready &&
+    authenticated &&
+    currentWalletAddress !== null &&
+    !hasWalletAccess &&
+    !hasPendingInviteAccess &&
+    privyReady &&
+    !hasLegacyPrivyWalletAccess &&
+    !isCheckingRegistration &&
+    !isFinalizingInvite &&
+    lastCheckedWalletAddress === currentWalletAddress;
+
+  const shouldShowWalletResolutionState =
+    ready &&
+    authenticated &&
+    currentWalletAddress !== null &&
+    !hasWalletAccess &&
+    !shouldShowInviteForm;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -237,6 +354,8 @@ export default function InviteGate({ children }: InviteGateProps) {
   const isAccessButtonDisabled = useMemo(() => {
     return (
       !ready ||
+      !authenticated ||
+      !currentWalletAddress ||
       !inviteCode.trim() ||
       isSubmitting ||
       isCheckingRegistration ||
@@ -245,6 +364,8 @@ export default function InviteGate({ children }: InviteGateProps) {
     );
   }, [
     hasPendingInviteAccess,
+    authenticated,
+    currentWalletAddress,
     inviteCode,
     isCheckingRegistration,
     isFinalizingInvite,
@@ -358,7 +479,12 @@ export default function InviteGate({ children }: InviteGateProps) {
         }
 
         if (!response.ok || !result.success) {
-          setLockedAccess(getInviteErrorLabel(result.message ?? "Unable to verify wallet registration."));
+          requireInviteForWallet(
+            currentWalletAddress,
+            getInviteErrorLabel(
+              result.message ?? "Unable to verify wallet registration.",
+            ),
+          );
           return;
         }
 
@@ -368,7 +494,7 @@ export default function InviteGate({ children }: InviteGateProps) {
         }
 
         if (!hasPendingInviteAccess) {
-          setLockedAccess(null);
+          requireInviteForWallet(currentWalletAddress, null);
           return;
         }
 
@@ -395,7 +521,10 @@ export default function InviteGate({ children }: InviteGateProps) {
         }
 
         if (!finalizeResponse.ok || !finalizeResult.success) {
-          setLockedAccess(getInviteErrorLabel(finalizeResult.message));
+          requireInviteForWallet(
+            currentWalletAddress,
+            getInviteErrorLabel(finalizeResult.message),
+          );
           return;
         }
 
@@ -404,7 +533,10 @@ export default function InviteGate({ children }: InviteGateProps) {
         console.error("Failed to resolve wallet access:", error);
 
         if (!cancelled) {
-          setLockedAccess(getInviteErrorLabel("Unable to verify wallet registration."));
+          requireInviteForWallet(
+            currentWalletAddress,
+            getInviteErrorLabel("Unable to verify wallet registration."),
+          );
         }
       } finally {
         if (!cancelled) {
@@ -422,8 +554,10 @@ export default function InviteGate({ children }: InviteGateProps) {
   }, [
     authenticated,
     currentWalletAddress,
+    grantWalletAccess,
     hasPendingInviteAccess,
     hasWalletAccess,
+    requireInviteForWallet,
     ready,
   ]);
 
@@ -520,33 +654,52 @@ export default function InviteGate({ children }: InviteGateProps) {
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>Loading access...</span>
                       </div>
-                    ) : (
+                    ) : shouldShowWalletResolutionState ? (
+                      <div className="mt-6 space-y-4">
+                        <div className="flex items-center justify-center gap-2 text-[0.88rem] text-[#7B7E85]">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>
+                            {isFinalizingInvite
+                              ? "Linking invite to wallet..."
+                              : hasPendingInviteAccess
+                                ? "Invite accepted. Connect your wallet to finish access."
+                                : hasLegacyPrivyWalletAccess
+                                  ? "Restoring legacy wallet access..."
+                                  : "Checking wallet access..."}
+                          </span>
+                        </div>
+
+                        {submitError ? (
+                          <ErrorBadge
+                            message={submitError}
+                            fallback="Unable to verify wallet access."
+                            centered
+                            className="border-[#ff8c8c]/18 bg-[#2a1518]/80 text-[#ff9a9a]"
+                          />
+                        ) : null}
+                      </div>
+                    ) : shouldShowInviteForm ? (
                       <>
+                        <p className="mt-5 text-[0.8rem] leading-6 text-[#7B7E85]">
+                          This wallet needs an invite code before it can enter Tower.
+                        </p>
+
                         <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
                           <label className="invite-gate-input-shell block overflow-hidden rounded-sm border border-white/[0.08] bg-[#121213] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors focus-within:border-white/[0.08]">
                             <span className="sr-only">Invite code</span>
                             <input
                               type="text"
                               value={inviteCode}
-                              disabled={
-                                hasPendingInviteAccess ||
-                                isSubmitting ||
-                                isCheckingRegistration ||
-                                isFinalizingInvite
-                              }
+                              disabled={isSubmitting}
                               onChange={(event) => {
                                 setInviteCode(event.target.value.toUpperCase());
                                 if (submitError) {
                                   setSubmitError(null);
                                 }
                               }}
-                              placeholder={
-                                hasPendingInviteAccess
-                                  ? "Invite accepted"
-                                  : "Enter your invite code"
-                              }
+                              placeholder="Enter your invite code"
                               autoComplete="one-time-code"
-                              autoFocus={!hasPendingInviteAccess}
+                              autoFocus
                               aria-invalid={submitError ? "true" : "false"}
                               aria-describedby={
                                 submitError ? "invite-code-error" : undefined
@@ -570,10 +723,6 @@ export default function InviteGate({ children }: InviteGateProps) {
                                 className="border-[#ff8c8c]/18 bg-[#2a1518]/80 text-[#ff9a9a]"
                               />
                             </div>
-                          ) : hasPendingInviteAccess ? (
-                            <p className="text-[0.78rem] leading-5 text-[#7BB8FF]">
-                              Invite accepted. Connect your wallet to finish access.
-                            </p>
                           ) : null}
 
                           <button
@@ -591,64 +740,75 @@ export default function InviteGate({ children }: InviteGateProps) {
                                 <Loader2 className="h-4 w-4 animate-spin" />
                                 <span>Checking code</span>
                               </>
-                            ) : hasPendingInviteAccess ? (
-                              <span>Invite accepted</span>
                             ) : (
                               <span>Access Tower</span>
                             )}
                           </button>
                         </form>
-
-                        <div className="mt-5 space-y-3">
-                          <p className="mx-auto w-fit whitespace-nowrap text-left text-[0.62rem] leading-4 text-white sm:text-[0.76rem] sm:leading-5">
-                            <span>Don&apos;t have an invite code? Join </span>
-                            <a
-                              href={DISCORD_INVITE_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff]"
-                            >
-                              Discord
-                            </a>
-                            <span> or </span>
-                            <a
-                              href={TELEGRAM_INVITE_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff]"
-                            >
-                              Telegram
-                            </a>
-                            <span> to get one</span>
-                          </p>
-                          {!authenticated ? (
-                            <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
-                              {hasPendingInviteAccess ? (
-                                <span>Invite accepted. </span>
-                              ) : (
-                                <span>Already used your code? </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={handleConnectWallet}
-                                disabled={isConnectingWallet}
-                                className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff] disabled:cursor-wait disabled:opacity-60"
-                              >
-                                Connect Wallet
-                              </button>
-                            </p>
-                          ) : isFinalizingInvite ? (
-                            <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
-                              Linking invite to wallet...
-                            </p>
-                          ) : isCheckingRegistration ? (
-                            <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
-                              Checking wallet access...
-                            </p>
-                          ) : null}
-                        </div>
                       </>
+                    ) : (
+                      <div className="mt-6 space-y-4">
+                        <p className="mx-auto max-w-[21rem] text-[0.8rem] leading-6 text-[#7B7E85]">
+                          {hasPendingInviteAccess
+                            ? "Invite accepted. Connect the same wallet to finish access."
+                            : "Connect your wallet to continue. Existing users will be admitted automatically, and new wallets will need an invite code."}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleConnectWallet}
+                          disabled={isConnectingWallet}
+                          className={cn(
+                            "inline-flex h-[3.25rem] w-full items-center justify-center gap-2 rounded-full text-[0.98rem] font-medium transition-all",
+                            isConnectingWallet
+                              ? "cursor-wait bg-[#2B2D31] text-[#5F636C]"
+                              : "bg-primary text-black hover:opacity-90",
+                          )}
+                        >
+                          {isConnectingWallet ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Opening wallet</span>
+                            </>
+                          ) : (
+                            <span>Connect Wallet</span>
+                          )}
+                        </button>
+
+                        {submitError ? (
+                          <ErrorBadge
+                            message={submitError}
+                            fallback="Unable to verify wallet access."
+                            centered
+                            className="border-[#ff8c8c]/18 bg-[#2a1518]/80 text-[#ff9a9a]"
+                          />
+                        ) : null}
+                      </div>
                     )}
+
+                    <div className="mt-5 space-y-3">
+                      <p className="mx-auto w-fit whitespace-nowrap text-left text-[0.62rem] leading-4 text-white sm:text-[0.76rem] sm:leading-5">
+                        <span>Don&apos;t have an invite code? Join </span>
+                        <a
+                          href={DISCORD_INVITE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff]"
+                        >
+                          Discord
+                        </a>
+                        <span> or </span>
+                        <a
+                          href={TELEGRAM_INVITE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline decoration-primary underline-offset-4 transition-colors hover:text-[#9cccff] hover:decoration-[#9cccff]"
+                        >
+                          Telegram
+                        </a>
+                        <span> to get one</span>
+                      </p>
+                    </div>
                   </div>
                 </motion.section>
               </div>

@@ -5,6 +5,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import InviteGate from "@/components/InviteGate";
+import { PrivyProvider } from "@/components/providers/PrivyProvider";
 import { CustomRainbowKitProvider } from "@/components/providers/RainbowKitProvider";
 
 const sora = Sora({
@@ -48,15 +49,17 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} ${cinzel.variable}  antialiased`} suppressHydrationWarning>
         <CustomRainbowKitProvider>
-          <InviteGate>
-            <div className="flex flex-col min-h-screen relative">
-              <Header />
-              <div className="flex-1 pt-20 min-h-0">
-                {children}
+          <PrivyProvider>
+            <InviteGate>
+              <div className="flex flex-col min-h-screen relative">
+                <Header />
+                <div className="flex-1 pt-20 min-h-0">
+                  {children}
+                </div>
+                <Footer />
               </div>
-              <Footer />
-            </div>
-          </InviteGate>
+            </InviteGate>
+          </PrivyProvider>
         </CustomRainbowKitProvider>
       </body>
     </html>
