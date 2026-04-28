@@ -298,7 +298,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </div>
                   </div>
 
-                  <div className="px-6 pb-6 pt-4 text-center sm:px-6 sm:pb-7 sm:pt-5">
+                  <div className="px-4 pb-6 pt-4 text-center sm:px-6 sm:pb-7 sm:pt-5">
                     <div className="space-y-2.5">
                       <h1
                         id="invite-gate-title"
@@ -306,7 +306,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                       >
                         Tower is invite-only
                       </h1>
-                     <p className="mx-auto whitespace-nowrap text-[0.68rem] leading-5 text-[#6E7178] sm:max-w-[21rem] sm:text-[0.8rem] sm:leading-6">
+                      <p className="mx-auto whitespace-nowrap text-[0.68rem] leading-5 text-[#6E7178] sm:max-w-[21rem] sm:text-[0.8rem] sm:leading-6">
                         Beta access requires an invite from an existing user
                       </p>
                     </div>
@@ -373,7 +373,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </form>
 
                     <div className="mt-5 space-y-3">
-                      <p className="mx-auto max-w-[17rem] text-[0.72rem] leading-5 text-white sm:max-w-[21rem] sm:text-[0.76rem]">
+                      <p className="mx-auto whitespace-nowrap text-[0.62rem] leading-4 text-white sm:max-w-[21rem] sm:text-[0.76rem] sm:leading-5">
                         <span>Don&apos;t have an invite code? Join </span>
                         <a
                           href={DISCORD_INVITE_URL}
