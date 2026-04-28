@@ -187,7 +187,7 @@ const getInviteErrorLabel = (message?: string | null) => {
     normalized.includes("unable to verify") ||
     normalized.includes("unexpected error")
   ) {
-    return "Enter code to continue.";
+    return "Enter code to continue";
   }
 
   return message && message.length <= 32 ? message : "Invalid invite code.";
