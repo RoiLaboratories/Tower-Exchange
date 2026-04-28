@@ -43,7 +43,7 @@ body {
   --color-success-foreground: hsl(210 40% 98%);
 
   --color-border: hsl(220 15% 18%);
-  --color-input: hsl(220 20% 12%);
+  --color-input: #121213;
   --color-ring: #7bb8ff;
 
   --radius-sm: 0.625rem;
@@ -198,4 +198,41 @@ input.tower-chat-input[type="text"]::placeholder {
   border-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.36) !important;
   outline: none !important;
+}
+
+.invite-gate-input-shell,
+.invite-gate-input-shell:focus-within {
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+input.invite-gate-input[type="text"],
+input.invite-gate-input[type="text"]:hover,
+input.invite-gate-input[type="text"]:active,
+input.invite-gate-input[type="text"]:focus,
+input.invite-gate-input[type="text"]:focus-visible {
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+input.invite-gate-input[type="text"]::-moz-focus-inner {
+  border: 0 !important;
+}
+
+input.invite-gate-input[type="text"]:-webkit-autofill,
+input.invite-gate-input[type="text"]:-webkit-autofill:hover,
+input.invite-gate-input[type="text"]:-webkit-autofill:focus,
+input.invite-gate-input[type="text"]:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0 1000px #121213 inset !important;
+  box-shadow: 0 0 0 1000px #121213 inset !important;
+  caret-color: #7bb8ff !important;
+  transition: background-color 9999s ease-out 0s !important;
 }

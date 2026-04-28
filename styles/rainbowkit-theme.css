@@ -141,17 +141,29 @@ div[style*="background: rgba(0, 0, 0"] {
 }
 
 /* Outlined/Border Inputs */
-[data-rk] input[type="text"],
-[data-rk] input[type="search"],
+[role="dialog"] input[type="text"],
+[role="dialog"] input[type="search"],
+[role="dialog"] input[type="email"],
+[role="dialog"] input[type="tel"],
+[role="alertdialog"] input[type="text"],
+[role="alertdialog"] input[type="search"],
+[role="alertdialog"] input[type="email"],
+[role="alertdialog"] input[type="tel"],
 .rainbowkit-input {
-  background-color: hsl(220 20% 12%) !important;
+  background-color: #121213 !important;
   color: hsl(210 40% 98%) !important;
   border: 1px solid hsl(220 15% 18%) !important;
   border-radius: 0.75rem !important;
 }
 
-[data-rk] input[type="text"]:focus,
-[data-rk] input[type="search"]:focus,
+[role="dialog"] input[type="text"]:focus,
+[role="dialog"] input[type="search"]:focus,
+[role="dialog"] input[type="email"]:focus,
+[role="dialog"] input[type="tel"]:focus,
+[role="alertdialog"] input[type="text"]:focus,
+[role="alertdialog"] input[type="search"]:focus,
+[role="alertdialog"] input[type="email"]:focus,
+[role="alertdialog"] input[type="tel"]:focus,
 .rainbowkit-input:focus {
   border-color: #7bb8ff !important;
   box-shadow: 0 0 0 3px rgba(123, 184, 255, 0.1) !important;

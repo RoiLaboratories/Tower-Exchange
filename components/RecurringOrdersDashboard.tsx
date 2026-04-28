@@ -6,6 +6,7 @@ import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
 import CancelOrderConfirmationModal from "@/components/CancelOrderConfirmationModal";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import { ErrorBadge } from "@/components/ui/error-badge";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
 export const RecurringOrdersDashboard = () => {
@@ -427,7 +428,12 @@ export const RecurringOrdersDashboard = () => {
                     )}
 
                     {execution.error_message && (
-                      <p className="text-xs text-red-400 mt-2">{execution.error_message}</p>
+                      <div className="mt-2">
+                        <ErrorBadge
+                          message={execution.error_message}
+                          fallback="Execution failed."
+                        />
+                      </div>
                     )}
                   </motion.div>
                 ))

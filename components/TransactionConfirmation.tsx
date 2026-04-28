@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { CheckCircle, Loader, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
+import { ErrorBadge } from "@/components/ui/error-badge";
+
 interface TransactionConfirmationProps {
   status: "idle" | "signing" | "broadcasting" | "confirming" | "confirmed" | "error";
   statusMessage?: string;
@@ -108,14 +110,18 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
 
         <div className="min-w-0 flex-1">
           {showInlineError ? (
-            <p className="text-left text-sm leading-5 text-red-400">
-              {error}
-            </p>
+            <ErrorBadge
+              message={error}
+              fallback="Transaction failed."
+              className="align-top"
+            />
           ) : (
             <>
               <h3 className="mb-1 font-semibold text-white">{statusTitle}</h3>
               {showStackedError ? (
-                <p className="text-sm text-red-400">{error}</p>
+                <div className="mt-2">
+                  <ErrorBadge message={error} fallback="Transaction failed." />
+                </div>
               ) : statusMessage && (
                 <p className="mb-3 text-sm text-gray-300">{statusMessage}</p>
               )}
@@ -160,7 +166,9 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
           )}
 
           {error && !showInlineError && !showStackedError && (
-            <p className="text-sm text-red-400 mt-2">{error}</p>
+            <div className="mt-2">
+              <ErrorBadge message={error} fallback="Transaction failed." />
+            </div>
           )}
 
           {status === "confirmed" && (
