@@ -12,7 +12,7 @@ import { createConfig, http } from "wagmi";
 import {
   coinbaseWallet as coinbaseWalletConnector,
   injected,
-} from "wagmi/connectors";
+} from "@wagmi/connectors";
 import {
   arbitrum,
   base,
@@ -20,7 +20,7 @@ import {
   optimism,
   polygon,
   sepolia,
-} from "wagmi/chains";
+} from "viem/chains";
 
 const rpcProxyUrl = (chainId: number) => `/api/rpc/${chainId}`;
 const walletConnectProjectId =
