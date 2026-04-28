@@ -787,8 +787,8 @@ export default function InviteGate({ children }: InviteGateProps) {
                     )}
 
                     <div className="mt-5 space-y-3">
-                      <p className="mx-auto w-fit whitespace-nowrap text-left text-[0.62rem] leading-4 text-white sm:text-[0.76rem] sm:leading-5">
-                        <span>Don&apos;t have an invite code? Join </span>
+                      <p className="mx-auto w-fit whitespace-nowrap text-left text-[0.72rem] leading-[1.1rem] text-white sm:text-[0.76rem] sm:leading-5">
+                        <span>Get an invite code on </span>
                         <a
                           href={DISCORD_INVITE_URL}
                           target="_blank"
@@ -806,7 +806,6 @@ export default function InviteGate({ children }: InviteGateProps) {
                         >
                           Telegram
                         </a>
-                        <span> to get one</span>
                       </p>
                     </div>
                   </div>
