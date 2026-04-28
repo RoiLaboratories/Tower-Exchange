@@ -373,7 +373,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                     </form>
 
                     <div className="mt-5 space-y-3">
-                      <p className="mx-auto whitespace-nowrap text-[0.62rem] leading-4 text-white sm:max-w-[21rem] sm:text-[0.76rem] sm:leading-5">
+                      <p className="mx-auto w-fit whitespace-nowrap text-left text-[0.62rem] leading-4 text-white sm:text-[0.76rem] sm:leading-5">
                         <span>Don&apos;t have an invite code? Join </span>
                         <a
                           href={DISCORD_INVITE_URL}
