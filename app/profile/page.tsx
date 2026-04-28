@@ -10,19 +10,31 @@ import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/pr
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
+  type EthereumWindow = Window & {
+  ethereum?: {
+    request?: (args: {
+      method: string;
+      params?: unknown[];
+    }) => Promise<unknown>;
+    on?: (event: string, handler: (chainId: string) => void) => void;
+    removeListener?: (event: string, handler: (chainId: string) => void) => void;
+  };
+};
+
 const Profile = () => {
   const [activeTab, setActiveTab] = useState("positions");
   const { authenticated, user } = useRainbowKitAuth();
   const [chainId, setChainId] = useState<string | null>(null);
   const [totalPortfolioValue, setTotalPortfolioValue] = useState("$0.00");
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [profileImageError, setProfileImageError] = useState(false);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !(window as any).ethereum) return;
-    const { ethereum } = window as any;
+    const ethereum = typeof window === "undefined" ? undefined : (window as EthereumWindow).ethereum;
+    if (!ethereum) return;
 
     const handleChainChanged = (newChainId: string) => {
       setChainId(newChainId);
@@ -30,7 +42,7 @@ const Profile = () => {
 
     ethereum
       .request?.({ method: "eth_chainId" })
-      .then((id: string) => setChainId(id))
+      .then((id) => setChainId(typeof id === "string" ? id : null))
       .catch(() => setChainId(null));
 
     ethereum.on?.("chainChanged", handleChainChanged);
@@ -42,10 +54,13 @@ const Profile = () => {
     const loadProfile = async () => {
       if (user?.wallet?.address) {
         const savedProfilePicture = await loadProfileData(user.wallet.address);
-        if (savedProfilePicture) {
-          setProfilePictureUrl(savedProfilePicture);
-        }
+        setProfilePictureUrl(savedProfilePicture);
+        setProfileImageError(false);
+        return;
       }
+
+      setProfilePictureUrl(null);
+      setProfileImageError(false);
     };
 
     loadProfile();
@@ -59,9 +74,10 @@ const Profile = () => {
   }, [user?.wallet?.address]);
 
   const handleAddArcNetwork = async () => {
-    if (typeof window === "undefined" || !(window as any).ethereum) return;
+    const ethereum = typeof window === "undefined" ? undefined : (window as EthereumWindow).ethereum;
+    if (!ethereum) return;
     try {
-      await (window as any).ethereum.request({
+      await ethereum.request?.({
         method: "wallet_addEthereumChain",
         params: ARC_ADD_NETWORK_PARAMS,
       });
@@ -82,6 +98,7 @@ const Profile = () => {
     try {
       const url = await uploadProfilePicture(file, user.wallet.address);
       setProfilePictureUrl(url);
+      setProfileImageError(false);
       saveProfileData(user.wallet.address, url);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to upload profile picture";
@@ -129,8 +146,14 @@ const Profile = () => {
                     width={96}
                     height={96}
                     className="w-full h-full object-cover"
+                    unoptimized={true}
+                    onError={() => {
+                      console.error("Failed to load profile image:", profilePictureUrl);
+                      setProfileImageError(true);
+                    }}
                   />
-                ) : (
+                ) : null}
+                {!profilePictureUrl || profileImageError ? (
                   <Image
                     src="/assets/Profile logo.svg"
                     alt="Profile"
@@ -138,7 +161,7 @@ const Profile = () => {
                     height={96}
                     className="w-full h-full object-cover"
                   />
-                )}
+                ) : null}
               </div>
 
               {/* Upload overlay button */}

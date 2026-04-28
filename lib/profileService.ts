@@ -7,6 +7,16 @@ export interface ProfileData {
   bio?: string;
 }
 
+const getProfileStorageKey = (walletAddress: string): string =>
+  `tower-finance-profile-${walletAddress.trim().toLowerCase()}`;
+
+const getProfileWalletPaths = (walletAddress: string): string[] => {
+  const normalized = walletAddress.trim().toLowerCase();
+  const raw = walletAddress.trim();
+
+  return normalized === raw ? [normalized] : [normalized, raw];
+};
+
 /**
  * Upload a profile picture to Supabase storage
  * @param file - The image file to upload
@@ -34,9 +44,11 @@ export const uploadProfilePicture = async (
   }
 
   try {
+    const normalizedWalletAddress = walletAddress.trim().toLowerCase();
+
     // Use simpler path structure: {walletAddress}/profile.{ext}
     const ext = file.type.split("/")[1]; // Get extension from mime type
-    const filePath = `${walletAddress}/profile.${ext}`;
+    const filePath = `${normalizedWalletAddress}/profile.${ext}`;
 
     // Upload to Supabase storage
     const { data, error } = await supabase.storage
@@ -104,17 +116,15 @@ export const deleteProfilePicture = async (filePath: string): Promise<void> => {
  */
 export const saveProfileData = (walletAddress: string, profilePictureUrl: string): void => {
   try {
+    const normalizedWalletAddress = walletAddress.trim().toLowerCase();
     const profileData = {
-      walletAddress,
+      walletAddress: normalizedWalletAddress,
       profilePictureUrl,
       updatedAt: new Date().toISOString(),
     };
 
     // Save to localStorage for persistence
-    localStorage.setItem(
-      `tower-finance-profile-${walletAddress}`,
-      JSON.stringify(profileData)
-    );
+    localStorage.setItem(getProfileStorageKey(walletAddress), JSON.stringify(profileData));
   } catch (error) {
     console.error("Error saving profile data:", error);
   }
@@ -126,11 +136,20 @@ export const saveProfileData = (walletAddress: string, profilePictureUrl: string
  */
 export const loadProfileData = async (walletAddress: string): Promise<string | null> => {
   try {
-    // First try to load from localStorage
-    const data = localStorage.getItem(`tower-finance-profile-${walletAddress}`);
-    if (data) {
+    // First try to load from localStorage, including legacy non-normalized keys.
+    const localStorageKeys = Array.from(
+      new Set([getProfileStorageKey(walletAddress), `tower-finance-profile-${walletAddress.trim()}`])
+    );
+
+    for (const storageKey of localStorageKeys) {
+      const data = localStorage.getItem(storageKey);
+      if (!data) {
+        continue;
+      }
+
       const profileData = JSON.parse(data);
       if (profileData.profilePictureUrl) {
+        saveProfileData(walletAddress, profileData.profilePictureUrl);
         return profileData.profilePictureUrl;
       }
     }
@@ -138,26 +157,28 @@ export const loadProfileData = async (walletAddress: string): Promise<string | n
     // Try to get the profile picture from storage bucket
     // Check common file extensions
     const extensions = ["jpg", "jpeg", "png", "webp", "gif"];
-    
-    for (const ext of extensions) {
-      const filePath = `${walletAddress}/profile.${ext}`;
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("profile-pictures")
-        .getPublicUrl(filePath);
 
-      // Try to fetch to see if file exists
-      try {
-        const response = await fetch(publicUrl, { method: "GET" });
-        if (response.ok) {
-          // File exists, cache and return
-          saveProfileData(walletAddress, publicUrl);
-          return publicUrl;
+    for (const walletPath of getProfileWalletPaths(walletAddress)) {
+      for (const ext of extensions) {
+        const filePath = `${walletPath}/profile.${ext}`;
+        const {
+          data: { publicUrl },
+        } = supabase.storage
+          .from("profile-pictures")
+          .getPublicUrl(filePath);
+
+        // Try to fetch to see if file exists
+        try {
+          const response = await fetch(publicUrl, { method: "GET" });
+          if (response.ok) {
+            // File exists, cache and return
+            saveProfileData(walletAddress, publicUrl);
+            return publicUrl;
+          }
+        } catch {
+          // File doesn't exist at this path, try next extension
+          continue;
         }
-      } catch (error) {
-        // File doesn't exist at this path, try next extension
-        continue;
       }
     }
 
