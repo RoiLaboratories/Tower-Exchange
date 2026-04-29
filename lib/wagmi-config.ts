@@ -15,9 +15,13 @@ import {
 } from "@wagmi/connectors";
 import {
   arbitrum,
+  arbitrumSepolia,
+  avalancheFuji,
   base,
+  baseSepolia,
   mainnet,
   optimism,
+  optimismSepolia,
   polygon,
   sepolia,
 } from "viem/chains";
@@ -61,6 +65,95 @@ const arcTestnet = {
   testnet: true,
 } as const;
 
+const lineaSepolia = {
+  id: 59141,
+  name: "Linea Sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: { http: ["https://rpc.sepolia.linea.build"] },
+  },
+  blockExplorers: {
+    default: { name: "LineaScan", url: "https://sepolia.lineascan.build" },
+  },
+  testnet: true,
+} as const;
+
+const polygonAmoy = {
+  id: 80002,
+  name: "Polygon Amoy",
+  nativeCurrency: {
+    decimals: 18,
+    name: "POL",
+    symbol: "POL",
+  },
+  rpcUrls: {
+    default: { http: ["https://rpc-amoy.polygon.technology"] },
+  },
+  blockExplorers: {
+    default: { name: "PolygonScan", url: "https://amoy.polygonscan.com" },
+  },
+  testnet: true,
+} as const;
+
+const sonicTestnet = {
+  id: 14601,
+  name: "Sonic Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Sonic",
+    symbol: "S",
+  },
+  rpcUrls: {
+    default: { http: ["https://rpc.testnet.soniclabs.com"] },
+  },
+  blockExplorers: {
+    default: { name: "SonicScan", url: "https://testnet.sonicscan.org" },
+  },
+  testnet: true,
+} as const;
+
+const unichainSepolia = {
+  id: 1301,
+  name: "Unichain Sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Uni",
+    symbol: "UNI",
+  },
+  rpcUrls: {
+    default: { http: ["https://sepolia.unichain.org"] },
+  },
+  blockExplorers: {
+    default: {
+      name: "Blockscout",
+      url: "https://unichain-sepolia.blockscout.com",
+    },
+  },
+  testnet: true,
+} as const;
+
+const supportedChains = [
+  ethereumMainnet,
+  polygon,
+  arbitrum,
+  base,
+  optimism,
+  sepolia,
+  arcTestnet,
+  baseSepolia,
+  optimismSepolia,
+  avalancheFuji,
+  arbitrumSepolia,
+  lineaSepolia,
+  polygonAmoy,
+  sonicTestnet,
+  unichainSepolia,
+] as const;
+
 const connectors = walletConnectProjectId
   ? connectorsForWallets(
       [
@@ -89,7 +182,7 @@ const connectors = walletConnectProjectId
     ];
 
 export const wagmiConfig = createConfig({
-  chains: [ethereumMainnet, polygon, arbitrum, base, optimism, sepolia, arcTestnet],
+  chains: supportedChains,
   connectors,
   transports: {
     [ethereumMainnet.id]: http(rpcProxyUrl(ethereumMainnet.id)),
@@ -99,5 +192,13 @@ export const wagmiConfig = createConfig({
     [optimism.id]: http(rpcProxyUrl(optimism.id)),
     [sepolia.id]: http(rpcProxyUrl(sepolia.id)),
     [arcTestnet.id]: http(rpcProxyUrl(arcTestnet.id)),
+    [baseSepolia.id]: http(rpcProxyUrl(baseSepolia.id)),
+    [optimismSepolia.id]: http(rpcProxyUrl(optimismSepolia.id)),
+    [avalancheFuji.id]: http(rpcProxyUrl(avalancheFuji.id)),
+    [arbitrumSepolia.id]: http(rpcProxyUrl(arbitrumSepolia.id)),
+    [lineaSepolia.id]: http(rpcProxyUrl(lineaSepolia.id)),
+    [polygonAmoy.id]: http(rpcProxyUrl(polygonAmoy.id)),
+    [sonicTestnet.id]: http(rpcProxyUrl(sonicTestnet.id)),
+    [unichainSepolia.id]: http(rpcProxyUrl(unichainSepolia.id)),
   },
 });

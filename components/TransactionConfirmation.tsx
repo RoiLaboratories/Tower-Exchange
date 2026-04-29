@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, Loader, Copy, ExternalLink } from "lucide-react";
+import { CheckCircle, Loader, Copy, ExternalLink, X } from "lucide-react";
 import { useState } from "react";
 
 import { ErrorBadge } from "@/components/ui/error-badge";
@@ -101,8 +101,19 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-lg border ${showInlineError ? "px-3 py-3 sm:p-4" : "p-4"} ${getStatusColor()}`}
+      className={`relative rounded-lg border ${showInlineError ? "px-3 py-3 pr-10 sm:p-4 sm:pr-10" : "p-4 pr-10"} ${getStatusColor()}`}
     >
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Dismiss transaction message"
+        >
+          <X size={15} />
+        </button>
+      )}
+
       <div className={showInlineError || showStackedError ? "block" : "flex items-start gap-3"}>
         {!showInlineError && (
           <div className="mt-1 shrink-0">{getStatusIcon()}</div>

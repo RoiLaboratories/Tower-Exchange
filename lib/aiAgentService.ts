@@ -69,6 +69,9 @@ export interface AIAgentResponse {
         from: string;
         gasLimit: string;
         chainId: number;
+        platformFeeAmount?: string;
+        expectedUserOutput?: string;
+        expectedFeeCollectorOutput?: string;
       };
     };
   };

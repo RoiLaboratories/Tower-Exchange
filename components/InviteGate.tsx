@@ -645,7 +645,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                         Tower is invite-only
                       </h1>
                       <p className="mx-auto whitespace-nowrap text-[0.72rem] leading-5 text-[#6E7178] sm:max-w-[21rem] sm:text-[0.8rem] sm:leading-6">
-                        Beta access requires an invite from an existing user
+                        Beta access requires an invite code
                       </p>
                     </div>
 

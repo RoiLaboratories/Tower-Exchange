@@ -207,6 +207,7 @@ const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
   "fetchAttestation",
   "mint",
 ]);
+const CHAIN_SWITCH_RESTORE_DELAY_MS = 350;
 
 type BridgeProgressSnapshot = {
   lastStep?: string;
@@ -305,6 +306,51 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
   candidate.__towerBridgeTimeoutPatched = true;
 
   return adapter;
+}
+
+async function getActiveWalletChainId(): Promise<string | null> {
+  const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+
+  if (!provider) {
+    return null;
+  }
+
+  try {
+    const chainId = await provider.request({ method: "eth_chainId" });
+    return typeof chainId === "string" ? chainId : null;
+  } catch (error) {
+    console.warn("Unable to read active wallet chain before bridge:", error);
+    return null;
+  }
+}
+
+async function restoreActiveWalletChain(initialChainId: string | null) {
+  const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+
+  if (!provider || !initialChainId) {
+    return;
+  }
+
+  try {
+    const currentChainId = await provider.request({ method: "eth_chainId" });
+
+    if (currentChainId === initialChainId) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      void provider
+        .request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: initialChainId }],
+        })
+        .catch((error) => {
+          console.warn("Unable to restore wallet network after bridge:", error);
+        });
+    }, CHAIN_SWITCH_RESTORE_DELAY_MS);
+  } catch (error) {
+    console.warn("Unable to check wallet network after bridge:", error);
+  }
 }
 
 /**
@@ -579,6 +625,7 @@ export async function bridgeTokens(
 ): Promise<BridgeResponse> {
   const bridgeProgress: BridgeProgressSnapshot = { events: [] };
   (window as any).__lastBridgeProgress = bridgeProgress;
+  const initialWalletChainId = await getActiveWalletChainId();
 
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
@@ -1101,6 +1148,8 @@ export async function bridgeTokens(
       success: false,
       error: errorMessage,
     };
+  } finally {
+    await restoreActiveWalletChain(initialWalletChainId);
   }
 }
 

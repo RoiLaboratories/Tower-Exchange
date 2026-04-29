@@ -14,7 +14,12 @@ import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
-import { submitSwapFee } from "@/lib/swapExecutionService";
+import {
+  FEE_COLLECTOR_ADDRESS,
+  getErc20TokenBalance,
+  submitSwapFee,
+  waitForTokenBalanceIncrease,
+} from "@/lib/swapExecutionService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -53,6 +58,19 @@ const formatSessionTitle = (text: string) => {
 const isGenericSessionTitle = (title: string) => {
   const normalizedTitle = title.trim();
   return !normalizedTitle || GENERIC_CHAT_TITLES.has(normalizedTitle);
+};
+
+const getFeeCollectorOutputAmount = (
+  transaction?: { expectedFeeCollectorOutput?: string },
+  quote?: { outputAmount?: string }
+) => {
+  const feeCollectorOutput = transaction?.expectedFeeCollectorOutput;
+
+  if (feeCollectorOutput && feeCollectorOutput !== "0") {
+    return feeCollectorOutput;
+  }
+
+  return quote?.outputAmount ?? null;
 };
 
 const getHistorySessionMetadata = (
@@ -224,6 +242,8 @@ export const AIChat = () => {
       setMessages([]);
       setMessage("");
       setError(null);
+      setShowSwapConfirmation(false);
+      swapExecution.resetState();
       setProfileImageError(false);
       setSidebarOpen(false); // Close sidebar after selecting a session
 
@@ -279,6 +299,8 @@ export const AIChat = () => {
           setMessages([]);
           setMessage("");
           setError(null);
+          setShowSwapConfirmation(false);
+          swapExecution.resetState();
           setSessionId("");
           setSidebarOpen(false);
         }
@@ -491,6 +513,22 @@ export const AIChat = () => {
               );
             }
 
+            const feeCollectorBalanceBefore =
+              quote?.outputToken &&
+              quote.outputToken.length === 42 &&
+              quote.outputToken.startsWith("0x")
+                ? await getErc20TokenBalance(
+                    quote.outputToken,
+                    FEE_COLLECTOR_ADDRESS
+                  ).catch((balanceError) => {
+                    console.warn(
+                      "Unable to read FeeCollector balance before swap:",
+                      balanceError
+                    );
+                    return null;
+                  })
+                : null;
+
             await swapExecution.executeSwap(
               txData,
               walletAddress,
@@ -516,6 +554,10 @@ export const AIChat = () => {
                   console.log("quote.outputAmount:", quote.outputAmount);
                   console.log("quote.inputToken:", quote.inputToken);
                   console.log("quote.inputAmount:", quote.inputAmount);
+                  console.log(
+                    "transaction.expectedFeeCollectorOutput:",
+                    txData?.expectedFeeCollectorOutput
+                  );
                   console.log("Full quote object:", JSON.stringify(quote, null, 2));
                 }
                 
@@ -523,41 +565,83 @@ export const AIChat = () => {
                   console.log("─── Initiating Fee Submission ───");
                   
                   const isValidToken = quote.outputToken?.length === 42 && quote.outputToken?.startsWith("0x");
-                  const isValidAmount = quote.outputAmount && Number(quote.outputAmount) > 0;
+                  const actualFeeCollectorOutput =
+                    feeCollectorBalanceBefore !== null
+                      ? await waitForTokenBalanceIncrease(
+                          quote.outputToken,
+                          FEE_COLLECTOR_ADDRESS,
+                          feeCollectorBalanceBefore
+                        )
+                      : 0n;
+                  const feeCollectorOutputAmount =
+                    actualFeeCollectorOutput > 0n
+                      ? actualFeeCollectorOutput.toString()
+                      : getFeeCollectorOutputAmount(txData, quote);
+                  const isValidAmount =
+                    feeCollectorOutputAmount && Number(feeCollectorOutputAmount) > 0;
                   
                   console.log("Pre-submission validation:", {
                     tokenValid: isValidToken,
                     amountValid: isValidAmount,
                     walletValid: walletAddress?.length === 42 && walletAddress?.startsWith("0x"),
+                    feeCollectorOutputAmount,
+                    actualFeeCollectorOutput: actualFeeCollectorOutput.toString(),
+                    expectedFeeCollectorOutput: txData?.expectedFeeCollectorOutput,
+                    quoteOutputAmount: quote.outputAmount,
                   });
 
-                  if (!isValidToken || !isValidAmount) {
+                  if (
+                    feeCollectorBalanceBefore !== null &&
+                    actualFeeCollectorOutput === 0n
+                  ) {
+                    console.error(
+                      "Swap confirmed, but FeeCollector did not receive output tokens.",
+                      {
+                        outputToken: quote.outputToken,
+                        feeCollector: FEE_COLLECTOR_ADDRESS,
+                        expectedFeeCollectorOutput: txData?.expectedFeeCollectorOutput,
+                        quoteOutputAmount: quote.outputAmount,
+                      }
+                    );
+                    setError(
+                      "Swap confirmed, but the output token did not reach the FeeCollector for distribution. The AI swap route needs to be rebuilt with the correct recipient."
+                    );
+                  } else if (!isValidToken || !isValidAmount) {
                     console.error("❌ Invalid quote data - cannot submit fee:", {
                       outputToken: quote.outputToken,
-                      outputAmount: quote.outputAmount,
+                      feeCollectorOutputAmount,
                     });
+                    setError(
+                      "Swap confirmed, but output distribution could not be started because the fee amount was missing."
+                    );
                   } else {
                     console.log("Submitting platform fee after swap confirmation...", {
                       outputToken: quote.outputToken,
-                      outputAmount: quote.outputAmount,
+                      totalAmount: feeCollectorOutputAmount,
                       userAddress: walletAddress,
                       feeBps: 25,
                     });
                     try {
                       const feeResult = await submitSwapFee(
                         quote.outputToken,
-                        quote.outputAmount,
+                        feeCollectorOutputAmount,
                         walletAddress,
                         25  // 0.25% platform fee in basis points
                       );
                       console.log("submitSwapFee returned:", feeResult);
                       if (feeResult) {
-                        console.log("✅ Platform fee submitted successfully!");
+                        console.log("Platform fee submitted successfully!");
                       } else {
-                        console.warn("⚠️ Fee submission returned false - check logs above for validation errors");
+                        console.warn("Fee submission returned false - check logs above for validation errors");
+                        setError(
+                          "Swap confirmed, but output distribution failed. Please contact support with your transaction hash."
+                        );
                       }
                     } catch (feeError) {
                       console.error("❌ Error submitting platform fee:", feeError);
+                      setError(
+                        "Swap confirmed, but output distribution failed. Please contact support with your transaction hash."
+                      );
                       // Log error but don't fail the swap - tokens are in FeeCollector
                     }
                   }
@@ -635,11 +719,19 @@ export const AIChat = () => {
     handleSendMessage(prompt);
   };
 
+  const dismissMessage = (messageId: number) => {
+    setMessages((prevMessages) =>
+      prevMessages.filter((msg) => msg.id !== messageId)
+    );
+  };
+
   const handleReset = () => {
     setActivePrompt(null);
     setMessages([]);
     setIsLoading(false);
     setError(null);
+    setShowSwapConfirmation(false);
+    swapExecution.resetState();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -674,6 +766,23 @@ export const AIChat = () => {
   };
 
   const hasMessages = messages.length > 0;
+
+  useEffect(() => {
+    if (!messagesContainerRef.current || (!hasMessages && !showSwapConfirmation)) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  }, [
+    hasMessages,
+    isLoading,
+    messages.length,
+    showSwapConfirmation,
+    swapExecution.status,
+    swapExecution.statusMessage,
+  ]);
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 overflow-hidden sm:rounded-[28px] sm:border sm:border-white/[0.06] sm:bg-[#090b10] sm:shadow-[0_22px_70px_rgba(0,0,0,0.36)] lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none">
@@ -796,14 +905,26 @@ export const AIChat = () => {
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={`max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
+                      className={`relative max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
                         msg.isUser
                           ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5"
                           : msg.text === "Trading Volume"
                           ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
                           : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
-                      }`}
+                      } ${msg.error ? "pr-10 sm:pr-11" : ""}`}
                     >
+                      {msg.error && (
+                        <button
+                          type="button"
+                          onClick={() => dismissMessage(msg.id)}
+                          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                          aria-label="Dismiss chat error"
+                          title={msg.error}
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+
                       {msg.text === "Trading Volume" ? (
                         <div>
                           <div className="mb-4 flex items-center justify-between">
@@ -894,6 +1015,33 @@ export const AIChat = () => {
                     )}
                   </div>
                 ))}
+
+                {showSwapConfirmation && (
+                  <div className="flex justify-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+                      <Image
+                        src={chatLogo}
+                        alt="Tower logo"
+                        width={28}
+                        height={28}
+                        className="object-contain"
+                      />
+                    </div>
+                    <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
+                      <TransactionConfirmation
+                        status={swapExecution.status}
+                        statusMessage={swapExecution.statusMessage}
+                        transactionHash={swapExecution.transactionHash}
+                        blockNumber={swapExecution.blockNumber}
+                        error={swapExecution.error}
+                        onClose={() => {
+                          setShowSwapConfirmation(false);
+                          swapExecution.resetState();
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {isLoading && (
                   <div className="flex justify-start gap-3">
@@ -989,22 +1137,6 @@ export const AIChat = () => {
 
         <div className="relative z-20 mt-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:absolute sm:inset-x-0 sm:bottom-0 sm:mt-0 sm:px-6 sm:pb-6 sm:pt-8 lg:px-7">
           <div className="mx-auto w-full max-w-[52rem]">
-            {showSwapConfirmation && (
-              <div className="mb-3 w-full max-w-none sm:mb-4 sm:max-w-[28rem]">
-                <TransactionConfirmation
-                  status={swapExecution.status}
-                  statusMessage={swapExecution.statusMessage}
-                  transactionHash={swapExecution.transactionHash}
-                  blockNumber={swapExecution.blockNumber}
-                  error={swapExecution.error}
-                  onClose={() => {
-                    setShowSwapConfirmation(false);
-                    swapExecution.resetState();
-                  }}
-                />
-              </div>
-            )}
-
             <div className="w-full max-w-none sm:max-w-[30rem]">
               <div
                 className="tower-chat-input-shell relative rounded-[20px] border border-white/[0.06] px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.36)] focus-within:border-white/[0.06] focus-within:outline-none focus-within:ring-0 sm:rounded-[22px] sm:px-4 sm:py-2.5"

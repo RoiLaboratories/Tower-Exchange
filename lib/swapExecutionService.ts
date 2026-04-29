@@ -40,6 +40,78 @@ const ARC_RPC_URL = "https://rpc.testnet.arc.network";
  */
 const ARC_CHAIN_ID = 5042002;
 
+export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+
+const encodeBalanceOfCall = (walletAddress: string) => {
+  const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");
+
+  if (normalizedAddress.length !== 40) {
+    throw new Error(`Invalid balance owner address: ${walletAddress}`);
+  }
+
+  return `0x70a08231${normalizedAddress.padStart(64, "0")}`;
+};
+
+export const getErc20TokenBalance = async (
+  tokenAddress: string,
+  walletAddress: string,
+): Promise<bigint> => {
+  if (!tokenAddress.startsWith("0x") || tokenAddress.length !== 42) {
+    throw new Error(`Invalid token address: ${tokenAddress}`);
+  }
+
+  const response = await fetch(ARC_RPC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "eth_call",
+      params: [
+        {
+          to: tokenAddress,
+          data: encodeBalanceOfCall(walletAddress),
+        },
+        "latest",
+      ],
+      id: 1,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch token balance: HTTP ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  if (result.error) {
+    throw new Error(`Failed to fetch token balance: ${result.error.message}`);
+  }
+
+  return BigInt(result.result ?? "0x0");
+};
+
+export const waitForTokenBalanceIncrease = async (
+  tokenAddress: string,
+  walletAddress: string,
+  previousBalance: bigint,
+  attempts: number = 8,
+  pollInterval: number = 1000,
+): Promise<bigint> => {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const nextBalance = await getErc20TokenBalance(tokenAddress, walletAddress);
+
+    if (nextBalance > previousBalance) {
+      return nextBalance - previousBalance;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  return 0n;
+};
+
 /**
  * Validate transaction object before signing
  */
@@ -79,6 +151,42 @@ const validateTransaction = (transaction: TransactionData, walletAddress: string
   if (!walletAddress.startsWith("0x") || walletAddress.length !== 42) {
     throw new Error(`Wallet address must be a valid 20-byte hex address. Received: ${walletAddress}`);
   }
+};
+
+const getWalletErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const errorRecord = error as Record<string, unknown>;
+    const message =
+      typeof errorRecord.message === "string"
+        ? errorRecord.message
+        : typeof errorRecord.reason === "string"
+          ? errorRecord.reason
+          : null;
+
+    if (message) {
+      return message;
+    }
+
+    for (const nestedKey of ["error", "cause", "data"]) {
+      const nestedMessage = getWalletErrorMessage(errorRecord[nestedKey]);
+
+      if (nestedMessage !== "Unknown wallet error") {
+        return nestedMessage;
+      }
+    }
+
+    try {
+      return JSON.stringify(errorRecord);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return typeof error === "string" ? error : "Unknown wallet error";
 };
 
 /**
@@ -135,19 +243,25 @@ export const signTransactionWithPrivy = async (
       transactionHash,
     };
   } catch (error) {
-    console.error("Error signing transaction with Privy:", error);
+    console.error("Error sending transaction with browser wallet:", error);
     
-    let detailedMessage = "Failed to sign transaction";
-    if (error instanceof Error) {
-      detailedMessage = error.message;
-      // Check for common wallet error patterns
-      if (error.message.includes("Invalid \"to\" address")) {
-        detailedMessage = `Transaction rejected: Invalid router address. This may indicate the DEX router address is not properly configured on Arc testnet.`;
-      } else if (error.message.includes("insufficient funds")) {
-        detailedMessage = "Insufficient funds in wallet to pay for gas.";
-      } else if (error.message.includes("User rejected")) {
-        detailedMessage = "Transaction signing was cancelled by user.";
-      }
+    const walletErrorMessage = getWalletErrorMessage(error);
+    const normalizedMessage = walletErrorMessage.toLowerCase();
+    let detailedMessage = walletErrorMessage || "Failed to send transaction";
+
+    // Check for common wallet error patterns
+    if (walletErrorMessage.includes("Invalid \"to\" address")) {
+      detailedMessage = `Transaction rejected: Invalid router address. This may indicate the DEX router address is not properly configured on Arc testnet.`;
+    } else if (normalizedMessage.includes("txpool is full")) {
+      detailedMessage =
+        "Arc RPC transaction pool is full. Please wait a minute and try again, or switch MetaMask to another Arc RPC endpoint if you have one configured.";
+    } else if (normalizedMessage.includes("insufficient funds")) {
+      detailedMessage = "Insufficient funds in wallet to pay for gas.";
+    } else if (
+      normalizedMessage.includes("user rejected") ||
+      normalizedMessage.includes("user denied")
+    ) {
+      detailedMessage = "Transaction signing was cancelled by user.";
     }
     
     throw new Error(detailedMessage);
@@ -474,6 +588,24 @@ export const submitSwapFee = async (
     }
 
     console.log("✅ Platform fee submitted successfully!", result.data);
+    const feeDistributionTxHash =
+      result.data?.transactionHash || result.transactionHash;
+
+    if (feeDistributionTxHash) {
+      console.log("Waiting for fee distribution confirmation:", feeDistributionTxHash);
+      const confirmation = await pollTransactionConfirmation(feeDistributionTxHash);
+
+      if (confirmation.status !== "success") {
+        console.error("Fee distribution transaction failed:", confirmation);
+        return false;
+      }
+
+      console.log("Fee distribution confirmed:", {
+        transactionHash: confirmation.transactionHash,
+        blockNumber: confirmation.blockNumber,
+      });
+    }
+
     console.log("=== FEE SUBMISSION SUCCESS ===");
     return true;
   } catch (error) {

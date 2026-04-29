@@ -43,7 +43,12 @@ import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
-import { supabase, registerSwapFee, updateSwapFeeConfirmation } from "@/lib/supabase";
+import {
+  supabase,
+  registerSwapFee,
+  updateSwapFeeConfirmation,
+  formatTokenAmountByAddress,
+} from "@/lib/supabase";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import {
@@ -186,9 +191,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         method: "wallet_switchEthereumChain",
         params: [{ chainId: ARC_CHAIN_HEX }],
       });
-    } catch (switchError: any) {
+    } catch (switchError: unknown) {
+      const switchErrorCode =
+        switchError && typeof switchError === "object" && "code" in switchError
+          ? (switchError as { code?: number }).code
+          : undefined;
       // This error code indicates that the chain has not been added to MetaMask
-      if (switchError.code === 4902) {
+      if (switchErrorCode === 4902) {
         try {
           await ethereum.request({
             method: "wallet_addEthereumChain",
@@ -635,9 +644,12 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           if (currentChainId !== ARC_CHAIN_HEX) {
             throw new Error("Please switch to Arc Testnet to continue");
           }
-        } catch (networkError: any) {
+        } catch (networkError: unknown) {
+          const networkErrorMessage =
+            networkError instanceof Error ? networkError.message : null;
           throw new Error(
-            networkError.message || "Please switch to Arc Testnet network to perform swaps"
+            networkErrorMessage ||
+              "Please switch to Arc Testnet network to perform swaps"
           );
         }
       }
@@ -1164,11 +1176,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             });
 
             // Record the fee in the database
-            let registerResult: any = null;
+            let registerResult: Awaited<ReturnType<typeof registerSwapFee>> | null = null;
             const feeAmount = feeResult.data?.feeAmount || feeResult.feeAmount || "0";
             const transactionHash = feeResult.data?.transactionHash || feeResult.transactionHash;
             if (userAddress && feeAmount !== "0") {
-              const feeUsdValue = (parseFloat(feeAmount) || 0) * receiveToken.usdPrice;
+              const formattedFeeAmount = formatTokenAmountByAddress(
+                feeAmount,
+                outputTokenForFee
+              );
+              const feeUsdValue = formattedFeeAmount * receiveToken.usdPrice;
               registerResult = await registerSwapFee({
                 walletAddress: userAddress,
                 tokenAddress: outputTokenForFee,
@@ -1185,6 +1201,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                 console.log("[SwapCard] Fee recorded in database:", {
                   feeId: registerResult.id,
                   feeAmount,
+                  feeAmountFormatted: formattedFeeAmount,
                   feeAmountUsd: feeUsdValue,
                 });
               } else {
