@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-type RedeemInviteCodeResponseRow = {
+const PENDING_INVITE_COOKIE = "tower_pending_invite_code";
+const PENDING_INVITE_COOKIE_MAX_AGE_SECONDS = 60 * 30;
+
+type InviteCodeResponseRow = {
   success: boolean;
   message: string;
   remaining_uses: number | null;
@@ -25,6 +28,24 @@ function createSupabaseRouteClient() {
   });
 }
 
+const clearPendingInviteCookie = (response: NextResponse) => {
+  response.cookies.set(PENDING_INVITE_COOKIE, "", {
+    httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+};
+
+const extractInviteCodeResult = (data: unknown) => {
+  if (Array.isArray(data)) {
+    return (data[0] as InviteCodeResponseRow | undefined) ?? null;
+  }
+
+  return (data as InviteCodeResponseRow | null) ?? null;
+};
+
 export async function POST(request: NextRequest) {
   try {
     const { code, walletAddress } = await request.json();
@@ -43,17 +64,26 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createSupabaseRouteClient();
-    const { data, error } = await supabase.rpc("redeem_invite_code", {
-      input_code: normalizedCode,
-      redemption_wallet_address: normalizedWalletAddress,
-      redemption_metadata: {
-        source: "invite-gate",
-        redeemed_at: new Date().toISOString(),
-      },
-    });
+    const rpcName = normalizedWalletAddress
+      ? "redeem_invite_code"
+      : "validate_invite_code";
+    const rpcArgs = normalizedWalletAddress
+      ? {
+          input_code: normalizedCode,
+          redemption_wallet_address: normalizedWalletAddress,
+          redemption_metadata: {
+            source: "invite-gate",
+            redeemed_at: new Date().toISOString(),
+          },
+        }
+      : {
+          input_code: normalizedCode,
+        };
+
+    const { data, error } = await supabase.rpc(rpcName, rpcArgs);
 
     if (error) {
-      console.error("Invite code redemption failed:", error);
+      console.error("Invite code flow failed:", error);
       return NextResponse.json(
         {
           success: false,
@@ -63,9 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = Array.isArray(data)
-      ? (data[0] as RedeemInviteCodeResponseRow | undefined)
-      : (data as RedeemInviteCodeResponseRow | null);
+    const result = extractInviteCodeResult(data);
 
     if (!result) {
       return NextResponse.json(
@@ -90,13 +118,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: result.message,
       remainingUses: result.remaining_uses,
       totalUses: result.total_uses,
       maxUses: result.max_uses,
+      requiresWalletConnection: !normalizedWalletAddress,
     });
+
+    if (normalizedWalletAddress) {
+      clearPendingInviteCookie(response);
+      return response;
+    }
+
+    response.cookies.set(PENDING_INVITE_COOKIE, normalizedCode, {
+      httpOnly: true,
+      maxAge: PENDING_INVITE_COOKIE_MAX_AGE_SECONDS,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return response;
   } catch (error) {
     console.error("Unexpected invite redemption error:", error);
     return NextResponse.json(

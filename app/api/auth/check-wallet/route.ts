@@ -6,7 +6,14 @@ const LEGACY_ACCESS_TABLES = [
   "ai_chat_messages",
   "ai_chat_sessions",
   "recurring_orders",
+  "recurring_order_executions",
+  "swap_fees",
 ] as const;
+
+type CheckWalletAccessRow = {
+  is_registered: boolean;
+  access_source: string | null;
+};
 
 function createSupabaseRouteClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +31,17 @@ function createSupabaseRouteClient() {
   });
 }
 
+const isIgnorableQueryError = (message: string) => {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("does not exist") ||
+    normalized.includes("could not find") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("permission denied")
+  );
+};
+
 async function hasWalletRecord(
   supabase: ReturnType<typeof createSupabaseRouteClient>,
   table: (typeof LEGACY_ACCESS_TABLES)[number],
@@ -31,15 +49,33 @@ async function hasWalletRecord(
 ) {
   const { data, error } = await supabase
     .from(table)
-    .select("id")
+    .select("wallet_address")
     .ilike("wallet_address", normalizedWalletAddress)
     .limit(1);
 
   if (error) {
+    if (isIgnorableQueryError(error.message)) {
+      console.warn(`Skipping legacy wallet lookup for ${table}:`, error.message);
+      return false;
+    }
+
     throw new Error(`Failed to query ${table}: ${error.message}`);
   }
 
   return Array.isArray(data) && data.length > 0;
+}
+
+async function getLegacyWalletAccess(
+  supabase: ReturnType<typeof createSupabaseRouteClient>,
+  normalizedWalletAddress: string,
+) {
+  const matches = await Promise.all(
+    LEGACY_ACCESS_TABLES.map((table) =>
+      hasWalletRecord(supabase, table, normalizedWalletAddress),
+    ),
+  );
+
+  return matches.some(Boolean);
 }
 
 export async function POST(request: NextRequest) {
@@ -59,46 +95,41 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseRouteClient();
 
-    // First honor invite-code redemptions from the gate flow.
-    const { data, error } = await supabase
-      .from("invite_code_redemptions")
-      .select("id")
-      .eq("wallet_address", normalizedWalletAddress)
-      .limit(1);
+    let isRegistered = false;
+    let accessSource: string | null = null;
+
+    const { data, error } = await supabase.rpc("check_wallet_access", {
+      input_wallet_address: normalizedWalletAddress,
+    });
 
     if (error) {
-      console.error("Failed to check wallet registration:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Unable to verify wallet registration.",
-        },
-        { status: 500 },
-      );
+      console.warn("RPC wallet registration check failed, falling back:", error);
+    } else {
+      const result = Array.isArray(data)
+        ? (data[0] as CheckWalletAccessRow | undefined)
+        : (data as CheckWalletAccessRow | null);
+
+      isRegistered = result?.is_registered === true;
+      accessSource = result?.access_source ?? null;
     }
 
-    const hasInviteRedemption = Array.isArray(data) && data.length > 0;
-    const legacyMatches = hasInviteRedemption
-      ? []
-      : await Promise.all(
-          LEGACY_ACCESS_TABLES.map((table) =>
-            hasWalletRecord(supabase, table, normalizedWalletAddress),
-          ),
-        );
+    if (!isRegistered) {
+      const hasLegacyWalletAccess = await getLegacyWalletAccess(
+        supabase,
+        normalizedWalletAddress,
+      );
 
-    // Treat existing Privy-era wallets with app history as already admitted.
-    const isRegistered =
-      hasInviteRedemption || legacyMatches.some((match) => match);
+      if (hasLegacyWalletAccess) {
+        isRegistered = true;
+        accessSource = accessSource ?? "legacy-wallet";
+      }
+    }
 
     return NextResponse.json({
       success: true,
       isRegistered,
       walletAddress: normalizedWalletAddress,
-      accessSource: hasInviteRedemption
-        ? "invite-redemption"
-        : isRegistered
-          ? "legacy-wallet"
-          : null,
+      accessSource,
     });
   } catch (error) {
     console.error("Error checking wallet registration:", error);
