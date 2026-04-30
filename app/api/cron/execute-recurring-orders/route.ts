@@ -80,3 +80,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function HEAD() {
+  return new Response(null, { status: 204 });
+}
