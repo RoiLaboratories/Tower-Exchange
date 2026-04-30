@@ -359,9 +359,9 @@ export const RecurringOrdersDashboard = () => {
               </div>
 
               <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                <span className="text-zinc-400">End Date</span>
+                <span className="text-zinc-400">Created</span>
                 <span className="font-semibold text-white">
-                  {selectedOrder.end_date ? formatDate(selectedOrder.end_date) : "Ongoing"}
+                  {formatDate(selectedOrder.start_date)}
                 </span>
               </div>
 

@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/execute-recurring-orders",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
+

@@ -1,17 +1,81 @@
 import { createClient } from "@supabase/supabase-js";
 
-// deno-lint-ignore no-explicit-any
-const deno = (globalThis as any).Deno;
+type DenoRuntime = {
+  env: {
+    get: (key: string) => string | undefined;
+  };
+  serve: (handler: (req: Request) => Response | Promise<Response>) => void;
+};
 
-const supabaseUrl = deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceKey = deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";;
+type QueryError = {
+  message?: string;
+};
+
+type QueryResult<T = unknown> = {
+  data: T | null;
+  error: QueryError | null;
+};
+
+type SupabaseTableQuery<T = unknown> = PromiseLike<QueryResult<T>> & {
+  select: <TNext = unknown>(columns?: string) => SupabaseTableQuery<TNext>;
+  eq: (column: string, value: unknown) => SupabaseTableQuery<T>;
+  lte: (column: string, value: unknown) => SupabaseTableQuery<T>;
+  order: (
+    column: string,
+    options?: { ascending?: boolean }
+  ) => SupabaseTableQuery<T>;
+  limit: (count: number) => SupabaseTableQuery<T>;
+  update: (values: Record<string, unknown>) => SupabaseTableQuery<T>;
+  insert: (
+    values: Record<string, unknown> | Array<Record<string, unknown>>
+  ) => SupabaseTableQuery<T>;
+  maybeSingle: <TSingle = unknown>() => Promise<QueryResult<TSingle>>;
+};
+
+type SupabaseClientInstance = {
+  from: (table: string) => SupabaseTableQuery;
+};
+
+type ChatApiResponse = {
+  data?: {
+    swap_quote?: unknown;
+    swap_execution?: {
+      transaction?: TransactionData;
+    };
+  };
+  quote?: unknown;
+};
+
+type TransactionData = {
+  to: string;
+  data: string;
+  value?: string;
+  gasLimit?: string | number;
+  from?: string;
+};
+
+type PrivySignedTransactionResponse = {
+  signed_transaction?: string;
+  transaction?: string;
+};
+
+type JsonRpcResponse = {
+  result?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+const denoRuntime = (globalThis as unknown as { Deno: DenoRuntime }).Deno;
+
+const supabaseUrl = denoRuntime.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceKey = denoRuntime.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const arcRpcUrl = "https://rpc.testnet.arc.network";
 const towerExchangeAiUrl = "https://tower-exchange-ai.vercel.app";
-const towerBackendUrl = "https://tower-backend.vercel.app";
 
 // Privy Server Wallet Configuration
-const privyAppId = deno.env.get("PRIVY_APP_ID") ?? "";
-const privyAppSecret = deno.env.get("PRIVY_APP_SECRET") ?? "";
+const privyAppId = denoRuntime.env.get("PRIVY_APP_ID") ?? "";
+const privyAppSecret = denoRuntime.env.get("PRIVY_APP_SECRET") ?? "";
 const privyApiUrl = "https://api.privy.io";
 
 interface RecurringOrder {
@@ -23,6 +87,7 @@ interface RecurringOrder {
   amount: number;
   frequency: string;
   next_execution_date: string;
+  end_date?: string | null;
   is_active: boolean;
   execution_count?: number;
 }
@@ -30,10 +95,7 @@ interface RecurringOrder {
 /**
  * Main handler for executing recurring orders
  */
-// deno-lint-ignore no-explicit-any
-const Deno = (globalThis as any).Deno;
-
-Deno.serve(async (req: Request) => {
+denoRuntime.serve(async (req: Request) => {
   try {
     // Log the incoming request for debugging
     console.log(`[${new Date().toISOString()}] Received request:`, {
@@ -63,7 +125,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(
+      supabaseUrl,
+      supabaseServiceKey
+    ) as unknown as SupabaseClientInstance;
 
     // Get all active recurring orders that are due for execution
     const now = new Date().toISOString();
@@ -71,7 +136,7 @@ Deno.serve(async (req: Request) => {
     
     const { data: ordersToExecute, error: fetchError } = await supabase
       .from("recurring_orders")
-      .select("*")
+      .select<RecurringOrder[]>("*")
       .eq("is_active", true)
       .lte("next_execution_date", now)
       .order("next_execution_date", { ascending: true })
@@ -100,8 +165,15 @@ Deno.serve(async (req: Request) => {
     let successCount = 0;
     let failureCount = 0;
 
-    for (const order of ordersToExecute as RecurringOrder[]) {
+    for (const order of ordersToExecute) {
       try {
+        const claimed = await claimOrderForExecution(supabase, order);
+
+        if (!claimed) {
+          console.log(`[${new Date().toISOString()}] Skipping order already claimed or no longer due:`, order.id);
+          continue;
+        }
+
         console.log(`[${new Date().toISOString()}] Executing order:`, {
           id: order.id,
           wallet: order.wallet_address?.substring(0, 6) + "...",
@@ -156,7 +228,7 @@ Deno.serve(async (req: Request) => {
  * Execute a single recurring order
  */
 async function executeOrder(
-  supabase: any,
+  supabase: SupabaseClientInstance,
   order: RecurringOrder
 ): Promise<{ orderId: string; status: string; transactionHash?: string; error?: string }> {
   try {
@@ -189,13 +261,16 @@ async function executeOrder(
     );
 
     // Update next execution date
-    const nextDate = calculateNextExecutionDate(order.frequency);
+    const nextDate = calculateNextExecutionDate(order.frequency, order.next_execution_date);
     const currentCount = order.execution_count ?? 0;
+    const shouldDeactivate =
+      Boolean(order.end_date) && new Date(nextDate) > new Date(order.end_date as string);
     await supabase
       .from("recurring_orders")
       .update({
         next_execution_date: nextDate,
         execution_count: currentCount + 1,
+        is_active: !shouldDeactivate,
       })
       .eq("id", order.id);
 
@@ -207,6 +282,7 @@ async function executeOrder(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await logOrderExecution(supabase, order, "Failed", undefined, errorMsg);
+    await releaseFailedOrder(supabase, order);
     return {
       orderId: order.id,
       status: "Failed",
@@ -215,12 +291,48 @@ async function executeOrder(
   }
 }
 
+async function claimOrderForExecution(
+  supabase: SupabaseClientInstance,
+  order: RecurringOrder
+): Promise<boolean> {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("recurring_orders")
+    .update({ next_execution_date: calculateRetryExecutionDate() })
+    .eq("id", order.id)
+    .eq("is_active", true)
+    .lte("next_execution_date", now)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (error) {
+    console.error(`[Claim Error] Unable to claim order ${order.id}:`, error);
+    return false;
+  }
+
+  return Boolean(data?.id);
+}
+
+async function releaseFailedOrder(
+  supabase: SupabaseClientInstance,
+  order: RecurringOrder
+): Promise<void> {
+  const nextRetryDate = calculateRetryExecutionDate();
+
+  await supabase
+    .from("recurring_orders")
+    .update({ next_execution_date: nextRetryDate })
+    .eq("id", order.id)
+    .eq("is_active", true);
+}
+
 /**
  * Get swap quote from Tower-Exchange-AI
  */
 async function getSwapQuote(
   order: RecurringOrder
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     // Tower-Exchange-AI handles amount conversion internally based on token type
     console.log(`[Quote] Requesting quote: ${order.source_token} -> ${order.target_token}, amount: ${order.amount}`);
@@ -247,7 +359,7 @@ async function getSwapQuote(
       };
     }
 
-    const chatData = (await chatResponse.json()) as any;
+    const chatData = (await chatResponse.json()) as ChatApiResponse;
     console.log(`[Quote] Tower-Exchange-AI response:`, chatData);
 
     // Extract quote data from response
@@ -275,7 +387,7 @@ async function getSwapQuote(
  */
 async function signAndSendTransaction(
   walletAddress: string,
-  txData: any
+  txData: TransactionData
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   try {
     if (!privyAppId || !privyAppSecret) {
@@ -289,8 +401,7 @@ async function signAndSendTransaction(
 
     // Build Privy auth header (Base64 encoded "app_id:app_secret")
     const credentials = `${privyAppId}:${privyAppSecret}`;
-    // deno-lint-ignore no-explicit-any
-    const encodedCredentials = btoa(credentials) as any;
+    const encodedCredentials = btoa(credentials);
 
     // Call Privy Server Wallet API to sign transaction
     // The transaction object should have: to, data, value, chainId
@@ -323,8 +434,17 @@ async function signAndSendTransaction(
       };
     }
 
-    const signedTx = (await privyResponse.json()) as any;
+    const signedTx = (await privyResponse.json()) as PrivySignedTransactionResponse;
     console.log(`[Privy] Transaction signed successfully`);
+
+    const signedTransaction = signedTx.signed_transaction || signedTx.transaction;
+
+    if (!signedTransaction) {
+      return {
+        success: false,
+        error: "Privy signing response did not include a signed transaction.",
+      };
+    }
 
     // Send the signed transaction to Arc RPC
     const sendResponse = await fetch(arcRpcUrl, {
@@ -336,11 +456,11 @@ async function signAndSendTransaction(
         jsonrpc: "2.0",
         id: Date.now(),
         method: "eth_sendRawTransaction",
-        params: [signedTx.signed_transaction || signedTx.transaction],
+        params: [signedTransaction],
       }),
     });
 
-    const sendResult = (await sendResponse.json()) as any;
+    const sendResult = (await sendResponse.json()) as JsonRpcResponse;
 
     if (sendResult.error) {
       console.error(`[RPC] Transaction broadcast failed:`, sendResult.error);
@@ -351,6 +471,14 @@ async function signAndSendTransaction(
     }
 
     const txHash = sendResult.result;
+
+    if (!txHash) {
+      return {
+        success: false,
+        error: "RPC response did not include a transaction hash.",
+      };
+    }
+
     console.log(`[RPC] Transaction broadcast successful: ${txHash}`);
 
     return {
@@ -401,7 +529,7 @@ async function sendSwapTransaction(
       };
     }
 
-    const execData = (await execResponse.json()) as any;
+    const execData = (await execResponse.json()) as ChatApiResponse;
     console.log(`[Transaction] Execute response:`, execData);
 
     // Extract transaction data from response
@@ -436,7 +564,7 @@ async function sendSwapTransaction(
  * Log order execution in database
  */
 async function logOrderExecution(
-  supabase: any,
+  supabase: SupabaseClientInstance,
   order: RecurringOrder,
   status: "Successful" | "Failed" | "Pending",
   transactionHash?: string,
@@ -463,28 +591,40 @@ async function logOrderExecution(
 /**
  * Calculate next execution date based on frequency
  */
-function calculateNextExecutionDate(frequency: string): string {
+function calculateNextExecutionDate(frequency: string, fromDate?: string | null): string {
   const now = new Date();
+  const next = fromDate ? new Date(fromDate) : now;
+
+  if (Number.isNaN(next.getTime()) || next < now) {
+    next.setTime(now.getTime());
+  }
 
   switch (frequency.toLowerCase()) {
     case "hourly":
-      now.setHours(now.getHours() + 1);
+      next.setHours(next.getHours() + 1);
       break;
     case "daily":
-      now.setDate(now.getDate() + 1);
+      next.setDate(next.getDate() + 1);
       break;
     case "weekly":
-      now.setDate(now.getDate() + 7);
+      next.setDate(next.getDate() + 7);
       break;
     case "bi-weekly":
-      now.setDate(now.getDate() + 14);
+      next.setDate(next.getDate() + 14);
       break;
     case "monthly":
-      now.setMonth(now.getMonth() + 1);
+    case "month":
+      next.setMonth(next.getMonth() + 1);
       break;
     default:
-      now.setDate(now.getDate() + 7); // Default to weekly
+      next.setDate(next.getDate() + 7); // Default to weekly
   }
 
-  return now.toISOString();
+  return next.toISOString();
+}
+
+function calculateRetryExecutionDate(): string {
+  const retryDate = new Date();
+  retryDate.setMinutes(retryDate.getMinutes() + 15);
+  return retryDate.toISOString();
 }

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 
 interface AppErrorModalProps {
@@ -21,18 +22,21 @@ export const AppErrorModal = ({
   dismissLabel = "Close",
   title = "Something went wrong",
 }: AppErrorModalProps) => {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
   const isInviteGateOpen =
-    typeof document !== "undefined" &&
     document.body.dataset.inviteGateOpen === "true";
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {error && !isInviteGateOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
@@ -80,6 +84,7 @@ export const AppErrorModal = ({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };

@@ -42,9 +42,11 @@ export const createRecurringOrder = async (
   targetToken: string,
   amount: number,
   frequency: string,
-  endDate?: string,
+  firstExecutionDate?: string,
   signature?: string
 ): Promise<RecurringOrder> => {
+  const nextExecutionDate = calculateInitialExecutionDate(firstExecutionDate);
+
   const { data, error } = await supabase
     .from("recurring_orders")
     .insert({
@@ -55,8 +57,8 @@ export const createRecurringOrder = async (
       amount,
       frequency,
       start_date: new Date().toISOString(),
-      end_date: endDate ? new Date(endDate).toISOString() : null,
-      next_execution_date: calculateNextExecutionDate(frequency),
+      end_date: null,
+      next_execution_date: nextExecutionDate,
       is_active: true,
       ...(signature && { signature }),
     })
@@ -348,6 +350,25 @@ export const logOrderExecution = async (
 };
 
 /**
+ * Calculate the first execution date selected by the user.
+ * Date-only values run at the start of the selected local day.
+ */
+export const calculateInitialExecutionDate = (date?: string): string => {
+  if (!date) {
+    return new Date().toISOString();
+  }
+
+  const executionDate = new Date(date);
+
+  if (Number.isNaN(executionDate.getTime())) {
+    return new Date().toISOString();
+  }
+
+  executionDate.setHours(0, 0, 0, 0);
+  return executionDate.toISOString();
+};
+
+/**
  * Calculate next execution date based on frequency
  */
 export const calculateNextExecutionDate = (frequency: string): string => {
@@ -367,6 +388,7 @@ export const calculateNextExecutionDate = (frequency: string): string => {
       now.setDate(now.getDate() + 14);
       break;
     case "monthly":
+    case "month":
       now.setMonth(now.getMonth() + 1);
       break;
     default:

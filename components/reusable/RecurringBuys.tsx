@@ -25,7 +25,7 @@ export const RecurringBuys = () => {
   const [selectedBuyToken, setSelectedBuyToken] = useState<typeof tokens[0] | null>(null);
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
-  const [endDate, setEndDate] = useState(todayFormatted);
+  const [firstExecutionDate, setFirstExecutionDate] = useState(todayFormatted);
 
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -81,7 +81,7 @@ export const RecurringBuys = () => {
         selectedBuyToken.symbol,
         parseFloat(amount),
         frequency,
-        endDate,
+        firstExecutionDate,
         signature,
       );
 
@@ -90,7 +90,7 @@ export const RecurringBuys = () => {
       setFrequency("Weekly");
       const newToday = new Date();
       const newTodayFormatted = `${String(newToday.getMonth() + 1).padStart(2, "0")}/${String(newToday.getDate()).padStart(2, "0")}/${newToday.getFullYear()}`;
-      setEndDate(newTodayFormatted);
+      setFirstExecutionDate(newTodayFormatted);
 
       setNotificationData({
         amount,
@@ -158,10 +158,10 @@ export const RecurringBuys = () => {
             onClick={() => setShowFrequencyModal(true)}
           />
           <FrequencyField
-            label="End Date"
-            value={endDate}
+            label="Start Date"
+            value={firstExecutionDate}
             showInfo
-            infoMessage="Set when you want this recurring order to stop executing"
+            infoMessage="Set the first date this recurring order should execute"
             optional
             onClick={() => setShowDatePicker(true)}
             tooltipDirection="responsive"
@@ -201,8 +201,8 @@ export const RecurringBuys = () => {
           key="date-picker"
           isOpen={showDatePicker}
           onClose={() => setShowDatePicker(false)}
-          onSelect={setEndDate}
-          currentValue={endDate}
+          onSelect={setFirstExecutionDate}
+          currentValue={firstExecutionDate}
         />
       </AnimatePresence>
     </>
