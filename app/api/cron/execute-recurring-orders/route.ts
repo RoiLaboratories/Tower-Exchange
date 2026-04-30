@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const getSupabaseFunctionUrl = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   if (!supabaseUrl) {
     return null;
@@ -27,13 +28,15 @@ export async function GET(request: NextRequest) {
   }
 
   const functionUrl = getSupabaseFunctionUrl();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const invokeKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!functionUrl || !serviceRoleKey) {
+  if (!functionUrl || !invokeKey) {
     return NextResponse.json(
       {
         error:
-          "Recurring order cron is missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.",
+          "Recurring order cron is missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_ANON_KEY.",
       },
       { status: 500 }
     );
@@ -44,7 +47,7 @@ export async function GET(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceRoleKey}`,
+        Authorization: `Bearer ${invokeKey}`,
       },
       body: JSON.stringify({
         trigger: "vercel-cron",
