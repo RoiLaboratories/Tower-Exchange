@@ -12,11 +12,10 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { 
-  fetchArcBalance, 
-  fetchERC20Balance,
   fetchERC20Allowance,
   formatBalance, 
   getRevertReasonViaPublicRpc,
+  ARC_TESTNET_CONFIG,
   TOKEN_CONTRACTS,
   TOKEN_DECIMALS,
   NATIVE_TOKENS,
@@ -187,6 +186,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     const ethereum = getBrowserWalletProvider();
 
     try {
+      try {
+        await ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: ARC_ADD_NETWORK_PARAMS,
+        });
+      } catch (addOrUpdateError) {
+        console.warn("Unable to refresh Arc Testnet RPC config:", addOrUpdateError);
+      }
+
       await ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: ARC_CHAIN_HEX }],
@@ -283,6 +291,33 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     receiveToken?.usdPrice ?? 0
   );
 
+  const fetchSwapTokenBalance = useCallback(async (tokenSymbol: "USDC" | "EURC") => {
+    const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
+
+    if (!tokenAddress || !user?.wallet?.address) {
+      return 0;
+    }
+
+    const response = await fetch("/api/wallet/balance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address: user.wallet.address,
+        chainId: "arc-testnet",
+        rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
+        tokenAddress,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || `Failed to fetch ${tokenSymbol} balance`);
+    }
+
+    return Number.parseFloat(data?.balance ?? "0") || 0;
+  }, [user?.wallet?.address]);
+
   // Fetch actual wallet balances from Arc testnet
   const fetchUserBalances = useCallback(async () => {
     if (!user?.wallet?.address) {
@@ -293,131 +328,27 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     console.log("Fetching balances for wallet:", user.wallet.address);
     setIsLoadingBalances(true);
     try {
-      // Fetch USDC balance from Arc testnet (native balance)
-      const usdcBalance = await fetchArcBalance(user.wallet.address);
-      console.log("USDC balance:", usdcBalance);
-      
-      if (usdcBalance) {
-        setTokenBalances((prev) => ({
-          ...prev,
-          USDC: parseFloat(formatBalance(usdcBalance)),
-        }));
-      }
+      const [usdcBalance, eurcBalance] = await Promise.all([
+        fetchSwapTokenBalance("USDC"),
+        fetchSwapTokenBalance("EURC"),
+      ]);
 
-      // Fetch WUSDC balance
-      if (TOKEN_CONTRACTS.WUSDC) {
-        console.log("Fetching WUSDC balance from:", TOKEN_CONTRACTS.WUSDC);
-        const wusdcBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.WUSDC
-        );
-        console.log("WUSDC balance (wei):", wusdcBalanceWei);
-        if (wusdcBalanceWei && wusdcBalanceWei !== "0x0") {
-          try {
-            const wusdcBalanceBigInt = BigInt(wusdcBalanceWei || "0");
-            const wusdcBalance = Number(wusdcBalanceBigInt) / 10 ** (TOKEN_DECIMALS.WUSDC || 6);
-            console.log("WUSDC balance (converted):", wusdcBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              WUSDC: wusdcBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting WUSDC balance:", e);
-          }
-        }
-      }
+      console.log("Swap token balances:", {
+        USDC: usdcBalance,
+        EURC: eurcBalance,
+      });
 
-      // Fetch QTM balance
-      if (TOKEN_CONTRACTS.QTM) {
-        console.log("Fetching QTM balance from:", TOKEN_CONTRACTS.QTM);
-        const qtmBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.QTM
-        );
-        console.log("QTM balance (wei):", qtmBalanceWei);
-        if (qtmBalanceWei && qtmBalanceWei !== "0x0") {
-          try {
-            const qtmBalanceBigInt = BigInt(qtmBalanceWei || "0");
-            const qtmBalance = Number(qtmBalanceBigInt) / 10 ** (TOKEN_DECIMALS.QTM || 18);
-            console.log("QTM balance (converted):", qtmBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              QTM: qtmBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting QTM balance:", e);
-          }
-        }
-      }
-
-      // Fetch EURC balance
-      if (TOKEN_CONTRACTS.EURC) {
-        console.log("Fetching EURC balance from:", TOKEN_CONTRACTS.EURC);
-        const eurcBalanceWei = await fetchERC20Balance(
-          user.wallet.address,
-          TOKEN_CONTRACTS.EURC
-        );
-        console.log("EURC balance (wei):", eurcBalanceWei);
-        if (eurcBalanceWei && eurcBalanceWei !== "0x0") {
-          try {
-            const eurcBalanceBigInt = BigInt(eurcBalanceWei || "0");
-            const eurcBalance = Number(eurcBalanceBigInt) / 10 ** (TOKEN_DECIMALS.EURC || 6);
-            console.log("EURC balance (converted):", eurcBalance);
-            setTokenBalances((prev) => ({
-              ...prev,
-              EURC: eurcBalance,
-            }));
-          } catch (e) {
-            console.error("Error converting EURC balance:", e);
-          }
-        }
-      }
-
-      // TODO: Uncomment balance fetching for other tokens when DEX routes are integrated
-      // // Fetch WUSDC balance
-      // if (TOKEN_CONTRACTS.WUSDC) {
-      //   console.log("Fetching WUSDC balance from:", TOKEN_CONTRACTS.WUSDC);
-      //   // ... balance fetching code ...
-      // }
-
-      // // Fetch QTM balance
-      // if (TOKEN_CONTRACTS.QTM) {
-      //   console.log("Fetching QTM balance from:", TOKEN_CONTRACTS.QTM);
-      //   // ... balance fetching code ...
-      // }
-
-      // // Fetch SWPRC balance
-      // if (TOKEN_CONTRACTS.SWPRC) {
-      //   console.log("Fetching SWPRC balance from:", TOKEN_CONTRACTS.SWPRC);
-      //   // ... balance fetching code ...
-      // }
-
-      // // Fetch USDT balance
-      // if (TOKEN_CONTRACTS.USDT) {
-      //   console.log("Fetching USDT balance from:", TOKEN_CONTRACTS.USDT);
-      //   // ... balance fetching code ...
-      // }
-
-      // // Fetch USYC balance
-      // if (TOKEN_CONTRACTS.USYC) {
-      //   console.log("Fetching USYC balance from:", TOKEN_CONTRACTS.USYC);
-      //   // ... balance fetching code ...
-      // }
-
-      // // Fetch SYN balance
-      // if (TOKEN_CONTRACTS.SYN) {
-      //   console.log("Fetching SYN balance from:", TOKEN_CONTRACTS.SYN);
-      //   // ... balance fetching code ...
-      // }
-
-      // TODO: Fetch other token balances (ETH, UNI, HYPE)
-      // Add token contract addresses to TOKEN_CONTRACTS and use fetchERC20Balance
+      setTokenBalances((prev) => ({
+        ...prev,
+        USDC: usdcBalance,
+        EURC: eurcBalance,
+      }));
     } catch (error) {
       console.error("Failed to fetch wallet balances:", error);
     } finally {
       setIsLoadingBalances(false);
     }
-  }, [user?.wallet?.address]);
+  }, [fetchSwapTokenBalance, user?.wallet?.address]);
 
   // Sync wallet connection state with the active browser wallet
   useEffect(() => {

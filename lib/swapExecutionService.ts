@@ -33,12 +33,7 @@ export interface ConfirmationResult {
 /**
  * Arc testnet RPC endpoint
  */
-const ARC_RPC_URL = "https://rpc.testnet.arc.network";
-
-/**
- * Arc testnet chain ID
- */
-const ARC_CHAIN_ID = 5042002;
+const ARC_RPC_URL = "/api/rpc/5042002";
 
 export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 

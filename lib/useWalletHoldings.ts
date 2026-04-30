@@ -19,25 +19,19 @@ const COMMON_ERC20_TOKENS = {
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
 };
 
-// ERC20 ABI for token balance queries
-const ERC20_ABI = [
-  {
-    constant: true,
-    inputs: [{ name: "_owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "balance", type: "uint256" }],
-    type: "function",
-  },
-  {
-    constant: true,
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    type: "function",
-  },
-];
+const TOKEN_DECIMALS: Record<string, number> = {
+  USDC: 18,
+  WUSDC: 18,
+  QTM: 18,
+  EURC: 6,
+  SWPRC: 6,
+};
 
 const RPC_URL = ARC_TESTNET_CONFIG.rpcUrl;
+
+const formatBigIntUnits = (value: bigint, decimals: number): number => {
+  return Number(value) / Math.pow(10, decimals);
+};
 
 export const useWalletHoldings = (walletAddress: string | null) => {
   const [holdings, setHoldings] = useState<WalletHolding[]>([]);
@@ -78,8 +72,10 @@ export const useWalletHoldings = (walletAddress: string | null) => {
           walletAddress,
           "latest",
         ]);
-        const nativeBalanceWei = parseInt(nativeBalance, 16);
-        const nativeBalanceFormatted = nativeBalanceWei / 1e18;
+        const nativeBalanceFormatted = formatBigIntUnits(
+          BigInt(nativeBalance || "0x0"),
+          TOKEN_DECIMALS.USDC
+        );
 
         // Fetch token balances using eth_call to balanceOf function
         const tokenPromises = Object.entries(COMMON_ERC20_TOKENS).map(
@@ -102,15 +98,15 @@ export const useWalletHoldings = (walletAddress: string | null) => {
               // Handle empty result
               if (!result || result === "0x") {
                 console.log(`No balance found for ${tokenName}`);
-                return { tokenName, balance: 0 };
+                return { tokenName, balance: 0n };
               }
 
-              const balance = parseInt(result, 16);
-              console.log(`${tokenName} balance (raw): ${balance}`);
+              const balance = BigInt(result);
+              console.log(`${tokenName} balance (raw): ${balance.toString()}`);
               return { tokenName, balance };
             } catch (err) {
               console.error(`Error fetching ${tokenName} balance:`, err);
-              return { tokenName, balance: 0 };
+              return { tokenName, balance: 0n };
             }
           }
         );
@@ -159,10 +155,11 @@ export const useWalletHoldings = (walletAddress: string | null) => {
 
         // Add ERC20 tokens
         tokenBalances.forEach(({ tokenName, balance }) => {
-          if (balance > 0) {
-            // EURC and SWPRC use 6 decimals; others use 18
-            const decimals = tokenName === "EURC" || tokenName === "SWPRC" ? 6 : 18;
-            const formattedBalance = balance / Math.pow(10, decimals);
+          if (balance > 0n) {
+            const formattedBalance = formatBigIntUnits(
+              balance,
+              TOKEN_DECIMALS[tokenName] ?? 18
+            );
             
             // Skip if balance is too small (dust)
             if (formattedBalance < 0.000001) return;

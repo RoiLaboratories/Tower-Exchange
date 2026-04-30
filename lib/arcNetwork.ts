@@ -1,7 +1,7 @@
 // Arc Testnet Configuration and utilities
 export const ARC_TESTNET_CONFIG = {
   chainId: 5042002,
-  rpcUrl: "https://rpc.testnet.arc.network",
+  rpcUrl: "https://rpc.blockdaemon.testnet.arc.network",
   currency: "USDC",
   decimals: 18,
   explorerUrl: "https://testnet.arcscan.app",
@@ -25,8 +25,8 @@ export const ARC_ADD_NETWORK_PARAMS = [
       decimals: 18,
     },
     rpcUrls: [
-      "https://rpc.testnet.arc.network",
       "https://rpc.blockdaemon.testnet.arc.network",
+      "https://rpc.testnet.arc.network",
       "https://rpc.drpc.testnet.arc.network",
       "https://rpc.quicknode.testnet.arc.network",
     ],
@@ -377,6 +377,23 @@ export const fetchERC20Balance = async (
   }
 };
 
+const formatBigIntUnits = (value: bigint, decimals: number): string => {
+  const divisor = 10n ** BigInt(decimals);
+  const whole = value / divisor;
+  const fraction = value % divisor;
+
+  if (fraction === 0n) {
+    return whole.toString();
+  }
+
+  const fractionText = fraction
+    .toString()
+    .padStart(decimals, "0")
+    .replace(/0+$/, "");
+
+  return `${whole.toString()}.${fractionText}`;
+};
+
 /**
  * Fetch ERC20 token allowance from Arc testnet
  * @param ownerAddress - The token owner's wallet address
@@ -469,7 +486,7 @@ export const fetchERC20Allowance = async (
 /**
  * Fetch wallet balance from Arc testnet
  * @param walletAddress - The wallet address to fetch balance for
- * @returns Balance in USDC (as string)
+ * @returns Native Arc USDC balance as a decimal string
  */
 export const fetchArcBalance = async (
   walletAddress: string
@@ -490,10 +507,7 @@ export const fetchArcBalance = async (
 
     const data = await response.json();
     if (data.result) {
-      // Convert from wei to USDC (18 decimals)
-      const balanceInWei = BigInt(data.result);
-      const balanceInUsdc = balanceInWei / BigInt(10 ** ARC_TESTNET_CONFIG.decimals);
-      return balanceInUsdc.toString();
+      return formatBigIntUnits(BigInt(data.result), ARC_TESTNET_CONFIG.decimals);
     }
     return null;
   } catch (error) {

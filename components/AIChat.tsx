@@ -9,6 +9,7 @@ import {
   saveChatMessageToHistory,
   getConversationHistory,
   type ChatHistoryItem,
+  type AIAgentResponse,
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
 import { v4 as uuidv4 } from "uuid";
@@ -47,6 +48,7 @@ const quickPrompts = [
 ];
 
 const GENERIC_CHAT_TITLES = new Set(["New Chat", "Chat"]);
+const HIDDEN_BALANCE_TOKENS = new Set(["QTM", "SWPRC"]);
 
 const formatSessionTitle = (text: string) => {
   const summary = text.trim().replace(/\s+/g, " ");
@@ -89,6 +91,36 @@ const getHistorySessionMetadata = (
       (count, item) => count + (item.user_query ? 1 : 0),
       0
     ),
+  };
+};
+
+const sanitizeBalanceResponse = (
+  response: AIAgentResponse
+): AIAgentResponse => {
+  const balances = response.data?.balances;
+
+  if (!balances?.length) {
+    return response;
+  }
+
+  const hiddenTokenPattern = /\b(QTM|SWPRC)\b/i;
+  const filteredBalances = balances.filter(
+    (balance) => !HIDDEN_BALANCE_TOKENS.has(balance.token.toUpperCase())
+  );
+  const filteredReply = response.reply
+    .split(/\r?\n/)
+    .filter((line) => !hiddenTokenPattern.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return {
+    ...response,
+    reply: filteredReply || response.reply,
+    data: {
+      ...response.data,
+      balances: filteredBalances,
+    },
   };
 };
 
@@ -448,7 +480,7 @@ export const AIChat = () => {
       const enablePortfolioAnalysis = /portfolio|performance|pnl|profit|loss|trading|volume|analysis/.test(lowerMessage);
       const enableSwap = /swap|exchange|trade/.test(lowerMessage);
 
-      const response = await sendMessageToAIAgent({
+      const rawResponse = await sendMessageToAIAgent({
         message: text,
         userid: walletAddress,
         session_id: sessionId,
@@ -458,6 +490,7 @@ export const AIChat = () => {
         enable_swap_execution: enableSwap,
         enable_portfolio_analysis: enablePortfolioAnalysis,
       });
+      const response = sanitizeBalanceResponse(rawResponse);
 
       console.log("AI Response received:", response);
       console.log("Response data:", response.data);

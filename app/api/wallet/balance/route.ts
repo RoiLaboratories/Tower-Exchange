@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, getContract, erc20Abi } from "viem";
+import {
+  createPublicClient,
+  http,
+  getContract,
+  erc20Abi,
+  formatUnits,
+} from "viem";
+
+const ARC_TESTNET_CHAIN_ID = "arc-testnet";
+const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const ARC_NATIVE_USDC_DECIMALS = 18;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,12 +28,27 @@ export async function POST(request: NextRequest) {
     });
 
     // Use provided token address, or default to USDC for the chain
-    let contractAddress = tokenAddress || getUSDCAddressForChain(chainId);
+    const contractAddress = tokenAddress || getUSDCAddressForChain(chainId);
     if (!contractAddress) {
       return NextResponse.json(
         { balance: "0.00", error: "Token not supported on this chain" },
         { status: 200 }
       );
+    }
+
+    if (
+      String(chainId).toLowerCase() === ARC_TESTNET_CHAIN_ID &&
+      contractAddress.toLowerCase() === ARC_NATIVE_USDC_ADDRESS
+    ) {
+      const balance = await publicClient.getBalance({
+        address: address as `0x${string}`,
+      });
+
+      return NextResponse.json({
+        balance: Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(
+          6
+        ),
+      });
     }
 
     // Get the contract
@@ -42,10 +67,7 @@ export async function POST(request: NextRequest) {
     const decimals = (await contract.read.decimals()) as number;
 
     // Convert to readable format
-    const formattedBalance = (
-      Number(balance) /
-      Math.pow(10, decimals)
-    ).toFixed(6);
+    const formattedBalance = Number(formatUnits(balance, decimals)).toFixed(6);
 
     return NextResponse.json({ balance: formattedBalance });
   } catch (error) {
