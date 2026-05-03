@@ -120,7 +120,9 @@ export const RecurringBuys = () => {
       await updateRecurringOrder(order.id, {
         onchain_order_key: authorization.orderKey,
         executor_address: authorization.executorAddress,
-        approval_transaction_hash: authorization.approvalHash,
+        ...(authorization.approvalHash && {
+          approval_transaction_hash: authorization.approvalHash,
+        }),
         authorization_transaction_hash: authorization.authorizationHash,
         onchain_authorized: true,
       });

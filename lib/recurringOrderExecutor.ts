@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  decodeFunctionResult,
   encodeFunctionData,
   keccak256,
   maxUint256,
@@ -47,6 +48,16 @@ const recurringOrderExecutorAbi = [
 const erc20Abi = [
   {
     type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "approve",
     stateMutability: "nonpayable",
     inputs: [
@@ -86,6 +97,34 @@ const toUnixSeconds = (date?: string | null) => {
 
 export const getRecurringOrderKey = (orderId: string) =>
   keccak256(stringToBytes(orderId));
+
+const getTokenAllowance = async (
+  provider: ReturnType<typeof getBrowserWalletProvider>,
+  tokenAddress: `0x${string}`,
+  owner: `0x${string}`,
+  spender: `0x${string}`
+) => {
+  const result = await provider.request({
+    method: "eth_call",
+    params: [
+      {
+        to: tokenAddress,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [owner, spender],
+        }),
+      },
+      "latest",
+    ],
+  });
+
+  return decodeFunctionResult({
+    abi: erc20Abi,
+    functionName: "allowance",
+    data: result as `0x${string}`,
+  });
+};
 
 export const isRecurringOrderTokenSupported = (symbol: string) =>
   Boolean(TOKEN_CONTRACTS[symbol]) &&
@@ -143,28 +182,38 @@ export const authorizeRecurringOrderOnchain = async ({
   const validAfter = toUnixSeconds(startDate);
   const validUntil = toUnixSeconds(endDate);
 
-  const approvalHash = await provider.request({
-    method: "eth_sendTransaction",
-    params: [
-      {
-        from: walletAddress,
-        to: sourceTokenAddress,
-        data: encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [RECURRING_ORDER_EXECUTOR_ADDRESS as `0x${string}`, maxUint256],
-        }),
-        value: "0x0",
-      },
-    ],
-  });
+  const executorAddress = RECURRING_ORDER_EXECUTOR_ADDRESS as `0x${string}`;
+  const currentAllowance = await getTokenAllowance(
+    provider,
+    sourceTokenAddress,
+    walletAddress as `0x${string}`,
+    executorAddress
+  );
+  const approvalHash =
+    currentAllowance < maxAmountIn
+      ? await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: walletAddress,
+              to: sourceTokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [executorAddress, maxUint256],
+              }),
+              value: "0x0",
+            },
+          ],
+        })
+      : null;
 
   const authorizationHash = await provider.request({
     method: "eth_sendTransaction",
     params: [
       {
         from: walletAddress,
-        to: RECURRING_ORDER_EXECUTOR_ADDRESS,
+        to: executorAddress,
         data: encodeFunctionData({
           abi: recurringOrderExecutorAbi,
           functionName: "authorizeOrder",
@@ -185,7 +234,7 @@ export const authorizeRecurringOrderOnchain = async ({
 
   return {
     orderKey,
-    approvalHash: String(approvalHash),
+    approvalHash: approvalHash ? String(approvalHash) : null,
     authorizationHash: String(authorizationHash),
     executorAddress: RECURRING_ORDER_EXECUTOR_ADDRESS,
   };
