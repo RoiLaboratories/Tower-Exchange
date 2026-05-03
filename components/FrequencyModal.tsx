@@ -6,7 +6,7 @@ const frequencies = [
   { value: "hourly", label: "Hourly", description: "Every hour starting now" },
   { value: "daily", label: "Daily", description: "Every day starting today" },
   { value: "weekly", label: "Weekly", description: "Every week starting now" },
-  { value: "monthly", label: "Month", description: "Every month starting now" },
+  { value: "monthly", label: "Monthly", description: "Every month starting now" },
 ];
 
 interface FrequencyModalProps {
