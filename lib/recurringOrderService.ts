@@ -51,7 +51,10 @@ export const createRecurringOrder = async (
   endDate?: string | null,
   signature?: string
 ): Promise<RecurringOrder> => {
-  const nextExecutionDate = calculateInitialExecutionDate(firstExecutionDate);
+  const nextExecutionDate = calculateInitialExecutionDate(
+    firstExecutionDate,
+    frequency
+  );
   const normalizedEndDate = calculateEndDate(endDate);
 
   const { data, error } = await supabase
@@ -373,20 +376,29 @@ export const calculateEndDate = (date?: string | null): string | null => {
 
 /**
  * Calculate the first execution date selected by the user.
- * Date-only values run at the start of the selected local day.
+ * Same-day or past date-only values execute after one frequency interval.
  */
-export const calculateInitialExecutionDate = (date?: string): string => {
+export const calculateInitialExecutionDate = (
+  date?: string,
+  frequency = "Weekly"
+): string => {
+  const now = new Date();
+
   if (!date) {
-    return new Date().toISOString();
+    return addFrequencyInterval(now, frequency).toISOString();
   }
 
   const executionDate = new Date(date);
 
   if (Number.isNaN(executionDate.getTime())) {
-    return new Date().toISOString();
+    return addFrequencyInterval(now, frequency).toISOString();
   }
 
   executionDate.setHours(0, 0, 0, 0);
+  if (executionDate <= now) {
+    return addFrequencyInterval(now, frequency).toISOString();
+  }
+
   return executionDate.toISOString();
 };
 
@@ -394,30 +406,33 @@ export const calculateInitialExecutionDate = (date?: string): string => {
  * Calculate next execution date based on frequency
  */
 export const calculateNextExecutionDate = (frequency: string): string => {
-  const now = new Date();
+  return addFrequencyInterval(new Date(), frequency).toISOString();
+};
 
+const addFrequencyInterval = (date: Date, frequency: string): Date => {
+  const next = new Date(date);
   switch (frequency.toLowerCase()) {
     case "hourly":
-      now.setHours(now.getHours() + 1);
+      next.setHours(next.getHours() + 1);
       break;
     case "daily":
-      now.setDate(now.getDate() + 1);
+      next.setDate(next.getDate() + 1);
       break;
     case "weekly":
-      now.setDate(now.getDate() + 7);
+      next.setDate(next.getDate() + 7);
       break;
     case "bi-weekly":
-      now.setDate(now.getDate() + 14);
+      next.setDate(next.getDate() + 14);
       break;
     case "monthly":
     case "month":
-      now.setMonth(now.getMonth() + 1);
+      next.setMonth(next.getMonth() + 1);
       break;
     default:
-      now.setDate(now.getDate() + 7); // Default to weekly
+      next.setDate(next.getDate() + 7); // Default to weekly
   }
 
-  return now.toISOString();
+  return next;
 };
 
 /**
