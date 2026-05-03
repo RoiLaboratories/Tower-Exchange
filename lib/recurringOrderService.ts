@@ -11,6 +11,11 @@ export interface RecurringOrder {
   start_date: string;
   end_date?: string;
   next_execution_date?: string;
+  onchain_order_key?: string;
+  executor_address?: string;
+  approval_transaction_hash?: string;
+  authorization_transaction_hash?: string;
+  onchain_authorized?: boolean;
   is_active: boolean;
   execution_count: number;
   created_at: string;
@@ -43,9 +48,11 @@ export const createRecurringOrder = async (
   amount: number,
   frequency: string,
   firstExecutionDate?: string,
+  endDate?: string | null,
   signature?: string
 ): Promise<RecurringOrder> => {
   const nextExecutionDate = calculateInitialExecutionDate(firstExecutionDate);
+  const normalizedEndDate = calculateEndDate(endDate);
 
   const { data, error } = await supabase
     .from("recurring_orders")
@@ -57,7 +64,7 @@ export const createRecurringOrder = async (
       amount,
       frequency,
       start_date: new Date().toISOString(),
-      end_date: null,
+      end_date: normalizedEndDate,
       next_execution_date: nextExecutionDate,
       is_active: true,
       ...(signature && { signature }),
@@ -347,6 +354,21 @@ export const logOrderExecution = async (
   }
 
   return data;
+};
+
+export const calculateEndDate = (date?: string | null): string | null => {
+  if (!date) {
+    return null;
+  }
+
+  const endDate = new Date(date);
+
+  if (Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+
+  endDate.setHours(23, 59, 59, 999);
+  return endDate.toISOString();
 };
 
 /**

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { getRecurringOrders, cancelRecurringOrder, getOrderExecutions } from "@/lib/recurringOrderService";
 import { RecurringOrder, RecurringOrderExecution } from "@/lib/recurringOrderService";
+import { cancelRecurringOrderOnchain } from "@/lib/recurringOrderExecutor";
 import CancelOrderConfirmationModal from "@/components/CancelOrderConfirmationModal";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { ErrorBadge } from "@/components/ui/error-badge";
@@ -122,6 +123,15 @@ export const RecurringOrdersDashboard = () => {
 
     setCancelingId(orderToCancel.id);
     try {
+      if (orderToCancel.onchain_authorized) {
+        await cancelRecurringOrderOnchain({
+          orderId: orderToCancel.id,
+          walletAddress,
+          sourceToken: orderToCancel.source_token,
+          onchainOrderKey: orderToCancel.onchain_order_key,
+        });
+      }
+
       await cancelRecurringOrder(orderToCancel.id, walletAddress);
       setOrders(orders.map((o) => (o.id === orderToCancel.id ? { ...o, is_active: false } : o)));
       if (selectedOrder?.id === orderToCancel.id) {

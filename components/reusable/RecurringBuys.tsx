@@ -9,10 +9,17 @@ import { AmountInput } from "./AmountInput";
 import { FrequencyModal } from "../FrequencyModal";
 import { DatePicker } from "../DatePicker";
 import RecurringOrderNotification from "../RecurringOrderNotification";
-import { createRecurringOrder, logOrderCreation } from "@/lib/recurringOrderService";
+import {
+  createRecurringOrder,
+  logOrderCreation,
+  updateRecurringOrder,
+} from "@/lib/recurringOrderService";
+import {
+  authorizeRecurringOrderOnchain,
+  isRecurringOrderTokenSupported,
+} from "@/lib/recurringOrderExecutor";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
-import { signBrowserWalletMessage } from "@/lib/browser-wallet";
 
 export const RecurringBuys = () => {
   const { user } = useRainbowKitAuth();
@@ -26,9 +33,11 @@ export const RecurringBuys = () => {
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
   const [firstExecutionDate, setFirstExecutionDate] = useState(todayFormatted);
+  const [endDate, setEndDate] = useState("");
 
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNotification, setShowNotification] = useState(false);
@@ -42,6 +51,22 @@ export const RecurringBuys = () => {
   const availableTokensForBuy = tokens.filter(
     (token) => token.symbol !== selectedPayToken.symbol,
   );
+  const amountValue = Number.parseFloat(amount);
+  const endDateIsValid =
+    !endDate || new Date(endDate).getTime() >= new Date(firstExecutionDate).getTime();
+  const canContinue =
+    Boolean(walletAddress) &&
+    Boolean(selectedBuyToken) &&
+    Number.isFinite(amountValue) &&
+    amountValue > 0 &&
+    endDateIsValid;
+
+  const handleStartDateSelect = (date: string) => {
+    setFirstExecutionDate(date);
+    if (endDate && new Date(endDate).getTime() < new Date(date).getTime()) {
+      setEndDate("");
+    }
+  };
 
   const handleContinue = async () => {
     if (!walletAddress) {
@@ -59,22 +84,17 @@ export const RecurringBuys = () => {
       return;
     }
 
+    if (!isRecurringOrderTokenSupported(selectedPayToken.symbol)) {
+      setError(`${selectedPayToken.symbol} is not supported for automatic recurring orders yet.`);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    let createdOrderId: string | null = null;
 
     try {
-      const message = `I authorize Tower Finance to set up a recurring ${frequency} ${selectedPayToken.symbol} -> ${selectedBuyToken.symbol} buy order for ${amount} ${selectedPayToken.symbol}`;
-
-      let signature: string | undefined;
-
-      try {
-        signature = await signBrowserWalletMessage(message, walletAddress);
-        console.log("Message signed successfully:", signature);
-      } catch (signError) {
-        console.warn("Signature request failed:", signError);
-      }
-
-      await createRecurringOrder(
+      const order = await createRecurringOrder(
         walletAddress,
         "buy",
         selectedPayToken.symbol,
@@ -82,12 +102,33 @@ export const RecurringBuys = () => {
         parseFloat(amount),
         frequency,
         firstExecutionDate,
-        signature,
+        endDate || null,
       );
+      createdOrderId = order.id;
+
+      const authorization = await authorizeRecurringOrderOnchain({
+        orderId: order.id,
+        walletAddress,
+        sourceToken: selectedPayToken.symbol,
+        targetToken: selectedBuyToken.symbol,
+        amount: parseFloat(amount),
+        frequency,
+        startDate: order.next_execution_date,
+        endDate: order.end_date,
+      });
+
+      await updateRecurringOrder(order.id, {
+        onchain_order_key: authorization.orderKey,
+        executor_address: authorization.executorAddress,
+        approval_transaction_hash: authorization.approvalHash,
+        authorization_transaction_hash: authorization.authorizationHash,
+        onchain_authorized: true,
+      });
 
       setSelectedBuyToken(null);
       setAmount("10.00");
       setFrequency("Weekly");
+      setEndDate("");
       const newToday = new Date();
       const newTodayFormatted = `${String(newToday.getMonth() + 1).padStart(2, "0")}/${String(newToday.getDate()).padStart(2, "0")}/${newToday.getFullYear()}`;
       setFirstExecutionDate(newTodayFormatted);
@@ -112,6 +153,11 @@ export const RecurringBuys = () => {
         console.error("Error logging order creation:", logError);
       }
     } catch (err) {
+      if (createdOrderId) {
+        await updateRecurringOrder(createdOrderId, { is_active: false }).catch((updateError) => {
+          console.error("Error deactivating unauthorized recurring buy:", updateError);
+        });
+      }
       const errorMsg = err instanceof Error ? err.message : "Failed to create recurring buy order";
       setError(errorMsg);
       console.error("Error creating recurring buy:", err);
@@ -149,7 +195,7 @@ export const RecurringBuys = () => {
           infoMessage="Select which token you want to buy regularly"
         />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-4">
           <FrequencyField
             label="Frequency"
             value={frequency}
@@ -166,13 +212,33 @@ export const RecurringBuys = () => {
             onClick={() => setShowDatePicker(true)}
             tooltipDirection="responsive"
           />
+          <div>
+            <FrequencyField
+              label="End Date"
+              value={endDate || "No end date"}
+              showInfo
+              infoMessage="Set the last date this recurring order may execute"
+              optional
+              onClick={() => setShowEndDatePicker(true)}
+              tooltipDirection="left"
+            />
+            {endDate && (
+              <button
+                type="button"
+                onClick={() => setEndDate("")}
+                className="mt-2 text-xs font-medium text-zinc-400 transition-colors hover:text-white"
+              >
+                Clear end date
+              </button>
+            )}
+          </div>
         </div>
 
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
           onClick={handleContinue}
-          disabled={isLoading}
+          disabled={isLoading || !canContinue}
           className="mt-1 w-full rounded-[16px] bg-white py-3 text-sm font-semibold text-black transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-2 sm:rounded-[18px]"
         >
           {isLoading ? "Creating Order..." : "Continue"}
@@ -201,8 +267,16 @@ export const RecurringBuys = () => {
           key="date-picker"
           isOpen={showDatePicker}
           onClose={() => setShowDatePicker(false)}
-          onSelect={setFirstExecutionDate}
+          onSelect={handleStartDateSelect}
           currentValue={firstExecutionDate}
+        />
+        <DatePicker
+          key="end-date-picker"
+          isOpen={showEndDatePicker}
+          onClose={() => setShowEndDatePicker(false)}
+          onSelect={setEndDate}
+          currentValue={endDate || firstExecutionDate}
+          minDate={firstExecutionDate}
         />
       </AnimatePresence>
     </>

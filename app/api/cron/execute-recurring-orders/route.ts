@@ -64,12 +64,20 @@ export async function GET(request: NextRequest) {
       responseBody = responseText;
     }
 
+    const logPayload = {
+      ok: response.ok,
+      status: response.status,
+      result: responseBody,
+    };
+
+    if (response.ok) {
+      console.log("Recurring order cron response:", logPayload);
+    } else {
+      console.error("Recurring order cron failed:", logPayload);
+    }
+
     return NextResponse.json(
-      {
-        ok: response.ok,
-        status: response.status,
-        result: responseBody,
-      },
+      logPayload,
       { status: response.ok ? 200 : 502 }
     );
   } catch (error) {

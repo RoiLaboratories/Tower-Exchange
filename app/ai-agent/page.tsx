@@ -50,7 +50,7 @@ const AIAgentPage = () => {
         )}
 
         <div className="mx-auto flex w-full max-w-[1320px] min-h-0 flex-1 flex-col px-3 pb-20 pt-3 sm:px-6 sm:pb-24 sm:pt-4 lg:px-8 lg:pb-8">
-          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_16px_minmax(392px,452px)] lg:gap-4 xl:grid-cols-[minmax(0,1fr)_18px_minmax(405px,468px)]">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_16px_minmax(430px,500px)] lg:gap-4 xl:grid-cols-[minmax(0,1fr)_18px_minmax(460px,540px)]">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -138,7 +138,7 @@ const AIAgentPage = () => {
                       scrollBehavior: "smooth",
                     } as any}
                   >
-                    <div className="mx-auto w-full max-w-[360px] xl:max-w-[380px]">
+                    <div className="mx-auto w-full max-w-[430px] xl:max-w-[470px]">
                       <AnimatePresence mode="wait">
                         {activeTab === "recurring-buys" && (
                           <RecurringBuys key="buys" />

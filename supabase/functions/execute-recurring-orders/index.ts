@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+// @ts-ignore Deno Edge Functions resolve npm: specifiers at deploy/runtime.
+import { ethers } from "npm:ethers@6.15.0";
 
 type DenoRuntime = {
   env: {
@@ -36,47 +38,49 @@ type SupabaseClientInstance = {
   from: (table: string) => SupabaseTableQuery;
 };
 
-type ChatApiResponse = {
-  data?: {
-    swap_quote?: unknown;
-    swap_execution?: {
-      transaction?: TransactionData;
-    };
-  };
-  quote?: unknown;
-};
-
-type TransactionData = {
-  to: string;
-  data: string;
-  value?: string;
-  gasLimit?: string | number;
-  from?: string;
-};
-
-type PrivySignedTransactionResponse = {
-  signed_transaction?: string;
-  transaction?: string;
-};
-
-type JsonRpcResponse = {
-  result?: string;
-  error?: {
-    message?: string;
-  };
-};
-
 const denoRuntime = (globalThis as unknown as { Deno: DenoRuntime }).Deno;
 
 const supabaseUrl = denoRuntime.env.get("SUPABASE_URL") ?? "";
 const supabaseServiceKey = denoRuntime.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const arcRpcUrl = "https://rpc.testnet.arc.network";
-const towerExchangeAiUrl = "https://tower-exchange-ai.vercel.app";
+const swapBackendUrl =
+  denoRuntime.env.get("TOWER_BACKEND_URL") ||
+  denoRuntime.env.get("NEXT_PUBLIC_BACKEND_URL") ||
+  "https://tower-backend.vercel.app";
+const arcRpcUrl =
+  denoRuntime.env.get("ARC_TESTNET_RPC_URL") ?? "https://rpc.testnet.arc.network";
+const recurringOrderExecutorAddress =
+  denoRuntime.env.get("RECURRING_ORDER_EXECUTOR_ADDRESS") ?? "";
+const recurringOrderRelayerPrivateKey =
+  denoRuntime.env.get("RECURRING_ORDER_RELAYER_PRIVATE_KEY") ?? "";
+const minOutputBps = Number(
+  denoRuntime.env.get("RECURRING_ORDER_MIN_OUTPUT_BPS") ?? "9900"
+);
 
-// Privy Server Wallet Configuration
-const privyAppId = denoRuntime.env.get("PRIVY_APP_ID") ?? "";
-const privyAppSecret = denoRuntime.env.get("PRIVY_APP_SECRET") ?? "";
-const privyApiUrl = "https://api.privy.io";
+const tokenDecimalsBySymbol: Record<string, number> = {
+  USDC: 6,
+  WUSDC: 18,
+  QTM: 18,
+  EURC: 6,
+  USYC: 6,
+  USDT: 18,
+  SWPRC: 6,
+  SYN: 18,
+};
+
+const tokenAddressBySymbol: Record<string, string> = {
+  USDC: "0x3600000000000000000000000000000000000000",
+  WUSDC: "0xD40fCAa5d2cE963c5dABC2bf59E268489ad7BcE4",
+  QTM: "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
+  EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+  USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
+  USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
+  SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
+  SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
+};
+
+const recurringOrderExecutorAbi = [
+  "function executeOrder(bytes32 orderId,uint256 amountIn,uint256 minAmountOut,address routeTarget,address approvalSpender,bytes routeCalldata) returns (uint256 amountOut)",
+];
 
 interface RecurringOrder {
   id: string;
@@ -90,6 +94,8 @@ interface RecurringOrder {
   end_date?: string | null;
   is_active: boolean;
   execution_count?: number;
+  onchain_order_key?: string | null;
+  onchain_authorized?: boolean;
 }
 
 /**
@@ -138,6 +144,7 @@ denoRuntime.serve(async (req: Request) => {
       .from("recurring_orders")
       .select<RecurringOrder[]>("*")
       .eq("is_active", true)
+      .eq("onchain_authorized", true)
       .lte("next_execution_date", now)
       .order("next_execution_date", { ascending: true })
       .limit(100); // Process max 100 orders per run
@@ -162,6 +169,7 @@ denoRuntime.serve(async (req: Request) => {
 
     // Execute each order and track results
     const results = [];
+    let claimedCount = 0;
     let successCount = 0;
     let failureCount = 0;
 
@@ -174,6 +182,7 @@ denoRuntime.serve(async (req: Request) => {
           continue;
         }
 
+        claimedCount++;
         console.log(`[${new Date().toISOString()}] Executing order:`, {
           id: order.id,
           wallet: order.wallet_address?.substring(0, 6) + "...",
@@ -204,6 +213,7 @@ denoRuntime.serve(async (req: Request) => {
       message: "Execution batch completed",
       timestamp: new Date().toISOString(),
       processed: ordersToExecute.length,
+      claimed: claimedCount,
       successful: successCount,
       failed: failureCount,
       results,
@@ -213,7 +223,10 @@ denoRuntime.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify(summary),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      {
+        status: failureCount > 0 && successCount === 0 ? 500 : 200,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Unexpected error in execute-recurring-orders:`, error);
@@ -234,22 +247,16 @@ async function executeOrder(
   try {
     console.log(`Executing order ${order.id}: ${order.source_token} -> ${order.target_token}`);
 
-    // Get swap quote from Tower-Exchange-AI
+    // Get the same backend-selected route used by normal swaps.
     const quoteResult = await getSwapQuote(order);
     if (!quoteResult.success) {
       throw new Error(`Failed to get quote: ${quoteResult.error}`);
     }
 
-    // Build and send transaction via Tower-Exchange-AI
-    const txResult = await sendSwapTransaction(
-      order.wallet_address,
-      order.source_token,
-      order.target_token,
-      order.amount.toString()
-    );
+    const txResult = await executeOrderOnchain(order, quoteResult.data);
 
     if (!txResult.success) {
-      throw new Error(`Failed to send transaction: ${txResult.error}`);
+      throw new Error(`Failed to execute on-chain order: ${txResult.error}`);
     }
 
     // Log successful execution
@@ -270,6 +277,7 @@ async function executeOrder(
       .update({
         next_execution_date: nextDate,
         execution_count: currentCount + 1,
+        execution_transaction_hash: txResult.transactionHash,
         is_active: !shouldDeactivate,
       })
       .eq("id", order.id);
@@ -328,46 +336,60 @@ async function releaseFailedOrder(
 }
 
 /**
- * Get swap quote from Tower-Exchange-AI
+ * Get swap quote from the backend route optimizer.
  */
 async function getSwapQuote(
   order: RecurringOrder
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
-    // Tower-Exchange-AI handles amount conversion internally based on token type
-    console.log(`[Quote] Requesting quote: ${order.source_token} -> ${order.target_token}, amount: ${order.amount}`);
+    const sourceDecimals = tokenDecimalsBySymbol[order.source_token];
+    const sourceAddress = tokenAddressBySymbol[order.source_token];
+    const targetAddress = tokenAddressBySymbol[order.target_token];
 
-    // Call Tower-Exchange-AI chat endpoint to get swap quote using AI agent
-    const chatResponse = await fetch(`${towerExchangeAiUrl}/api/v1/chat`, {
+    if (sourceDecimals == null || !sourceAddress || !targetAddress) {
+      return {
+        success: false,
+        error: `Unsupported token pair for recurring execution: ${order.source_token}/${order.target_token}`,
+      };
+    }
+
+    const amountIn = ethers.parseUnits(order.amount.toString(), sourceDecimals).toString();
+    console.log("[Quote] Requesting backend route quote:", {
+      sourceToken: order.source_token,
+      targetToken: order.target_token,
+      sourceAddress,
+      targetAddress,
+      amountIn,
+    });
+
+    const quoteResponse = await fetch(`${swapBackendUrl}/api/swap/quote`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        user_id: order.wallet_address,
-        wallet_address: order.wallet_address,
-        message: `Get swap quote for ${order.amount} ${order.source_token} to ${order.target_token}`,
-        enable_wallet_access: false,
-        enable_portfolio_analysis: false,
+        inputToken: sourceAddress,
+        outputToken: targetAddress,
+        inputAmount: amountIn,
+        slippageTolerance: 10000 - Math.min(Math.max(minOutputBps, 1), 10000),
       }),
     });
 
-    if (!chatResponse.ok) {
+    if (!quoteResponse.ok) {
+      const errorText = await quoteResponse.text();
       return {
         success: false,
-        error: `Tower-Exchange-AI returned status ${chatResponse.status}`,
+        error: `Route optimizer returned status ${quoteResponse.status}: ${errorText}`,
       };
     }
 
-    const chatData = (await chatResponse.json()) as ChatApiResponse;
-    console.log(`[Quote] Tower-Exchange-AI response:`, chatData);
+    const quoteData = await quoteResponse.json();
+    const quote = unwrapData(quoteData);
 
-    // Extract quote data from response
-    const quote = chatData.data?.swap_quote || chatData.quote;
     if (!quote) {
       return {
         success: false,
-        error: "No quote data in Tower-Exchange-AI response",
+        error: "No quote data in route optimizer response",
       };
     }
 
@@ -382,111 +404,83 @@ async function getSwapQuote(
 }
 
 /**
- * Sign and send a transaction using Privy Server Wallet
- * Requires PRIVY_APP_ID and PRIVY_APP_SECRET environment variables
+ * Execute the recurring order through the allowance-based executor contract.
  */
-async function signAndSendTransaction(
-  walletAddress: string,
-  txData: TransactionData
+async function executeOrderOnchain(
+  order: RecurringOrder,
+  quoteData: unknown
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   try {
-    if (!privyAppId || !privyAppSecret) {
+    if (!recurringOrderExecutorAddress || !recurringOrderRelayerPrivateKey) {
       return {
         success: false,
-        error: "Privy credentials not configured. Set PRIVY_APP_ID and PRIVY_APP_SECRET.",
+        error:
+          "RECURRING_ORDER_EXECUTOR_ADDRESS or RECURRING_ORDER_RELAYER_PRIVATE_KEY is not configured.",
       };
     }
 
-    console.log(`[Privy] Signing transaction for wallet: ${walletAddress}`);
-
-    // Build Privy auth header (Base64 encoded "app_id:app_secret")
-    const credentials = `${privyAppId}:${privyAppSecret}`;
-    const encodedCredentials = btoa(credentials);
-
-    // Call Privy Server Wallet API to sign transaction
-    // The transaction object should have: to, data, value, chainId
-    const privyResponse = await fetch(
-      `${privyApiUrl}/v1/wallets/${walletAddress}/sign_transaction`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({
-          transaction: {
-            to: txData.to,
-            data: txData.data,
-            value: txData.value || "0x0",
-            gasLimit: txData.gasLimit?.toString() || "200000",
-            chainId: 5042002, // Arc testnet
-          },
-        }),
-      }
-    );
-
-    if (!privyResponse.ok) {
-      const errorText = await privyResponse.text();
-      console.error(`[Privy] Signing failed with status ${privyResponse.status}:`, errorText);
+    const sourceDecimals = tokenDecimalsBySymbol[order.source_token];
+    if (sourceDecimals == null) {
       return {
         success: false,
-        error: `Privy signing failed: ${privyResponse.status}`,
+        error: `Unsupported source token for recurring execution: ${order.source_token}`,
       };
     }
 
-    const signedTx = (await privyResponse.json()) as PrivySignedTransactionResponse;
-    console.log(`[Privy] Transaction signed successfully`);
+    const orderKey =
+      order.onchain_order_key || ethers.keccak256(ethers.toUtf8Bytes(order.id));
+    const amountIn = ethers.parseUnits(order.amount.toString(), sourceDecimals);
+    const expectedAmountOut = extractQuoteAmountOut(quoteData);
+    const boundedMinOutputBps = BigInt(Math.min(Math.max(minOutputBps, 1), 10000));
+    const minAmountOut =
+      expectedAmountOut > 0n ? (expectedAmountOut * boundedMinOutputBps) / 10000n : 1n;
+    const route = await buildRecurringRoute(order, quoteData);
 
-    const signedTransaction = signedTx.signed_transaction || signedTx.transaction;
-
-    if (!signedTransaction) {
+    if (!route.success || !route.swap) {
       return {
         success: false,
-        error: "Privy signing response did not include a signed transaction.",
+        error: route.error || "Backend did not return a swap route.",
       };
     }
 
-    // Send the signed transaction to Arc RPC
-    const sendResponse = await fetch(arcRpcUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: Date.now(),
-        method: "eth_sendRawTransaction",
-        params: [signedTransaction],
-      }),
+    const approvalSpender =
+      route.approvalSpender || route.swap.to;
+
+    console.log("[Executor] Sending recurring order transaction:", {
+      orderId: order.id,
+      orderKey,
+      amountIn: amountIn.toString(),
+      minAmountOut: minAmountOut.toString(),
+      executor: recurringOrderExecutorAddress,
+      routeTarget: route.swap.to,
+      approvalSpender,
     });
 
-    const sendResult = (await sendResponse.json()) as JsonRpcResponse;
+    const provider = new ethers.JsonRpcProvider(arcRpcUrl);
+    const wallet = new ethers.Wallet(recurringOrderRelayerPrivateKey, provider);
+    const executor = new ethers.Contract(
+      recurringOrderExecutorAddress,
+      recurringOrderExecutorAbi,
+      wallet
+    );
 
-    if (sendResult.error) {
-      console.error(`[RPC] Transaction broadcast failed:`, sendResult.error);
-      return {
-        success: false,
-        error: `RPC error: ${sendResult.error.message}`,
-      };
-    }
-
-    const txHash = sendResult.result;
-
-    if (!txHash) {
-      return {
-        success: false,
-        error: "RPC response did not include a transaction hash.",
-      };
-    }
-
-    console.log(`[RPC] Transaction broadcast successful: ${txHash}`);
+    const tx = await executor.executeOrder(
+      orderKey,
+      amountIn,
+      minAmountOut,
+      route.swap.to,
+      approvalSpender,
+      route.swap.data
+    );
+    const receipt = await tx.wait();
 
     return {
-      success: true,
-      transactionHash: txHash,
+      success: receipt?.status === 1,
+      transactionHash: tx.hash,
+      error: receipt?.status === 1 ? undefined : "Executor transaction reverted.",
     };
   } catch (error) {
-    console.error("[Privy Error]", error);
+    console.error("[Executor Error]", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -494,70 +488,175 @@ async function signAndSendTransaction(
   }
 }
 
-/**
- * Send swap transaction to the blockchain
- * Calls Tower-Exchange-AI to build and sends via Privy for signing
- */
-async function sendSwapTransaction(
-  walletAddress: string,
-  inputToken: string,
-  outputToken: string,
-  inputAmount: string
-): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
-  try {
-    console.log(`[Transaction] Building transaction for ${walletAddress}: ${inputToken} -> ${outputToken}`);
+type BuiltSwapTransaction = {
+  to: string;
+  data: string;
+  value?: string;
+  gasLimit?: string | number;
+};
 
-    // Call Tower-Exchange-AI execute_swap endpoint to build transaction
-    const execResponse = await fetch(`${towerExchangeAiUrl}/api/v1/chat`, {
+type BuiltApprovalTransaction = {
+  to?: string;
+  data?: string;
+  spender?: string;
+  approvalAddress?: string;
+};
+
+async function buildRecurringRoute(
+  order: RecurringOrder,
+  quoteData: unknown
+): Promise<{
+  success: boolean;
+  swap?: BuiltSwapTransaction;
+  approvalSpender?: string;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${swapBackendUrl}/api/swap/build-tx`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        user_id: walletAddress,
-        wallet_address: walletAddress,
-        message: `Execute swap: ${inputAmount} ${inputToken} to ${outputToken}`,
-        enable_wallet_access: true, // Needed for swap execution
-        enable_portfolio_analysis: false,
+        quote: quoteData,
+        userAddress: recurringOrderExecutorAddress,
+        recipient: order.wallet_address,
+        executionMode: "recurring_order_executor",
       }),
     });
 
-    if (!execResponse.ok) {
+    if (!response.ok) {
+      const errorText = await response.text();
       return {
         success: false,
-        error: `Transaction building failed: ${execResponse.status}`,
+        error: `Transaction builder returned status ${response.status}: ${errorText}`,
       };
     }
 
-    const execData = (await execResponse.json()) as ChatApiResponse;
-    console.log(`[Transaction] Execute response:`, execData);
+    const buildData = unwrapData(await response.json()) as Record<string, unknown>;
+    const swap = (buildData.swap || buildData) as BuiltSwapTransaction;
+    const approval = (buildData.approval || buildData.approvalTx || null) as
+      | BuiltApprovalTransaction
+      | null;
 
-    // Extract transaction data from response
-    const txData = execData.data?.swap_execution?.transaction;
-    if (!txData) {
+    if (!isHexAddress(swap?.to) || !isHexData(swap?.data)) {
       return {
         success: false,
-        error: "No transaction data in response",
+        error: "Transaction builder response did not include a valid swap target/data.",
       };
     }
 
-    console.log(`[Transaction] Prepared transaction:`, {
-      to: txData.to,
-      from: txData.from,
-      dataLength: txData.data?.length,
-      value: txData.value,
-      gasLimit: txData.gasLimit,
-    });
+    if (swap.value && BigInt(normalizeHexQuantity(swap.value)) > 0n) {
+      return {
+        success: false,
+        error: "Recurring order executor only supports ERC20 routes with zero native value.",
+      };
+    }
 
-    // Sign and send transaction using Privy Server Wallet
-    return await signAndSendTransaction(walletAddress, txData);
+    const approvalSpender =
+      firstValidAddress([
+        approval?.spender,
+        approval?.approvalAddress,
+        extractApprovalSpender(approval?.data),
+        extractApprovalSpender((buildData as { approvalData?: string }).approvalData),
+        (buildData as { approvalAddress?: string }).approvalAddress,
+      ]) || swap.to;
+
+    return {
+      success: true,
+      swap,
+      approvalSpender,
+    };
   } catch (error) {
-    console.error("[Transaction Error]", error);
+    console.error("[Build Route Error]", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function unwrapData(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  return record.data ?? value;
+}
+
+function isHexAddress(value: unknown): value is string {
+  return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function isHexData(value: unknown): value is string {
+  return typeof value === "string" && /^0x([a-fA-F0-9]{2})*$/.test(value);
+}
+
+function firstValidAddress(values: unknown[]): string | null {
+  for (const value of values) {
+    if (isHexAddress(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function normalizeHexQuantity(value: string): string {
+  if (value.startsWith("0x")) {
+    return value;
+  }
+
+  return `0x${BigInt(value).toString(16)}`;
+}
+
+function extractApprovalSpender(data?: string): string | null {
+  if (!data || !data.startsWith("0x095ea7b3") || data.length < 74) {
+    return null;
+  }
+
+  const spender = `0x${data.slice(34, 74)}`;
+  return isHexAddress(spender) ? spender : null;
+}
+
+function extractQuoteAmountOut(quoteData: unknown): bigint {
+  const candidates: unknown[] = [];
+
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+
+    const record = value as Record<string, unknown>;
+    for (const key of [
+      "minOut",
+      "minimumReceived",
+      "amountOut",
+      "outputAmount",
+      "toAmount",
+    ]) {
+      candidates.push(record[key]);
+    }
+
+    for (const nestedKey of ["data", "quote", "swap_quote"]) {
+      visit(record[nestedKey]);
+    }
+  };
+
+  visit(quoteData);
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && /^\d+$/.test(candidate)) {
+      return BigInt(candidate);
+    }
+
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+      return BigInt(Math.floor(candidate));
+    }
+  }
+
+  return 0n;
 }
 
 /**
@@ -571,7 +670,7 @@ async function logOrderExecution(
   errorMessage?: string
 ): Promise<void> {
   try {
-    await supabase.from("recurring_order_executions").insert({
+    const { error } = await supabase.from("recurring_order_executions").insert({
       recurring_order_id: order.id,
       wallet_address: order.wallet_address,
       amount: order.amount,
@@ -582,6 +681,10 @@ async function logOrderExecution(
       error_message: errorMessage || null,
       execution_date: new Date().toISOString(),
     });
+
+    if (error) {
+      console.error("Error logging execution:", error);
+    }
   } catch (error) {
     console.error("Error logging execution:", error);
     // Don't throw, as this is secondary to the actual execution

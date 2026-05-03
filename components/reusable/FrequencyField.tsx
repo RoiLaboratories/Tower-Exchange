@@ -54,14 +54,18 @@ export const FrequencyField = ({
   }, [showTooltip, isTouchDevice]);
 
   return (
-    <div>
-      <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
-        <span className="whitespace-nowrap text-sm font-medium text-white">
+    <div className="min-w-0">
+      <div className="mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
+        <span className="shrink-0 whitespace-nowrap text-sm font-medium leading-5 text-white">
           {label}
-          {optional && <span className="whitespace-nowrap text-gray-600"> (Optional)</span>}
         </span>
+        {optional && (
+          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-gray-600">
+            (Optional)
+          </span>
+        )}
         {showInfo && (
-          <div className="relative group flex items-center">
+          <div className="relative group flex shrink-0 items-center">
             <button
               data-freq-info-button
               onClick={() => isTouchDevice && setShowTooltip(!showTooltip)}
@@ -77,12 +81,12 @@ export const FrequencyField = ({
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className={`absolute top-full mt-1 z-50 w-56 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${
+                className={`absolute top-full mt-1 z-50 w-56 max-w-[calc(100vw-2rem)] rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${
                   tooltipDirection === 'left' 
                     ? 'left-0' 
                     : tooltipDirection === 'right' 
                     ? 'right-0' 
-                    : 'left-0 sm:left-auto sm:right-0'
+                    : 'right-0'
                 }`}
               >
                 {infoMessage}
@@ -97,7 +101,7 @@ export const FrequencyField = ({
         onClick={onClick}
         className="h-auto w-full cursor-pointer justify-start rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-left text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4"
       >
-        <span className="text-white">{value}</span>
+        <span className="min-w-0 truncate text-white">{value}</span>
       </Button>
     </div>
   );

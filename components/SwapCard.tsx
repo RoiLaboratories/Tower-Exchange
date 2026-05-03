@@ -439,7 +439,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         parseFloat(sellAmountValue) * 10 ** sellTokenDecimals
       ).toString();
 
-      console.log("Getting quote from Tower Finance:", {
+      console.log("Getting quote from Tower Exchange:", {
         sellToken: sellToken.symbol,
         receiveToken: receiveToken.symbol,
         tokenInAddress,
@@ -717,7 +717,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         sellTokenDecimals,
       });
 
-      // Step 3: Get swap quote from Tower Finance backend
+      // Step 3: Get swap quote from Tower Exchange backend
       const quote = await getQuote(
         tokenInAddress,
         tokenOutAddress,

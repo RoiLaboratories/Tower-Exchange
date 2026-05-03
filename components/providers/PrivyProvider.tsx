@@ -45,6 +45,8 @@ export const PrivyProvider = ({ children }: { children: ReactNode }) => {
           theme: "dark",
           accentColor: "#7bb8ff",
           logo: "/assets/Tower%20Logo.svg",
+          landingHeader: "Log in to Tower Exchange",
+          loginMessage: "Trade stablecoins and manage recurring orders on Tower Exchange.",
         },
         embeddedWallets: {
           ethereum: {

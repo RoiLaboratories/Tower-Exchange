@@ -9,6 +9,7 @@ interface DatePickerProps {
   onClose: () => void;
   onSelect: (date: string) => void;
   currentValue: string;
+  minDate?: string;
 }
 
 export const DatePicker = ({
@@ -16,6 +17,7 @@ export const DatePicker = ({
   onClose,
   onSelect,
   currentValue,
+  minDate,
 }: DatePickerProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(
@@ -87,12 +89,15 @@ export const DatePicker = ({
     );
   };
 
-  const isPastDate = (day: number) => {
+  const isUnavailableDate = (day: number) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const minimumDate = minDate ? new Date(minDate) : today;
+    minimumDate.setHours(0, 0, 0, 0);
+    const lowerBound = minimumDate > today ? minimumDate : today;
     const checkDate = new Date(year, month, day);
     checkDate.setHours(0, 0, 0, 0);
-    return checkDate < today;
+    return checkDate < lowerBound;
   };
 
   const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => i);
@@ -167,9 +172,9 @@ export const DatePicker = ({
                 variant={isSelectedDate(day) ? "default" : "ghost"}
                 size="icon"
                 onClick={() => handleDateSelect(day)}
-                disabled={isPastDate(day)}
+                disabled={isUnavailableDate(day)}
                 className={`aspect-square h-auto text-sm ${
-                  isPastDate(day)
+                  isUnavailableDate(day)
                     ? "text-gray-500 cursor-not-allowed"
                     : isSelectedDate(day)
                     ? "bg-white text-black hover:bg-white/90 font-semibold"

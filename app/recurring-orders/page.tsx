@@ -101,7 +101,7 @@ export default function RecurringOrdersPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="max-w-lg mx-auto"
+              className="max-w-3xl mx-auto"
             >
               <h2 className="text-2xl font-bold text-white mb-6">Create Recurring Buy Order</h2>
               <RecurringBuys />
@@ -115,7 +115,7 @@ export default function RecurringOrdersPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="max-w-lg mx-auto"
+              className="max-w-3xl mx-auto"
             >
               <h2 className="text-2xl font-bold text-white mb-6">Create Recurring Sell Order</h2>
               <RecurringSell />
