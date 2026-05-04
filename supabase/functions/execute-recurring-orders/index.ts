@@ -46,6 +46,12 @@ const swapBackendUrl =
   denoRuntime.env.get("TOWER_BACKEND_URL") ||
   denoRuntime.env.get("NEXT_PUBLIC_BACKEND_URL") ||
   "https://tower-backend.vercel.app";
+const swapBackendApiKey =
+  denoRuntime.env.get("TOWER_BACKEND_API_KEY") ||
+  denoRuntime.env.get("BACKEND_API_KEY") ||
+  "";
+const swapBackendAuthHeader =
+  denoRuntime.env.get("TOWER_BACKEND_AUTH_HEADER") || "Authorization";
 const arcRpcUrl =
   denoRuntime.env.get("ARC_TESTNET_RPC_URL") ?? "https://rpc.testnet.arc.network";
 const recurringOrderExecutorAddress =
@@ -82,6 +88,35 @@ const recurringOrderExecutorAbi = [
   "function executeOrder(bytes32 orderId,uint256 amountIn,uint256 minAmountOut,address routeTarget,address approvalSpender,bytes routeCalldata) returns (uint256 amountOut)",
 ];
 
+function getSwapBackendUrl(): string {
+  const normalizedUrl = swapBackendUrl.replace(/\/$/, "");
+
+  if (/tower-exchange-ai/i.test(normalizedUrl)) {
+    throw new Error(
+      "TOWER_BACKEND_URL points to the Tower-Exchange-AI service. Recurring orders require the swap backend URL, for example https://tower-backend.vercel.app."
+    );
+  }
+
+  return normalizedUrl;
+}
+
+function buildBackendHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (!swapBackendApiKey) {
+    return headers;
+  }
+
+  headers[swapBackendAuthHeader] =
+    swapBackendAuthHeader.toLowerCase() === "authorization"
+      ? `Bearer ${swapBackendApiKey}`
+      : swapBackendApiKey;
+
+  return headers;
+}
+
 interface RecurringOrder {
   id: string;
   wallet_address: string;
@@ -107,6 +142,8 @@ denoRuntime.serve(async (req: Request) => {
     console.log(`[${new Date().toISOString()}] Received request:`, {
       method: req.method,
       url: req.url,
+      swapBackendHost: new URL(getSwapBackendUrl()).host,
+      swapBackendAuthHeader: swapBackendApiKey ? swapBackendAuthHeader : "none",
       headers: {
         authorization: req.headers.get("authorization") ? "present" : "missing",
         contentType: req.headers.get("content-type"),
@@ -362,11 +399,10 @@ async function getSwapQuote(
       amountIn,
     });
 
-    const quoteResponse = await fetch(`${swapBackendUrl}/api/swap/quote`, {
+    const backendUrl = getSwapBackendUrl();
+    const quoteResponse = await fetch(`${backendUrl}/api/swap/quote`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: buildBackendHeaders(),
       body: JSON.stringify({
         inputToken: sourceAddress,
         outputToken: targetAddress,
@@ -379,7 +415,7 @@ async function getSwapQuote(
       const errorText = await quoteResponse.text();
       return {
         success: false,
-        error: `Route optimizer returned status ${quoteResponse.status}: ${errorText}`,
+        error: `Swap backend returned status ${quoteResponse.status}: ${errorText}`,
       };
     }
 
@@ -512,11 +548,10 @@ async function buildRecurringRoute(
   error?: string;
 }> {
   try {
-    const response = await fetch(`${swapBackendUrl}/api/swap/build-tx`, {
+    const backendUrl = getSwapBackendUrl();
+    const response = await fetch(`${backendUrl}/api/swap/build-tx`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: buildBackendHeaders(),
       body: JSON.stringify({
         quote: quoteData,
         userAddress: recurringOrderExecutorAddress,

@@ -45,7 +45,7 @@ Edge Function (execute-recurring-orders)
 Query: Get active orders due for execution
     ↓
 For each order:
-  • Get swap quote from Tower-Exchange-AI
+  • Get swap quote from the Tower swap backend
   • Build transaction
   • Sign via Privy
   • Broadcast to Arc RPC
@@ -70,14 +70,16 @@ Orders are executed when:
 ❌ **Critical** - Run the setup SQL from SETUP_INSTRUCTIONS.md
 
 ### "Failed to get quote"
-- Tower-Exchange-AI API is down
+- Tower swap backend API is down
+- `TOWER_BACKEND_URL` is missing or points to the Tower-Exchange-AI chat service
+- The swap backend requires auth but `TOWER_BACKEND_API_KEY` is missing
 - Order tokens might not be supported
-- Check function logs for details
+- Check function logs for the resolved `swapBackendHost`
 
 ### "Transaction build failed"
 - Invalid token combination
 - Insufficient liquidity
-- Check Tower-Exchange-AI API response
+- Check Tower swap backend API response
 
 ## Configuration
 
@@ -138,15 +140,19 @@ SELECT cron.schedule(
 
 2. **Implement exponential backoff** for failed orders
 
-3. **Add rate limiting** to Tower-Exchange-AI calls
+3. **Add rate limiting** to Tower swap backend calls
 
 4. **Consider splitting by wallet** for parallel execution
 
 ## Environment Variables
 
-Add to Supabase Function Settings (if using Privy signing):
-- `PRIVY_APP_ID` - Your Privy app ID
-- `PRIVY_APP_SECRET` - Your Privy secret
+Add to Supabase Function Settings:
+- `TOWER_BACKEND_URL` - Swap backend base URL, for example `https://tower-backend.vercel.app`
+- `TOWER_BACKEND_API_KEY` - Optional server-only API key if `/api/swap/quote` and `/api/swap/build-tx` are protected
+- `TOWER_BACKEND_AUTH_HEADER` - Optional auth header name, defaults to `Authorization`
+- `RECURRING_ORDER_EXECUTOR_ADDRESS` - Deployed recurring order executor
+- `RECURRING_ORDER_RELAYER_PRIVATE_KEY` - Relayer wallet private key
+- `ARC_TESTNET_RPC_URL` - Arc RPC URL
 
 ## Security
 
@@ -165,7 +171,7 @@ Add to Supabase Function Settings (if using Privy signing):
 - [ ] Recurring orders exist and `is_active = true`
 - [ ] Orders' `next_execution_date` is in the past
 - [ ] Edge Function logs show execution attempts
-- [ ] Network connectivity to Tower-Exchange-AI and Arc RPC
+- [ ] Network connectivity to Tower swap backend and Arc RPC
 
 ## Next Steps
 
