@@ -77,6 +77,13 @@ const orderDelayMs = Math.max(
   0,
   Number(denoRuntime.env.get("RECURRING_ORDER_DELAY_MS") ?? "1000")
 );
+const recurringOrderRouteTargets = splitConfiguredAddresses(
+  denoRuntime.env.get("RECURRING_ORDER_ROUTE_TARGETS")
+);
+const recurringOrderApprovalSpenders = splitConfiguredAddresses(
+  denoRuntime.env.get("RECURRING_ORDER_APPROVAL_SPENDERS")
+);
+const feeCollectorAddress = denoRuntime.env.get("FEE_COLLECTOR_ADDRESS") ?? "";
 
 const tokenDecimalsBySymbol: Record<string, number> = {
   USDC: 6,
@@ -108,6 +115,14 @@ const routeInterface = new ethers.Interface([
   "function swapWithSplit(tuple(address[] path,uint256 amountIn,uint256 minAmountOut,address router)[] splits,address tokenOut,uint256 minAmountOut,address to,uint256 deadline)",
   "function swap(address tokenIn,address tokenOut,uint256 amountIn,uint256 minAmountOut,address recipient,uint256 deadline)",
 ]);
+
+function splitConfiguredAddresses(value?: string): string[] {
+  return (value || "")
+    .split(",")
+    .map((address) => address.trim())
+    .filter((address) => isHexAddress(address))
+    .map((address) => address.toLowerCase());
+}
 
 function getSwapBackendUrl(): string {
   const normalizedUrl = swapBackendUrl.replace(/\/$/, "");
@@ -574,7 +589,28 @@ async function executeOrderOnchain(
 
     const approvalSpender =
       route.approvalSpender || route.swap.to;
-    const routeMinAmountOut = extractRouteMinAmountOut(route.swap.data);
+    const routeValidationError = validateRecurringRoute({
+      routeTarget: route.swap.to,
+      approvalSpender,
+      routeCalldata: route.swap.data,
+      recipient: order.wallet_address,
+      amountIn,
+      sourceAddress: tokenAddressBySymbol[order.source_token],
+      targetAddress: tokenAddressBySymbol[order.target_token],
+    });
+
+    if (routeValidationError) {
+      return {
+        success: false,
+        error: routeValidationError,
+      };
+    }
+
+    const routeMinAmountOut = extractRouteMinAmountOut(route.swap.data, {
+      amountIn,
+      sourceAddress: tokenAddressBySymbol[order.source_token],
+      targetAddress: tokenAddressBySymbol[order.target_token],
+    });
     const expectedAmountOut = extractQuoteAmountOut(
       quoteData,
       tokenDecimalsBySymbol[order.target_token]
@@ -594,6 +630,7 @@ async function executeOrderOnchain(
       executor: recurringOrderExecutorAddress,
       routeTarget: route.swap.to,
       approvalSpender,
+      routeRecipient: extractRouteRecipient(route.swap.data),
     });
 
     const provider = new ethers.JsonRpcProvider(arcRpcUrl);
@@ -763,7 +800,91 @@ function extractApprovalSpender(data?: string): string | null {
   return isHexAddress(spender) ? spender : null;
 }
 
-function extractRouteMinAmountOut(routeCalldata: string): bigint | null {
+function isConfiguredAddressAllowed(
+  configuredAddresses: string[],
+  address: string
+): boolean {
+  return configuredAddresses.length === 0 || configuredAddresses.includes(address.toLowerCase());
+}
+
+function extractRouteRecipient(routeCalldata: string): string | null {
+  try {
+    const parsed = routeInterface.parseTransaction({ data: routeCalldata });
+
+    if (!parsed) {
+      return null;
+    }
+
+    if (parsed.name === "swapExactTokensForTokens") {
+      return parsed.args.to as string;
+    }
+
+    if (parsed.name === "swapWithSplit") {
+      return parsed.args.to as string;
+    }
+
+    if (parsed.name === "swap") {
+      return parsed.args.recipient as string;
+    }
+  } catch {
+    // Fall through to selector-agnostic layouts below.
+  }
+
+  return readCalldataAddress(routeCalldata, 4);
+}
+
+function validateRecurringRoute(input: {
+  routeTarget: string;
+  approvalSpender: string;
+  routeCalldata: string;
+  recipient: string;
+  amountIn: bigint;
+  sourceAddress?: string;
+  targetAddress?: string;
+}): string | null {
+  if (!isConfiguredAddressAllowed(recurringOrderRouteTargets, input.routeTarget)) {
+    return `Recurring route target ${input.routeTarget} is not in RECURRING_ORDER_ROUTE_TARGETS. Configure this to the XyloNet router/adapter address, not TowerRouter.`;
+  }
+
+  if (!isConfiguredAddressAllowed(recurringOrderApprovalSpenders, input.approvalSpender)) {
+    return `Recurring approval spender ${input.approvalSpender} is not in RECURRING_ORDER_APPROVAL_SPENDERS. Configure this to the token spender used by XyloNet.`;
+  }
+
+  if (feeCollectorAddress && sameAddress(input.routeTarget, feeCollectorAddress)) {
+    return "Recurring route target resolved to FeeCollector. The route target must be XyloNet/XyloNetAdapter; FeeCollector can only be the output recipient in a fee-aware executor flow.";
+  }
+
+  const routeRecipient = extractRouteRecipient(input.routeCalldata);
+
+  if (routeRecipient && feeCollectorAddress && sameAddress(routeRecipient, feeCollectorAddress)) {
+    return "Backend built a browser-style route that sends output to FeeCollector. Current RecurringOrderExecutor requires output to reach the user inside executeOrder. Use a direct user-recipient recurring route or deploy a fee-aware executor.";
+  }
+
+  if (routeRecipient && !sameAddress(routeRecipient, input.recipient)) {
+    return `Backend built recurring route for recipient ${routeRecipient}, but order recipient is ${input.recipient}.`;
+  }
+
+  const inferredMinimum = inferRouteMinAmountOut(input.routeCalldata, {
+    amountIn: input.amountIn,
+    sourceAddress: input.sourceAddress,
+    targetAddress: input.targetAddress,
+  });
+
+  if (!inferredMinimum) {
+    return "Unable to validate recurring route calldata as a XyloNet-compatible route. Refusing to execute ambiguous route.";
+  }
+
+  return null;
+}
+
+function extractRouteMinAmountOut(
+  routeCalldata: string,
+  context: {
+    amountIn: bigint;
+    sourceAddress?: string;
+    targetAddress?: string;
+  }
+): bigint | null {
   try {
     const parsed = routeInterface.parseTransaction({ data: routeCalldata });
 
@@ -786,6 +907,75 @@ function extractRouteMinAmountOut(routeCalldata: string): bigint | null {
     console.warn("[Route Decode] Unable to decode route minimum output:", {
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+
+  return inferRouteMinAmountOut(routeCalldata, context);
+}
+
+function readCalldataWord(routeCalldata: string, wordIndex: number): bigint | null {
+  const data = routeCalldata.startsWith("0x") ? routeCalldata.slice(2) : routeCalldata;
+  const start = 8 + wordIndex * 64;
+  const word = data.slice(start, start + 64);
+
+  if (word.length !== 64 || !/^[a-fA-F0-9]+$/.test(word)) {
+    return null;
+  }
+
+  return BigInt(`0x${word}`);
+}
+
+function readCalldataAddress(routeCalldata: string, wordIndex: number): string | null {
+  const word = readCalldataWord(routeCalldata, wordIndex);
+
+  if (word == null || word > BigInt("0xffffffffffffffffffffffffffffffffffffffff")) {
+    return null;
+  }
+
+  return ethers.getAddress(`0x${word.toString(16).padStart(40, "0")}`);
+}
+
+function sameAddress(left?: string | null, right?: string | null): boolean {
+  if (!left || !right || !isHexAddress(left) || !isHexAddress(right)) {
+    return false;
+  }
+
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+function inferRouteMinAmountOut(
+  routeCalldata: string,
+  context: {
+    amountIn: bigint;
+    sourceAddress?: string;
+    targetAddress?: string;
+  }
+): bigint | null {
+  const word0Address = readCalldataAddress(routeCalldata, 0);
+  const word1Address = readCalldataAddress(routeCalldata, 1);
+  const word2 = readCalldataWord(routeCalldata, 2);
+  const word3 = readCalldataWord(routeCalldata, 3);
+
+  if (
+    sameAddress(word0Address, context.sourceAddress) &&
+    sameAddress(word1Address, context.targetAddress) &&
+    word2 === context.amountIn &&
+    word3 != null &&
+    word3 > 0n
+  ) {
+    console.log("[Route Decode] Inferred route minimum from token-token-amount-min layout:", {
+      routeMinAmountOut: word3.toString(),
+    });
+    return word3;
+  }
+
+  const word0 = readCalldataWord(routeCalldata, 0);
+  const word1 = readCalldataWord(routeCalldata, 1);
+
+  if (word0 === context.amountIn && word1 != null && word1 > 0n) {
+    console.log("[Route Decode] Inferred route minimum from amount-min layout:", {
+      routeMinAmountOut: word1.toString(),
+    });
+    return word1;
   }
 
   return null;
