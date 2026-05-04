@@ -103,6 +103,11 @@ const tokenAddressBySymbol: Record<string, string> = {
 const recurringOrderExecutorAbi = [
   "function executeOrder(bytes32 orderId,uint256 amountIn,uint256 minAmountOut,address routeTarget,address approvalSpender,bytes routeCalldata) returns (uint256 amountOut)",
 ];
+const routeInterface = new ethers.Interface([
+  "function swapExactTokensForTokens(uint256 amountIn,uint256 minAmountOut,address[] path,address to,uint256 deadline,address router)",
+  "function swapWithSplit(tuple(address[] path,uint256 amountIn,uint256 minAmountOut,address router)[] splits,address tokenOut,uint256 minAmountOut,address to,uint256 deadline)",
+  "function swap(address tokenIn,address tokenOut,uint256 amountIn,uint256 minAmountOut,address recipient,uint256 deadline)",
+]);
 
 function getSwapBackendUrl(): string {
   const normalizedUrl = swapBackendUrl.replace(/\/$/, "");
@@ -558,10 +563,6 @@ async function executeOrderOnchain(
     const orderKey =
       order.onchain_order_key || ethers.keccak256(ethers.toUtf8Bytes(order.id));
     const amountIn = ethers.parseUnits(order.amount.toString(), sourceDecimals);
-    const expectedAmountOut = extractQuoteAmountOut(quoteData);
-    const boundedMinOutputBps = BigInt(Math.min(Math.max(minOutputBps, 1), 10000));
-    const minAmountOut =
-      expectedAmountOut > 0n ? (expectedAmountOut * boundedMinOutputBps) / 10000n : 1n;
     const route = await buildRecurringRoute(order, quoteData);
 
     if (!route.success || !route.swap) {
@@ -573,12 +574,23 @@ async function executeOrderOnchain(
 
     const approvalSpender =
       route.approvalSpender || route.swap.to;
+    const routeMinAmountOut = extractRouteMinAmountOut(route.swap.data);
+    const expectedAmountOut = extractQuoteAmountOut(
+      quoteData,
+      tokenDecimalsBySymbol[order.target_token]
+    );
+    const boundedMinOutputBps = BigInt(Math.min(Math.max(minOutputBps, 1), 10000));
+    const minAmountOut =
+      routeMinAmountOut ??
+      (expectedAmountOut > 0n ? (expectedAmountOut * boundedMinOutputBps) / 10000n : 1n);
 
     console.log("[Executor] Sending recurring order transaction:", {
       orderId: order.id,
       orderKey,
       amountIn: amountIn.toString(),
       minAmountOut: minAmountOut.toString(),
+      routeMinAmountOut: routeMinAmountOut?.toString() ?? null,
+      quoteExpectedAmountOut: expectedAmountOut.toString(),
       executor: recurringOrderExecutorAddress,
       routeTarget: route.swap.to,
       approvalSpender,
@@ -751,7 +763,52 @@ function extractApprovalSpender(data?: string): string | null {
   return isHexAddress(spender) ? spender : null;
 }
 
-function extractQuoteAmountOut(quoteData: unknown): bigint {
+function extractRouteMinAmountOut(routeCalldata: string): bigint | null {
+  try {
+    const parsed = routeInterface.parseTransaction({ data: routeCalldata });
+
+    if (!parsed) {
+      return null;
+    }
+
+    if (parsed.name === "swapExactTokensForTokens") {
+      return BigInt(parsed.args.minAmountOut.toString());
+    }
+
+    if (parsed.name === "swapWithSplit") {
+      return BigInt(parsed.args.minAmountOut.toString());
+    }
+
+    if (parsed.name === "swap") {
+      return BigInt(parsed.args.minAmountOut.toString());
+    }
+  } catch (error) {
+    console.warn("[Route Decode] Unable to decode route minimum output:", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return null;
+}
+
+function normalizeQuoteAmountOut(value: bigint, outputDecimals?: number): bigint {
+  if (outputDecimals == null || outputDecimals >= 18 || value <= 0n) {
+    return value;
+  }
+
+  const scale = 10n ** BigInt(18 - outputDecimals);
+
+  if (value >= scale && value % scale === 0n) {
+    return value / scale;
+  }
+
+  return value;
+}
+
+function extractQuoteAmountOut(
+  quoteData: unknown,
+  outputDecimals?: number
+): bigint {
   const candidates: unknown[] = [];
 
   const visit = (value: unknown) => {
@@ -779,11 +836,11 @@ function extractQuoteAmountOut(quoteData: unknown): bigint {
 
   for (const candidate of candidates) {
     if (typeof candidate === "string" && /^\d+$/.test(candidate)) {
-      return BigInt(candidate);
+      return normalizeQuoteAmountOut(BigInt(candidate), outputDecimals);
     }
 
     if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
-      return BigInt(Math.floor(candidate));
+      return normalizeQuoteAmountOut(BigInt(Math.floor(candidate)), outputDecimals);
     }
   }
 
