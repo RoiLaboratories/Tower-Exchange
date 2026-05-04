@@ -52,6 +52,14 @@ const swapBackendApiKey =
   "";
 const swapBackendAuthHeader =
   denoRuntime.env.get("TOWER_BACKEND_AUTH_HEADER") || "Authorization";
+const swapBackendMaxAttempts = Math.max(
+  1,
+  Number(denoRuntime.env.get("TOWER_BACKEND_MAX_ATTEMPTS") ?? "3")
+);
+const swapBackendMaxRetryDelayMs = Math.max(
+  1000,
+  Number(denoRuntime.env.get("TOWER_BACKEND_MAX_RETRY_DELAY_MS") ?? "15000")
+);
 const arcRpcUrl =
   denoRuntime.env.get("ARC_TESTNET_RPC_URL") ?? "https://rpc.testnet.arc.network";
 const recurringOrderExecutorAddress =
@@ -60,6 +68,14 @@ const recurringOrderRelayerPrivateKey =
   denoRuntime.env.get("RECURRING_ORDER_RELAYER_PRIVATE_KEY") ?? "";
 const minOutputBps = Number(
   denoRuntime.env.get("RECURRING_ORDER_MIN_OUTPUT_BPS") ?? "9900"
+);
+const maxOrdersPerRun = Math.max(
+  1,
+  Number(denoRuntime.env.get("RECURRING_ORDER_MAX_ORDERS_PER_RUN") ?? "25")
+);
+const orderDelayMs = Math.max(
+  0,
+  Number(denoRuntime.env.get("RECURRING_ORDER_DELAY_MS") ?? "1000")
 );
 
 const tokenDecimalsBySymbol: Record<string, number> = {
@@ -115,6 +131,71 @@ function buildBackendHeaders(): Record<string, string> {
       : swapBackendApiKey;
 
   return headers;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getRetryDelayMs(response: Response, attempt: number): Promise<number> {
+  const retryAfterHeader = response.headers.get("retry-after");
+
+  if (retryAfterHeader) {
+    const retryAfterSeconds = Number(retryAfterHeader);
+
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return Math.min(retryAfterSeconds * 1000, swapBackendMaxRetryDelayMs);
+    }
+
+    const retryAfterDate = Date.parse(retryAfterHeader);
+
+    if (!Number.isNaN(retryAfterDate)) {
+      return Math.min(
+        Math.max(retryAfterDate - Date.now(), 1000),
+        swapBackendMaxRetryDelayMs
+      );
+    }
+  }
+
+  try {
+    const errorText = await response.clone().text();
+    const errorBody = JSON.parse(errorText) as { retryAfter?: unknown };
+    const retryAfterSeconds = Number(errorBody.retryAfter);
+
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+      return Math.min(retryAfterSeconds * 1000, swapBackendMaxRetryDelayMs);
+    }
+  } catch {
+    // Fall back to exponential delay below.
+  }
+
+  return Math.min(1000 * 2 ** (attempt - 1), swapBackendMaxRetryDelayMs);
+}
+
+async function fetchSwapBackend(
+  url: string,
+  init: RequestInit,
+  label: string
+): Promise<Response> {
+  for (let attempt = 1; attempt <= swapBackendMaxAttempts; attempt++) {
+    const response = await fetch(url, init);
+    const shouldRetry =
+      response.status === 429 || response.status === 502 || response.status === 503;
+
+    if (!shouldRetry || attempt === swapBackendMaxAttempts) {
+      return response;
+    }
+
+    const delayMs = await getRetryDelayMs(response, attempt);
+    console.warn(
+      `[${label}] Swap backend returned ${response.status}; retrying in ${Math.round(
+        delayMs / 1000
+      )}s (${attempt}/${swapBackendMaxAttempts})`
+    );
+    await sleep(delayMs);
+  }
+
+  throw new Error("Swap backend request failed before receiving a response.");
 }
 
 interface RecurringOrder {
@@ -184,7 +265,7 @@ denoRuntime.serve(async (req: Request) => {
       .eq("onchain_authorized", true)
       .lte("next_execution_date", now)
       .order("next_execution_date", { ascending: true })
-      .limit(100); // Process max 100 orders per run
+      .limit(maxOrdersPerRun);
 
     if (fetchError) {
       console.error(`[${new Date().toISOString()}] Error fetching recurring orders:`, fetchError);
@@ -202,7 +283,10 @@ denoRuntime.serve(async (req: Request) => {
       );
     }
 
-    console.log(`[${new Date().toISOString()}] Processing ${ordersToExecute.length} recurring orders`);
+    console.log(`[${new Date().toISOString()}] Processing ${ordersToExecute.length} recurring orders`, {
+      maxOrdersPerRun,
+      orderDelayMs,
+    });
 
     // Execute each order and track results
     const results = [];
@@ -243,6 +327,10 @@ denoRuntime.serve(async (req: Request) => {
 
         // Log failed execution
         await logOrderExecution(supabase, order, "Failed", undefined, String(error));
+      }
+
+      if (orderDelayMs > 0) {
+        await sleep(orderDelayMs);
       }
     }
 
@@ -400,16 +488,20 @@ async function getSwapQuote(
     });
 
     const backendUrl = getSwapBackendUrl();
-    const quoteResponse = await fetch(`${backendUrl}/api/swap/quote`, {
-      method: "POST",
-      headers: buildBackendHeaders(),
-      body: JSON.stringify({
-        inputToken: sourceAddress,
-        outputToken: targetAddress,
-        inputAmount: amountIn,
-        slippageTolerance: 10000 - Math.min(Math.max(minOutputBps, 1), 10000),
-      }),
-    });
+    const quoteResponse = await fetchSwapBackend(
+      `${backendUrl}/api/swap/quote`,
+      {
+        method: "POST",
+        headers: buildBackendHeaders(),
+        body: JSON.stringify({
+          inputToken: sourceAddress,
+          outputToken: targetAddress,
+          inputAmount: amountIn,
+          slippageTolerance: 10000 - Math.min(Math.max(minOutputBps, 1), 10000),
+        }),
+      },
+      "Quote"
+    );
 
     if (!quoteResponse.ok) {
       const errorText = await quoteResponse.text();
@@ -549,16 +641,20 @@ async function buildRecurringRoute(
 }> {
   try {
     const backendUrl = getSwapBackendUrl();
-    const response = await fetch(`${backendUrl}/api/swap/build-tx`, {
-      method: "POST",
-      headers: buildBackendHeaders(),
-      body: JSON.stringify({
-        quote: quoteData,
-        userAddress: recurringOrderExecutorAddress,
-        recipient: order.wallet_address,
-        executionMode: "recurring_order_executor",
-      }),
-    });
+    const response = await fetchSwapBackend(
+      `${backendUrl}/api/swap/build-tx`,
+      {
+        method: "POST",
+        headers: buildBackendHeaders(),
+        body: JSON.stringify({
+          quote: quoteData,
+          userAddress: recurringOrderExecutorAddress,
+          recipient: order.wallet_address,
+          executionMode: "recurring_order_executor",
+        }),
+      },
+      "Build Route"
+    );
 
     if (!response.ok) {
       const errorText = await response.text();

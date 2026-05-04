@@ -150,9 +150,13 @@ Add to Supabase Function Settings:
 - `TOWER_BACKEND_URL` - Swap backend base URL, for example `https://tower-backend.vercel.app`
 - `TOWER_BACKEND_API_KEY` - Optional server-only API key if `/api/swap/quote` and `/api/swap/build-tx` are protected
 - `TOWER_BACKEND_AUTH_HEADER` - Optional auth header name, defaults to `Authorization`
+- `TOWER_BACKEND_MAX_ATTEMPTS` - Optional retry attempts for rate limits/transient backend errors, defaults to `3`
+- `TOWER_BACKEND_MAX_RETRY_DELAY_MS` - Optional cap for backend retry delay, defaults to `15000`
 - `RECURRING_ORDER_EXECUTOR_ADDRESS` - Deployed recurring order executor
 - `RECURRING_ORDER_RELAYER_PRIVATE_KEY` - Relayer wallet private key
 - `ARC_TESTNET_RPC_URL` - Arc RPC URL
+- `RECURRING_ORDER_MAX_ORDERS_PER_RUN` - Optional batch size, defaults to `25`
+- `RECURRING_ORDER_DELAY_MS` - Optional delay between orders to avoid backend rate limits, defaults to `1000`
 
 ## Security
 
