@@ -84,6 +84,9 @@ const recurringOrderApprovalSpenders = splitConfiguredAddresses(
   denoRuntime.env.get("RECURRING_ORDER_APPROVAL_SPENDERS")
 );
 const feeCollectorAddress = denoRuntime.env.get("FEE_COLLECTOR_ADDRESS") ?? "";
+const xyloNetRouterAddress =
+  denoRuntime.env.get("XYLONET_ROUTER_ADDRESS") ??
+  "0x73742278c31a76dBb0D2587d03ef92E6E2141023";
 
 const tokenDecimalsBySymbol: Record<string, number> = {
   USDC: 6,
@@ -122,6 +125,10 @@ function splitConfiguredAddresses(value?: string): string[] {
     .map((address) => address.trim())
     .filter((address) => isHexAddress(address))
     .map((address) => address.toLowerCase());
+}
+
+function normalizeAddress(value?: string): string {
+  return value?.toLowerCase() ?? "";
 }
 
 function getSwapBackendUrl(): string {
@@ -808,6 +815,12 @@ function isConfiguredAddressAllowed(
 }
 
 function extractRouteRecipient(routeCalldata: string): string | null {
+  const xyloRecipient = extractXyloRouteRecipient(routeCalldata);
+
+  if (xyloRecipient) {
+    return xyloRecipient;
+  }
+
   try {
     const parsed = routeInterface.parseTransaction({ data: routeCalldata });
 
@@ -831,6 +844,49 @@ function extractRouteRecipient(routeCalldata: string): string | null {
   }
 
   return readCalldataAddress(routeCalldata, 4);
+}
+
+function isLikelyXyloRoute(routeCalldata: string): boolean {
+  return (
+    sameAddress(readCalldataAddress(routeCalldata, 0), tokenAddressBySymbol.USDC) ||
+    sameAddress(readCalldataAddress(routeCalldata, 0), tokenAddressBySymbol.EURC) ||
+    sameAddress(readCalldataAddress(routeCalldata, 0), tokenAddressBySymbol.USYC) ||
+    sameAddress(readCalldataAddress(routeCalldata, 0), tokenAddressBySymbol.WUSDC)
+  );
+}
+
+function extractXyloRouteRecipient(routeCalldata: string): string | null {
+  if (!isLikelyXyloRoute(routeCalldata)) {
+    return null;
+  }
+
+  return readCalldataAddress(routeCalldata, 4);
+}
+
+function extractXyloRouteMinAmountOut(
+  routeCalldata: string,
+  context: {
+    amountIn: bigint;
+    sourceAddress?: string;
+    targetAddress?: string;
+  }
+): bigint | null {
+  const tokenIn = readCalldataAddress(routeCalldata, 0);
+  const tokenOut = readCalldataAddress(routeCalldata, 1);
+  const amountIn = readCalldataWord(routeCalldata, 2);
+  const minAmountOut = readCalldataWord(routeCalldata, 3);
+
+  if (
+    sameAddress(tokenIn, context.sourceAddress) &&
+    sameAddress(tokenOut, context.targetAddress) &&
+    amountIn === context.amountIn &&
+    minAmountOut != null &&
+    minAmountOut > 0n
+  ) {
+    return minAmountOut;
+  }
+
+  return null;
 }
 
 function validateRecurringRoute(input: {
@@ -864,11 +920,17 @@ function validateRecurringRoute(input: {
     return `Backend built recurring route for recipient ${routeRecipient}, but order recipient is ${input.recipient}.`;
   }
 
-  const inferredMinimum = inferRouteMinAmountOut(input.routeCalldata, {
-    amountIn: input.amountIn,
-    sourceAddress: input.sourceAddress,
-    targetAddress: input.targetAddress,
-  });
+  const inferredMinimum =
+    extractXyloRouteMinAmountOut(input.routeCalldata, {
+      amountIn: input.amountIn,
+      sourceAddress: input.sourceAddress,
+      targetAddress: input.targetAddress,
+    }) ??
+    inferRouteMinAmountOut(input.routeCalldata, {
+      amountIn: input.amountIn,
+      sourceAddress: input.sourceAddress,
+      targetAddress: input.targetAddress,
+    });
 
   if (!inferredMinimum) {
     return "Unable to validate recurring route calldata as a XyloNet-compatible route. Refusing to execute ambiguous route.";
@@ -885,6 +947,15 @@ function extractRouteMinAmountOut(
     targetAddress?: string;
   }
 ): bigint | null {
+  const xyloMinAmountOut = extractXyloRouteMinAmountOut(routeCalldata, context);
+
+  if (xyloMinAmountOut != null) {
+    console.log("[Route Decode] Extracted XyloNet route minimum output:", {
+      routeMinAmountOut: xyloMinAmountOut.toString(),
+    });
+    return xyloMinAmountOut;
+  }
+
   try {
     const parsed = routeInterface.parseTransaction({ data: routeCalldata });
 
