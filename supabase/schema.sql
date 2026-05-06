@@ -328,26 +328,42 @@ CREATE EXTENSION IF NOT EXISTS http;
 -- Schedule the execute-recurring-orders Edge Function to run every 15 minutes
 -- This will check for orders due for execution and trigger them automatically
 -- IMPORTANT: You must set this up manually in Supabase dashboard after deploying
--- because Supabase provides the project ID and service key at runtime
+-- because the safer setup is to let pg_cron call your app's cron endpoint,
+-- and let that server-side route invoke the Supabase Edge Function with env vars
 -- 
 -- To set this up in Supabase:
--- 1. Go to SQL Editor in Supabase Dashboard
--- 2. Create a new query and replace YOUR_PROJECT_ID and YOUR_SERVICE_ROLE_KEY
+-- 1. Set CRON_SECRET in your app hosting environment (for example Vercel)
+-- 2. Go to SQL Editor in Supabase Dashboard
+-- 3. Create a wrapper function and replace YOUR_APP_URL and YOUR_CRON_SECRET
 -- 3. Run:
+--
+-- CREATE OR REPLACE FUNCTION public.invoke_recurring_orders_via_app()
+-- RETURNS void
+-- LANGUAGE plpgsql
+-- SECURITY DEFINER
+-- SET search_path = public
+-- AS $$
+-- BEGIN
+--   PERFORM public.http(
+--     (
+--       'GET',
+--       'https://YOUR_APP_URL/api/cron/execute-recurring-orders',
+--       ARRAY[
+--         public.http_header('Authorization', 'Bearer YOUR_CRON_SECRET')
+--       ],
+--       NULL,
+--       NULL
+--     )::public.http_request
+--   );
+-- END;
+-- $$;
+--
+-- REVOKE ALL ON FUNCTION public.invoke_recurring_orders_via_app() FROM public;
 --
 -- SELECT cron.schedule(
 --   'execute-recurring-orders-15min',
 --   '*/15 * * * *',
---   $$
---   SELECT net.http_post(
---     url:='https://YOUR_PROJECT_ID.supabase.co/functions/v1/execute-recurring-orders',
---     headers:=jsonb_build_object(
---       'Content-Type','application/json',
---       'Authorization','Bearer YOUR_SERVICE_ROLE_KEY'
---     ),
---     body:=jsonb_build_object('trigger','cron')
---   );
---   $$
+--   $$SELECT public.invoke_recurring_orders_via_app();$$
 -- );
 --
 -- Then verify with: SELECT * FROM cron.job;
@@ -362,7 +378,7 @@ CREATE EXTENSION IF NOT EXISTS http;
 -- SELECT * FROM cron.job;
 
 -- To debug cron job execution logs (run this)
--- SELECT * FROM cron.job_run_details WHERE job_name LIKE '%recurring%' ORDER BY start_time DESC LIMIT 10;
+-- SELECT * FROM cron.job_run_details WHERE command ILIKE '%invoke_recurring_orders_via_app%' ORDER BY start_time DESC LIMIT 10;
 
 -- ============================================================================
 -- EXAMPLE INSERTS (FOR TESTING)

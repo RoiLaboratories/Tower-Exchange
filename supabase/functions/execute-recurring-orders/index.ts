@@ -241,6 +241,29 @@ interface RecurringOrder {
   onchain_authorized?: boolean;
 }
 
+function hasOrderExpired(order: Pick<RecurringOrder, "end_date">, now = new Date()): boolean {
+  return Boolean(order.end_date) && now > new Date(order.end_date as string);
+}
+
+async function deactivateExpiredOrders(
+  supabase: SupabaseClientInstance,
+  nowIso: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("recurring_orders")
+    .update({ is_active: false })
+    .eq("is_active", true)
+    .lte("end_date", nowIso)
+    .select<{ id: string }[]>("id");
+
+  if (error) {
+    console.error("[Expiration] Failed to deactivate expired orders:", error);
+    return 0;
+  }
+
+  return data?.length ?? 0;
+}
+
 /**
  * Main handler for executing recurring orders
  */
@@ -284,6 +307,11 @@ denoRuntime.serve(async (req: Request) => {
     // Get all active recurring orders that are due for execution
     const now = new Date().toISOString();
     console.log(`[${new Date().toISOString()}] Querying orders due before:`, now);
+
+    const expiredOrdersDeactivated = await deactivateExpiredOrders(supabase, now);
+    if (expiredOrdersDeactivated > 0) {
+      console.log(`[${new Date().toISOString()}] Deactivated expired recurring orders:`, expiredOrdersDeactivated);
+    }
     
     const { data: ordersToExecute, error: fetchError } = await supabase
       .from("recurring_orders")
@@ -323,6 +351,16 @@ denoRuntime.serve(async (req: Request) => {
 
     for (const order of ordersToExecute) {
       try {
+        if (hasOrderExpired(order)) {
+          console.log(`[${new Date().toISOString()}] Skipping expired order and deactivating:`, order.id);
+          await supabase
+            .from("recurring_orders")
+            .update({ is_active: false })
+            .eq("id", order.id)
+            .eq("is_active", true);
+          continue;
+        }
+
         const claimed = await claimOrderForExecution(supabase, order);
 
         if (!claimed) {
@@ -478,6 +516,15 @@ async function releaseFailedOrder(
   supabase: SupabaseClientInstance,
   order: RecurringOrder
 ): Promise<void> {
+  if (hasOrderExpired(order)) {
+    await supabase
+      .from("recurring_orders")
+      .update({ is_active: false })
+      .eq("id", order.id)
+      .eq("is_active", true);
+    return;
+  }
+
   const nextRetryDate = calculateRetryExecutionDate();
 
   await supabase
