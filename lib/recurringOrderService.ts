@@ -37,6 +37,100 @@ export interface RecurringOrderExecution {
   updated_at: string;
 }
 
+export const DATE_ONLY_INPUT_REGEX = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+export const ISO_DATE_ONLY_INPUT_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+export const buildUtcIsoString = (date: string, time: string): string => {
+  if (!date || !time) {
+    return "";
+  }
+
+  return `${date}T${time}:00.000Z`;
+};
+
+export const getUtcDateInputValue = (dateString?: string | null): string => {
+  if (!dateString) {
+    return "";
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+};
+
+export const getUtcTimeInputValue = (dateString?: string | null): string => {
+  if (!dateString) {
+    return "";
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+};
+
+export const formatUtcDateTimeLabel = (
+  dateString?: string | null,
+  fallback = "Select date and time",
+): string => {
+  if (!dateString) {
+    return fallback;
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return `${new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(date)} UTC`;
+};
+
+export const formatUtcDateTimeCompactLabel = (
+  dateString?: string | null,
+  fallback = "Select date and time",
+): string => {
+  if (!dateString) {
+    return fallback;
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  }).format(date);
+};
+
+export const getDefaultRecurringExecutionUtc = (): string => {
+  const date = new Date();
+  date.setUTCMinutes(0, 0, 0);
+  date.setUTCHours(date.getUTCHours() + 1);
+  return date.toISOString();
+};
+
 /**
  * Create a new recurring order
  */
@@ -66,7 +160,7 @@ export const createRecurringOrder = async (
       target_token: targetToken,
       amount,
       frequency,
-      start_date: new Date().toISOString(),
+      start_date: nextExecutionDate,
       end_date: normalizedEndDate,
       next_execution_date: nextExecutionDate,
       is_active: true,
@@ -364,13 +458,17 @@ export const calculateEndDate = (date?: string | null): string | null => {
     return null;
   }
 
-  const endDate = new Date(date);
+  const isDateOnly =
+    DATE_ONLY_INPUT_REGEX.test(date) || ISO_DATE_ONLY_INPUT_REGEX.test(date);
+  const endDate = parseLocalDateInput(date);
 
   if (Number.isNaN(endDate.getTime())) {
     return null;
   }
 
-  endDate.setHours(23, 59, 59, 999);
+  if (isDateOnly) {
+    endDate.setHours(23, 59, 59, 999);
+  }
   return endDate.toISOString();
 };
 
@@ -388,13 +486,12 @@ export const calculateInitialExecutionDate = (
     return addFrequencyInterval(now, frequency).toISOString();
   }
 
-  const executionDate = new Date(date);
+  const executionDate = parseExecutionDateInput(date, now, frequency);
 
   if (Number.isNaN(executionDate.getTime())) {
     return addFrequencyInterval(now, frequency).toISOString();
   }
 
-  executionDate.setHours(0, 0, 0, 0);
   if (executionDate <= now) {
     return addFrequencyInterval(now, frequency).toISOString();
   }
@@ -413,26 +510,88 @@ const addFrequencyInterval = (date: Date, frequency: string): Date => {
   const next = new Date(date);
   switch (frequency.toLowerCase()) {
     case "hourly":
+      next.setMinutes(0, 0, 0);
       next.setHours(next.getHours() + 1);
       break;
     case "daily":
+      next.setSeconds(0, 0);
       next.setDate(next.getDate() + 1);
       break;
     case "weekly":
+      next.setSeconds(0, 0);
       next.setDate(next.getDate() + 7);
       break;
     case "bi-weekly":
+      next.setSeconds(0, 0);
       next.setDate(next.getDate() + 14);
       break;
     case "monthly":
     case "month":
+      next.setSeconds(0, 0);
       next.setMonth(next.getMonth() + 1);
       break;
     default:
+      next.setSeconds(0, 0);
       next.setDate(next.getDate() + 7); // Default to weekly
   }
 
   return next;
+};
+
+const parseLocalDateInput = (value: string): Date => {
+  const mmddyyyyMatch = value.match(DATE_ONLY_INPUT_REGEX);
+  if (mmddyyyyMatch) {
+    const [, month, day, year] = mmddyyyyMatch;
+    return new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+  }
+
+  const isoDateMatch = value.match(ISO_DATE_ONLY_INPUT_REGEX);
+  if (isoDateMatch) {
+    const [, year, month, day] = isoDateMatch;
+    return new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+  }
+
+  return new Date(value);
+};
+
+const parseExecutionDateInput = (
+  value: string,
+  referenceDate: Date,
+  frequency: string,
+): Date => {
+  const parsed = parseLocalDateInput(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const isDateOnly =
+    DATE_ONLY_INPUT_REGEX.test(value) || ISO_DATE_ONLY_INPUT_REGEX.test(value);
+
+  if (!isDateOnly) {
+    return parsed;
+  }
+
+  if (frequency.toLowerCase() === "hourly") {
+    parsed.setHours(referenceDate.getHours(), 0, 0, 0);
+    return parsed;
+  }
+
+  parsed.setHours(
+    referenceDate.getHours(),
+    referenceDate.getMinutes(),
+    0,
+    0,
+  );
+  return parsed;
 };
 
 /**

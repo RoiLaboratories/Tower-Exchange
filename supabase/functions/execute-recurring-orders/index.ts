@@ -1201,22 +1201,28 @@ function calculateNextExecutionDate(frequency: string, fromDate?: string | null)
   const advanceOneInterval = () => {
     switch (frequency.toLowerCase()) {
       case "hourly":
+        next.setMinutes(0, 0, 0);
         next.setHours(next.getHours() + 1);
         break;
       case "daily":
+        next.setSeconds(0, 0);
         next.setDate(next.getDate() + 1);
         break;
       case "weekly":
+        next.setSeconds(0, 0);
         next.setDate(next.getDate() + 7);
         break;
       case "bi-weekly":
+        next.setSeconds(0, 0);
         next.setDate(next.getDate() + 14);
         break;
       case "monthly":
       case "month":
+        next.setSeconds(0, 0);
         next.setMonth(next.getMonth() + 1);
         break;
       default:
+        next.setSeconds(0, 0);
         next.setDate(next.getDate() + 7);
     }
   };

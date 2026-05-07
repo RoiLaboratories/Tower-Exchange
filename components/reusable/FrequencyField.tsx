@@ -12,6 +12,9 @@ interface FrequencyFieldProps {
   onClick?: () => void;
   infoMessage?: string;
   tooltipDirection?: 'left' | 'right' | 'responsive';
+  wrapValue?: boolean;
+  compactValue?: boolean;
+  centerValue?: boolean;
 }
 
 export const FrequencyField = ({
@@ -22,6 +25,9 @@ export const FrequencyField = ({
   onClick,
   infoMessage,
   tooltipDirection = 'left',
+  wrapValue = false,
+  compactValue = false,
+  centerValue = false,
 }: FrequencyFieldProps) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -99,9 +105,21 @@ export const FrequencyField = ({
       <Button
         variant="ghost"
         onClick={onClick}
-        className="h-auto w-full cursor-pointer justify-start rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-left text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4"
+        className={`h-auto w-full cursor-pointer rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4 ${
+          centerValue ? "justify-center text-center" : "justify-start text-left"
+        }`}
       >
-        <span className="min-w-0 truncate text-white">{value}</span>
+        <span
+          className={`min-w-0 text-white ${
+            wrapValue
+              ? "whitespace-normal break-words text-[13px] leading-5 sm:text-sm"
+              : compactValue
+                ? "truncate whitespace-nowrap text-[11px] leading-4 sm:text-xs lg:text-sm"
+                : "truncate whitespace-nowrap"
+          } ${centerValue ? "text-center" : ""}`}
+        >
+          {value}
+        </span>
       </Button>
     </div>
   );

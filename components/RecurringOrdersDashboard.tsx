@@ -154,6 +154,7 @@ export const RecurringOrdersDashboard = () => {
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
     });
   };
 
@@ -165,16 +166,20 @@ export const RecurringOrdersDashboard = () => {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
     });
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
     });
   };
 
@@ -256,7 +261,7 @@ export const RecurringOrdersDashboard = () => {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Pair</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Frequency</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Next Exec</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Next Exec (UTC)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Auth</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">Actions</th>
@@ -294,7 +299,7 @@ export const RecurringOrdersDashboard = () => {
                       {order.frequency}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-400">{formatDateTimeShort(order.next_execution_date)}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-400">{formatDateTimeShort(order.next_execution_date)} UTC</td>
                   <td className="px-6 py-4">
                     <span className={`text-sm font-semibold ${order.onchain_authorized ? "text-green-400" : "text-yellow-400"}`}>
                       {order.onchain_authorized ? "Authorized" : "Pending"}
@@ -381,8 +386,8 @@ export const RecurringOrdersDashboard = () => {
               </div>
 
               <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                <span className="text-zinc-400">Next Execution</span>
-                <span className="font-semibold text-white">{formatDateTimeShort(selectedOrder.next_execution_date)}</span>
+                <span className="text-zinc-400">Next Execution (UTC)</span>
+                <span className="font-semibold text-white">{formatDateTimeShort(selectedOrder.next_execution_date)} UTC</span>
               </div>
 
               <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
@@ -393,9 +398,16 @@ export const RecurringOrdersDashboard = () => {
               </div>
 
               <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                <span className="text-zinc-400">Created</span>
+                <span className="text-zinc-400">First Execution (UTC)</span>
                 <span className="font-semibold text-white">
-                  {formatDate(selectedOrder.start_date)}
+                  {formatDateTime(selectedOrder.start_date)} UTC
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
+                <span className="text-zinc-400">End Time (UTC)</span>
+                <span className="font-semibold text-white">
+                  {selectedOrder.end_date ? `${formatDateTime(selectedOrder.end_date)} UTC` : "No end time"}
                 </span>
               </div>
 

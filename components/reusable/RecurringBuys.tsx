@@ -7,10 +7,13 @@ import { TokenDropdown } from "./TokenDropdown";
 import { FrequencyField } from "./FrequencyField";
 import { AmountInput } from "./AmountInput";
 import { FrequencyModal } from "../FrequencyModal";
-import { DatePicker } from "../DatePicker";
+import { DateTimePickerModal } from "../DateTimePickerModal";
 import RecurringOrderNotification from "../RecurringOrderNotification";
 import {
   createRecurringOrder,
+  formatUtcDateTimeCompactLabel,
+  formatUtcDateTimeLabel,
+  getDefaultRecurringExecutionUtc,
   logOrderCreation,
   updateRecurringOrder,
 } from "@/lib/recurringOrderService";
@@ -25,15 +28,14 @@ export const RecurringBuys = () => {
   const { user } = useRainbowKitAuth();
   const walletAddress = user?.wallet?.address;
 
-  const today = new Date();
-  const todayFormatted = `${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}/${today.getFullYear()}`;
-
   const [selectedPayToken, setSelectedPayToken] = useState(tokens[0]);
   const [selectedBuyToken, setSelectedBuyToken] = useState<typeof tokens[0] | null>(null);
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
-  const [firstExecutionDate, setFirstExecutionDate] = useState(todayFormatted);
-  const [endDate, setEndDate] = useState("");
+  const [firstExecutionDate, setFirstExecutionDate] = useState(
+    getDefaultRecurringExecutionUtc(),
+  );
+  const [endDate, setEndDate] = useState<string | null>(null);
 
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -64,7 +66,7 @@ export const RecurringBuys = () => {
   const handleStartDateSelect = (date: string) => {
     setFirstExecutionDate(date);
     if (endDate && new Date(endDate).getTime() < new Date(date).getTime()) {
-      setEndDate("");
+      setEndDate(null);
     }
   };
 
@@ -102,7 +104,7 @@ export const RecurringBuys = () => {
         parseFloat(amount),
         frequency,
         firstExecutionDate,
-        endDate || null,
+        endDate,
       );
       createdOrderId = order.id;
 
@@ -130,10 +132,8 @@ export const RecurringBuys = () => {
       setSelectedBuyToken(null);
       setAmount("10.00");
       setFrequency("Weekly");
-      setEndDate("");
-      const newToday = new Date();
-      const newTodayFormatted = `${String(newToday.getMonth() + 1).padStart(2, "0")}/${String(newToday.getDate()).padStart(2, "0")}/${newToday.getFullYear()}`;
-      setFirstExecutionDate(newTodayFormatted);
+      setEndDate(null);
+      setFirstExecutionDate(getDefaultRecurringExecutionUtc());
 
       setNotificationData({
         amount,
@@ -206,20 +206,24 @@ export const RecurringBuys = () => {
             onClick={() => setShowFrequencyModal(true)}
           />
           <FrequencyField
-            label="Start Date"
-            value={firstExecutionDate}
+            label="Start Time"
+            value={formatUtcDateTimeCompactLabel(firstExecutionDate)}
+            compactValue
+            centerValue
             showInfo
-            infoMessage="Set the first date this recurring order should execute"
+            infoMessage="Set the exact UTC time when this recurring order should first execute"
             optional
             onClick={() => setShowDatePicker(true)}
             tooltipDirection="responsive"
           />
           <div>
             <FrequencyField
-              label="End Date"
-              value={endDate || "No end date"}
+              label="End Time"
+              value={endDate ? formatUtcDateTimeCompactLabel(endDate) : "No end time"}
+              compactValue
+              centerValue
               showInfo
-              infoMessage="Set the last date this recurring order may execute"
+              infoMessage="Set the final UTC time after which this recurring order should stop"
               optional
               onClick={() => setShowEndDatePicker(true)}
               tooltipDirection="left"
@@ -227,13 +231,23 @@ export const RecurringBuys = () => {
             {endDate && (
               <button
                 type="button"
-                onClick={() => setEndDate("")}
+                onClick={() => setEndDate(null)}
                 className="mt-2 text-xs font-medium text-zinc-400 transition-colors hover:text-white"
               >
-                Clear end date
+                Clear end time
               </button>
             )}
           </div>
+        </div>
+
+        <div className="rounded-[18px] border border-white/[0.05] bg-[#1b1c1f] px-4 py-3 text-sm text-zinc-400">
+          <p className="font-medium text-white">Tracking in UTC</p>
+          <p className="mt-1 leading-6">
+            First execution: <span className="text-zinc-200">{formatUtcDateTimeLabel(firstExecutionDate)}</span>
+          </p>
+          <p className="leading-6">
+            End time: <span className="text-zinc-200">{endDate ? formatUtcDateTimeLabel(endDate) : "No end time"}</span>
+          </p>
         </div>
 
         <motion.button
@@ -265,20 +279,26 @@ export const RecurringBuys = () => {
           onSelect={setFrequency}
           currentValue={frequency}
         />
-        <DatePicker
-          key="date-picker"
+        <DateTimePickerModal
+          key="start-date-time-picker"
           isOpen={showDatePicker}
           onClose={() => setShowDatePicker(false)}
-          onSelect={handleStartDateSelect}
+          onSave={handleStartDateSelect}
           currentValue={firstExecutionDate}
+          title="Choose first execution time"
+          description="Select the first UTC date and time this order should run."
         />
-        <DatePicker
-          key="end-date-picker"
+        <DateTimePickerModal
+          key="end-date-time-picker"
           isOpen={showEndDatePicker}
           onClose={() => setShowEndDatePicker(false)}
-          onSelect={setEndDate}
+          onSave={setEndDate}
           currentValue={endDate || firstExecutionDate}
-          minDate={firstExecutionDate}
+          minValue={firstExecutionDate}
+          title="Choose end time"
+          description="Select the last UTC moment this recurring order is allowed to execute."
+          allowClear
+          onClear={() => setEndDate(null)}
         />
       </AnimatePresence>
     </>
