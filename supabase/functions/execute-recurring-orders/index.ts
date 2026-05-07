@@ -71,11 +71,11 @@ const minOutputBps = Number(
 );
 const maxOrdersPerRun = Math.max(
   1,
-  Number(denoRuntime.env.get("RECURRING_ORDER_MAX_ORDERS_PER_RUN") ?? "25")
+  Number(denoRuntime.env.get("RECURRING_ORDER_MAX_ORDERS_PER_RUN") ?? "100")
 );
 const orderDelayMs = Math.max(
   0,
-  Number(denoRuntime.env.get("RECURRING_ORDER_DELAY_MS") ?? "1000")
+  Number(denoRuntime.env.get("RECURRING_ORDER_DELAY_MS") ?? "0")
 );
 const recurringOrderRouteTargets = splitConfiguredAddresses(
   denoRuntime.env.get("RECURRING_ORDER_ROUTE_TARGETS")
@@ -1192,32 +1192,41 @@ async function logOrderExecution(
  */
 function calculateNextExecutionDate(frequency: string, fromDate?: string | null): string {
   const now = new Date();
-  const next = fromDate ? new Date(fromDate) : now;
+  const next = fromDate ? new Date(fromDate) : new Date(now);
 
-  if (Number.isNaN(next.getTime()) || next < now) {
+  if (Number.isNaN(next.getTime())) {
     next.setTime(now.getTime());
   }
 
-  switch (frequency.toLowerCase()) {
-    case "hourly":
-      next.setHours(next.getHours() + 1);
-      break;
-    case "daily":
-      next.setDate(next.getDate() + 1);
-      break;
-    case "weekly":
-      next.setDate(next.getDate() + 7);
-      break;
-    case "bi-weekly":
-      next.setDate(next.getDate() + 14);
-      break;
-    case "monthly":
-    case "month":
-      next.setMonth(next.getMonth() + 1);
-      break;
-    default:
-      next.setDate(next.getDate() + 7); // Default to weekly
-  }
+  const advanceOneInterval = () => {
+    switch (frequency.toLowerCase()) {
+      case "hourly":
+        next.setHours(next.getHours() + 1);
+        break;
+      case "daily":
+        next.setDate(next.getDate() + 1);
+        break;
+      case "weekly":
+        next.setDate(next.getDate() + 7);
+        break;
+      case "bi-weekly":
+        next.setDate(next.getDate() + 14);
+        break;
+      case "monthly":
+      case "month":
+        next.setMonth(next.getMonth() + 1);
+        break;
+      default:
+        next.setDate(next.getDate() + 7);
+    }
+  };
+
+  // Preserve the user's original cadence. If an order runs late, keep
+  // advancing from its scheduled execution time until the next slot is in
+  // the future instead of drifting the schedule to "now + interval".
+  do {
+    advanceOneInterval();
+  } while (next <= now);
 
   return next.toISOString();
 }
