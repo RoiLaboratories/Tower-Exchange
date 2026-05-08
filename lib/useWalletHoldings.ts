@@ -27,7 +27,7 @@ const TOKEN_DECIMALS: Record<string, number> = {
   SWPRC: 6,
 };
 
-const RPC_URL = ARC_TESTNET_CONFIG.rpcUrl;
+const RPC_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
 
 const formatBigIntUnits = (value: bigint, decimals: number): number => {
   return Number(value) / Math.pow(10, decimals);
