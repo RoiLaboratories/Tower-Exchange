@@ -16,10 +16,10 @@ const RPC_ENDPOINTS: Record<string, string[]> = {
   "84532": ["https://sepolia.base.org"],
   "421614": ["https://sepolia-rollup.arbitrum.io/rpc"],
   "5042002": [
-    "https://rpc.blockdaemon.testnet.arc.network",
     "https://rpc.testnet.arc.network",
     "https://rpc.drpc.testnet.arc.network",
     "https://rpc.quicknode.testnet.arc.network",
+    "https://rpc.blockdaemon.testnet.arc.network",
   ],
   "11155111": ["https://sepolia.drpc.org"],
   "11155420": ["https://sepolia.optimism.io"],
