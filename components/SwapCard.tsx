@@ -24,7 +24,7 @@ import {
   ARC_ADD_NETWORK_PARAMS,
   ARC_POOLS,
 } from "@/lib/arcNetwork";
-import { useTowerSwap } from "@/lib/hooks/useTowerSwap";
+import { useTowerSwap, type SwapRouteOption } from "@/lib/hooks/useTowerSwap";
 
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
@@ -125,6 +125,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [chainId, setChainId] = useState<string | null>(null);
   const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(undefined);
+  const [routeOptions, setRouteOptions] = useState<SwapRouteOption[]>([]);
   const [swapState, setSwapState] = useState<
     "idle" | "loading" | "success" | "failed"
   >("idle");
@@ -390,6 +391,14 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     setReceiveAmount(tempAmount);
   };
 
+  const handleRouterSelect = (routerId: string) => {
+    setSelectedRouterId(routerId);
+
+    if (sellAmount && parseFloat(sellAmount) > 0 && receiveToken) {
+      getQuoteForSwap(sellAmount, routerId);
+    }
+  };
+
   // Simulate DEX aggregator calculation
   const handleSellAmountChange = (value: string) => {
     setSellAmount(value);
@@ -402,7 +411,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   };
 
   // Get swap quote from Tower Exchange backend
-  const getQuoteForSwap = async (sellAmountValue: string) => {
+  const getQuoteForSwap = async (sellAmountValue: string, routerId = selectedRouterId) => {
     try {
       // Check if both tokens are selected
       if (!receiveToken) {
@@ -452,7 +461,8 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance
+        slippageTolerance,
+        routerId
       );
 
       if (!quoteData) {
@@ -461,11 +471,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       console.log("Quote received from Tower Exchange:", quoteData);
 
-      // Auto-set router from backend response (use dexId to match routers list)
-      if (quoteData.route?.hops?.[0]?.dexId) {
+      // Auto-set router from the best quote only when the user has not manually selected one.
+      if (!routerId && quoteData.route?.hops?.[0]?.dexId) {
         setSelectedRouterId(quoteData.route.hops[0].dexId);
         console.log("Auto-selected router from backend:", quoteData.route.hops[0].dexName, "ID:", quoteData.route.hops[0].dexId);
       }
+
+      setRouteOptions(quoteData.routeOptions || []);
 
       // Convert quote back from wei using correct decimals for the receive token
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
@@ -722,7 +734,8 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance
+        slippageTolerance,
+        selectedRouterId
       );
 
       if (!quote) {
@@ -809,7 +822,8 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             tokenInAddress,
             tokenOutAddress,
             amountInWei,
-            slippageTolerance
+            slippageTolerance,
+            selectedRouterId
           );
 
           if (!freshQuote) {
@@ -1472,7 +1486,9 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           <div className="mb-4">
             <RouterDisplay 
               selectedRouterId={selectedRouterId}
-              onRouterSelect={setSelectedRouterId}
+              onRouterSelect={handleRouterSelect}
+              routeOptions={routeOptions}
+              isAutoSelected={!selectedRouterId}
             />
           </div>
 

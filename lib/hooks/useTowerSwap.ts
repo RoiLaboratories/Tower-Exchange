@@ -9,6 +9,7 @@ export interface SwapQuote {
   priceImpact: string;
   route: {
     type: 'single' | 'multi' | 'split';
+    rawPath?: string;
     hops: Array<{
       dexId: string; // DEX identifier from backend
       dex?: string;
@@ -20,6 +21,16 @@ export interface SwapQuote {
       priceImpact: string;
     }>;
   };
+  routeOptions?: SwapRouteOption[];
+}
+
+export interface SwapRouteOption {
+  dexId: string;
+  dexName: string;
+  outputAmount: string;
+  routeType: 'single' | 'multi' | 'split';
+  gasEstimate?: string;
+  quote: SwapQuote;
 }
 
 export interface SwapTransaction {
@@ -45,7 +56,7 @@ interface UseTowerSwapOptions {
   backendUrl?: string;
 }
 
-const DEFAULT_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const DEFAULT_BACKEND_URL = '';
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
@@ -65,7 +76,8 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       inputToken: string,
       outputToken: string,
       inputAmount: string,
-      slippageTolerance: number = 50 // 0.5% default
+      slippageTolerance: number = 50, // 0.5% default
+      dexId?: string
     ): Promise<SwapQuote | null> => {
       setIsLoading(true);
       setError(null);
@@ -81,6 +93,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
             outputToken,
             inputAmount,
             slippageTolerance,
+            dexId,
           }),
         });
 
