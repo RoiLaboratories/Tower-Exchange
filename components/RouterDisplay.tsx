@@ -99,6 +99,20 @@ export default function RouterDisplay({
 
     return outputAmount > bestAmount ? outputAmount : bestAmount;
   }, 0n);
+  const sortedRouters = [...SUPPORTED_ROUTERS].sort((leftRouter, rightRouter) => {
+    const leftOutputAmount = outputAmountToBigInt(
+      routeOptionByDexId.get(leftRouter.id)?.outputAmount,
+    );
+    const rightOutputAmount = outputAmountToBigInt(
+      routeOptionByDexId.get(rightRouter.id)?.outputAmount,
+    );
+
+    if (leftOutputAmount === rightOutputAmount) {
+      return 0;
+    }
+
+    return leftOutputAmount > rightOutputAmount ? -1 : 1;
+  });
   const normalizedSelectedRouterId = selectedRouterId
     ? normalizeRouterId(selectedRouterId)
     : undefined;
@@ -120,7 +134,10 @@ export default function RouterDisplay({
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <span
-            className="flex h-3.5 min-w-6 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white px-1 text-[9px] font-bold leading-none text-black shadow-[inset_0_-1px_0_rgba(0,0,0,0.22)]"
+            className="flex h-3.5 min-w-6 shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+            style={{
+              backgroundColor: "#2E2E2E",
+            }}
             aria-label={`${dexCount} DEX routes available`}
           >
             {dexCount}
@@ -147,7 +164,7 @@ export default function RouterDisplay({
       </div>
 
       <div className="space-y-1 p-1.5">
-        {SUPPORTED_ROUTERS.map((router) => {
+        {sortedRouters.map((router) => {
           const option = routeOptionByDexId.get(router.id);
           const outputAmount = outputAmountToBigInt(option?.outputAmount);
           const isBestPrice = outputAmount > 0n && outputAmount === bestOutputAmount;
