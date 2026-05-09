@@ -11,9 +11,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { 
+import {
   fetchERC20Allowance,
-  formatBalance, 
+  formatBalance,
   getRevertReasonViaPublicRpc,
   ARC_TESTNET_CONFIG,
   TOKEN_CONTRACTS,
@@ -59,8 +59,20 @@ import {
 // Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
 // Currently only USDC and EURC are swappable via XyloNet
 const tokens = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
+  {
+    symbol: "USDC",
+    icon: usdcLogo,
+    name: "USD Coin",
+    balance: 1000,
+    usdPrice: 1,
+  },
+  {
+    symbol: "EURC",
+    icon: eurcLogo,
+    name: "Euro Coin",
+    balance: 750,
+    usdPrice: 1,
+  },
   // TODO: Uncomment when DEX routes are integrated
   // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
   // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
@@ -91,7 +103,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
       </motion.button>
     );
   }
-  
+
   return (
     <motion.button
       onClick={onOpenModal}
@@ -114,22 +126,28 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   );
 };
 
-const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) => {
+const SwapCard = ({
+  onNavigateToBridge,
+}: {
+  onNavigateToBridge?: () => void;
+}) => {
   const router = useRouter();
   const { user, login, authenticated } = useRainbowKitAuth();
-  
+
   // Tower Exchange DEX Aggregator hook
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [chainId, setChainId] = useState<string | null>(null);
-  const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(undefined);
+  const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(
+    undefined,
+  );
   const [swapState, setSwapState] = useState<
     "idle" | "loading" | "success" | "failed"
   >("idle");
   const [notification, setNotification] = useState<"success" | "failed" | null>(
-    null
+    null,
   );
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [revertReason, setRevertReason] = useState<string | null>(null);
@@ -192,7 +210,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           params: ARC_ADD_NETWORK_PARAMS,
         });
       } catch (addOrUpdateError) {
-        console.warn("Unable to refresh Arc Testnet RPC config:", addOrUpdateError);
+        console.warn(
+          "Unable to refresh Arc Testnet RPC config:",
+          addOrUpdateError,
+        );
       }
 
       await ethereum.request({
@@ -239,7 +260,9 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState(tokens[0]);
-  const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
+  const [receiveToken, setReceiveToken] = useState<(typeof tokens)[0] | null>(
+    null,
+  );
 
   const logSwapActivity = useCallback(
     async (status: "Successful" | "Failed", txHash?: string | null) => {
@@ -263,7 +286,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         console.error("Error logging swap activity:", e);
       }
     },
-    [sellToken.symbol, receiveToken?.symbol, sellAmount, user?.wallet?.address, sellToken.usdPrice]
+    [
+      sellToken.symbol,
+      receiveToken?.symbol,
+      sellAmount,
+      user?.wallet?.address,
+      sellToken.usdPrice,
+    ],
   );
 
   // Actual wallet balances - only for swappable tokens (currently USDC and EURC)
@@ -288,35 +317,40 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
   const receiveUsdValueLabel = formatUsdAmount(
     receiveAmount,
-    receiveToken?.usdPrice ?? 0
+    receiveToken?.usdPrice ?? 0,
   );
 
-  const fetchSwapTokenBalance = useCallback(async (tokenSymbol: "USDC" | "EURC") => {
-    const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
+  const fetchSwapTokenBalance = useCallback(
+    async (tokenSymbol: "USDC" | "EURC") => {
+      const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
 
-    if (!tokenAddress || !user?.wallet?.address) {
-      return 0;
-    }
+      if (!tokenAddress || !user?.wallet?.address) {
+        return 0;
+      }
 
-    const response = await fetch("/api/wallet/balance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        address: user.wallet.address,
-        chainId: "arc-testnet",
-        rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
-        tokenAddress,
-      }),
-    });
+      const response = await fetch("/api/wallet/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: user.wallet.address,
+          chainId: "arc-testnet",
+          rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
+          tokenAddress,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data?.error || `Failed to fetch ${tokenSymbol} balance`);
-    }
+      if (!response.ok) {
+        throw new Error(
+          data?.error || `Failed to fetch ${tokenSymbol} balance`,
+        );
+      }
 
-    return Number.parseFloat(data?.balance ?? "0") || 0;
-  }, [user?.wallet?.address]);
+      return Number.parseFloat(data?.balance ?? "0") || 0;
+    },
+    [user?.wallet?.address],
+  );
 
   // Fetch actual wallet balances from Arc testnet
   const fetchUserBalances = useCallback(async () => {
@@ -416,7 +450,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       // Map token symbols to contract addresses
       const addressMap: Record<string, string> = TOKEN_CONTRACTS;
-      
+
       if (addressMap[sellToken.symbol]) {
         tokenInAddress = addressMap[sellToken.symbol];
       }
@@ -427,7 +461,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       if (!tokenInAddress || !tokenOutAddress) {
         console.warn(
-          `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`
+          `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`,
         );
         calculateMockRate(sellAmountValue);
         return;
@@ -436,7 +470,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       // Convert sell amount to wei using correct decimals for the sell token
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
       const amountInWei = BigInt(
-        parseFloat(sellAmountValue) * 10 ** sellTokenDecimals
+        parseFloat(sellAmountValue) * 10 ** sellTokenDecimals,
       ).toString();
 
       console.log("Getting quote from Tower Exchange:", {
@@ -452,11 +486,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance
+        slippageTolerance,
       );
 
       if (!quoteData) {
-        throw new Error(towerError || "Failed to get quote from Tower Exchange");
+        throw new Error(
+          towerError || "Failed to get quote from Tower Exchange",
+        );
       }
 
       console.log("Quote received from Tower Exchange:", quoteData);
@@ -464,17 +500,23 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       // Auto-set router from backend response (use dexId to match routers list)
       if (quoteData.route?.hops?.[0]?.dexId) {
         setSelectedRouterId(quoteData.route.hops[0].dexId);
-        console.log("Auto-selected router from backend:", quoteData.route.hops[0].dexName, "ID:", quoteData.route.hops[0].dexId);
+        console.log(
+          "Auto-selected router from backend:",
+          quoteData.route.hops[0].dexName,
+          "ID:",
+          quoteData.route.hops[0].dexId,
+        );
       }
 
       // Convert quote back from wei using correct decimals for the receive token
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
       const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 1e18;
-      
+
       // Convert priceImpact from basis points to percentage (50 = 0.50%)
-      const priceImpactPercent = typeof quoteData.priceImpact === 'number' 
-        ? (quoteData.priceImpact / 100).toFixed(2)
-        : quoteData.priceImpact;
+      const priceImpactPercent =
+        typeof quoteData.priceImpact === "number"
+          ? (quoteData.priceImpact / 100).toFixed(2)
+          : quoteData.priceImpact;
 
       // Debug logging with detailed breakdown
       console.log("Quote conversion details:", {
@@ -498,16 +540,16 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       sellToken.symbol === "ETH"
         ? 1500
         : sellToken.symbol === "USDC"
-        ? 1
-        : sellToken.symbol === "USDT"
-        ? 1
-        : sellToken.symbol === "UNI"
-        ? 12
-        : sellToken.symbol === "EURC"
-        ? 1.05
-        : sellToken.symbol === "SWPRC"
-        ? 0.5
-        : 8;
+          ? 1
+          : sellToken.symbol === "USDT"
+            ? 1
+            : sellToken.symbol === "UNI"
+              ? 12
+              : sellToken.symbol === "EURC"
+                ? 1.05
+                : sellToken.symbol === "SWPRC"
+                  ? 0.5
+                  : 8;
     const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
     setReceiveAmount(calculated);
   };
@@ -546,8 +588,6 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     }
   };
 
-
-
   // Handle swap transaction
   const handleSwap = async () => {
     setSwapState("loading");
@@ -580,7 +620,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             networkError instanceof Error ? networkError.message : null;
           throw new Error(
             networkErrorMessage ||
-              "Please switch to Arc Testnet network to perform swaps"
+              "Please switch to Arc Testnet network to perform swaps",
           );
         }
       }
@@ -592,8 +632,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       }
 
       const sendTransactionViaProvider = async (
-        txData: { to: string; value: string; data: string; gas?: number | string },
-        txType: string = "transaction"
+        txData: {
+          to: string;
+          value: string;
+          data: string;
+          gas?: number | string;
+        },
+        txType: string = "transaction",
       ) => {
         try {
           console.log(`[${txType}] Sending to provider:`, {
@@ -606,26 +651,37 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           });
 
           // Get current chain ID to include in transaction
-          const currentChainId = await eip1193Provider.request({ method: "eth_chainId" });
-          
+          const currentChainId = await eip1193Provider.request({
+            method: "eth_chainId",
+          });
+
           if (currentChainId !== ARC_CHAIN_HEX) {
             throw new Error(
-              `Invalid chain ID. Expected ${ARC_CHAIN_HEX} (Arc Testnet), got ${currentChainId}. Please switch to Arc Testnet.`
+              `Invalid chain ID. Expected ${ARC_CHAIN_HEX} (Arc Testnet), got ${currentChainId}. Please switch to Arc Testnet.`,
             );
           }
 
           const result = await eip1193Provider.request({
-            method: 'eth_sendTransaction',
-            params: [{
-              from: userAddress, // Use the validated address
-              to: txData.to,
-              value: txData.value?.startsWith("0x")
-                ? txData.value
-                : toHexQuantity(txData.value || "0"),
-              data: txData.data,
-              // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
-              ...(txData.gas ? { gas: typeof txData.gas === "string" ? txData.gas : toHexQuantity(txData.gas) } : {}),
-            }],
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from: userAddress, // Use the validated address
+                to: txData.to,
+                value: txData.value?.startsWith("0x")
+                  ? txData.value
+                  : toHexQuantity(txData.value || "0"),
+                data: txData.data,
+                // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
+                ...(txData.gas
+                  ? {
+                      gas:
+                        typeof txData.gas === "string"
+                          ? txData.gas
+                          : toHexQuantity(txData.gas),
+                    }
+                  : {}),
+              },
+            ],
           });
 
           console.log(`[${txType}] Successfully sent, hash:`, result);
@@ -669,7 +725,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       let tokenOutAddress: string | null = null;
 
       const addressMap: Record<string, string> = TOKEN_CONTRACTS;
-      
+
       if (addressMap[sellToken.symbol]) {
         tokenInAddress = addressMap[sellToken.symbol];
       }
@@ -680,21 +736,21 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       if (!tokenInAddress || !tokenOutAddress) {
         throw new Error(
-          `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`
+          `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`,
         );
       }
 
       // Step 1: Validate balance before proceeding
       const sellAmountNum = parseFloat(sellAmount);
       const balance = getTokenBalance(sellToken.symbol);
-      
+
       if (sellAmountNum <= 0) {
         throw new Error("Swap amount must be greater than 0");
       }
-      
+
       if (sellAmountNum > balance) {
         throw new Error(
-          `Insufficient balance. You have ${balance.toFixed(6)} ${sellToken.symbol}, but trying to swap ${sellAmount} ${sellToken.symbol}`
+          `Insufficient balance. You have ${balance.toFixed(6)} ${sellToken.symbol}, but trying to swap ${sellAmount} ${sellToken.symbol}`,
         );
       }
 
@@ -702,7 +758,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
 
       const amountInWei = BigInt(
-        Math.floor(sellAmountNum * 10 ** sellTokenDecimals)
+        Math.floor(sellAmountNum * 10 ** sellTokenDecimals),
       ).toString();
 
       console.log("Preparing swap via Tower Exchange:", {
@@ -722,11 +778,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance
+        slippageTolerance,
       );
 
       if (!quote) {
-        throw new Error(towerError || "Failed to get swap quote from Tower Exchange");
+        throw new Error(
+          towerError || "Failed to get swap quote from Tower Exchange",
+        );
       }
 
       console.log("Swap quote received:", {
@@ -739,8 +797,13 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       });
 
       // Step 4: Get swap transaction (which includes approval if needed)
-      console.log("Building swap transaction with automatic approval detection...");
-      const transaction = await buildSwapTransaction(quote, user.wallet.address);
+      console.log(
+        "Building swap transaction with automatic approval detection...",
+      );
+      const transaction = await buildSwapTransaction(
+        quote,
+        user.wallet.address,
+      );
 
       if (!transaction) {
         throw new Error(towerError || "Failed to build swap transaction");
@@ -760,7 +823,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               value: "0x0",
               gas: approvalTx.gasLimit,
             },
-            "APPROVAL"
+            "APPROVAL",
           );
 
           console.log("Approval transaction sent:", approveTxHash);
@@ -770,14 +833,17 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           let approvalRetries = 0;
           const maxApprovalRetries = 30; // Wait up to 30 seconds
 
-          while (approvalReceipt === null && approvalRetries < maxApprovalRetries) {
+          while (
+            approvalReceipt === null &&
+            approvalRetries < maxApprovalRetries
+          ) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
 
             try {
-              approvalReceipt = await eip1193Provider.request({
+              approvalReceipt = (await eip1193Provider.request({
                 method: "eth_getTransactionReceipt",
                 params: [approveTxHash],
-              }) as BrowserWalletTransactionReceipt | null;
+              })) as BrowserWalletTransactionReceipt | null;
 
               if (approvalReceipt) {
                 if (approvalReceipt.status === "0x0") {
@@ -794,36 +860,48 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           }
 
           if (!approvalReceipt) {
-            throw new Error("Approval transaction not confirmed after 30 seconds");
+            throw new Error(
+              "Approval transaction not confirmed after 30 seconds",
+            );
           }
 
           // Additional wait to ensure block is finalized
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
           console.log("Approval transaction confirmed successfully!");
-          
+
           // CRITICAL: Rebuild swap transaction after approval to get fresh deadline
           // Using old swap data will cause "execution reverted" due to stale deadline
-          console.log("Rebuilding swap transaction with fresh deadline after approval...");
+          console.log(
+            "Rebuilding swap transaction with fresh deadline after approval...",
+          );
           const freshQuote = await getQuote(
             tokenInAddress,
             tokenOutAddress,
             amountInWei,
-            slippageTolerance
+            slippageTolerance,
           );
 
           if (!freshQuote) {
-            throw new Error(towerError || "Failed to get fresh quote after approval");
+            throw new Error(
+              towerError || "Failed to get fresh quote after approval",
+            );
           }
 
-          const freshTransaction = await buildSwapTransaction(freshQuote, user.wallet.address);
+          const freshTransaction = await buildSwapTransaction(
+            freshQuote,
+            user.wallet.address,
+          );
           if (!freshTransaction) {
-            throw new Error(towerError || "Failed to build fresh swap transaction after approval");
+            throw new Error(
+              towerError ||
+                "Failed to build fresh swap transaction after approval",
+            );
           }
 
           // Update swapTx to the fresh one with new deadline
           Object.assign(swapTx, freshTransaction.swap);
-          
+
           console.log("Fresh swap transaction ready:", {
             to: swapTx.to,
             dataLength: swapTx.data?.length,
@@ -854,9 +932,12 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             approvalErrorDetails.message = String(approvalError);
           }
 
-          console.error("Approval transaction error details:", approvalErrorDetails);
+          console.error(
+            "Approval transaction error details:",
+            approvalErrorDetails,
+          );
           throw new Error(
-            `Token approval failed: ${approvalErrorDetails.message || "Unknown error"}. Please try again.`
+            `Token approval failed: ${approvalErrorDetails.message || "Unknown error"}. Please try again.`,
           );
         }
       } else {
@@ -888,13 +969,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       try {
         console.log("Estimating gas...");
         const gasEstimate = await eip1193Provider.request({
-          method: 'eth_estimateGas',
-          params: [{
-            from: userAddress,
-            to: swapDataToSend.to,
-            value: swapDataToSend.value,
-            data: swapDataToSend.data,
-          }],
+          method: "eth_estimateGas",
+          params: [
+            {
+              from: userAddress,
+              to: swapDataToSend.to,
+              value: swapDataToSend.value,
+              data: swapDataToSend.data,
+            },
+          ],
         });
         console.log("Gas estimate successful:", gasEstimate);
       } catch (estimateError: unknown) {
@@ -933,15 +1016,16 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       const swapValue = swapDataToSend.value?.startsWith("0x")
         ? swapDataToSend.value
         : swapDataToSend.value
-        ? toHexQuantity(swapDataToSend.value)
-        : "0x0";
+          ? toHexQuantity(swapDataToSend.value)
+          : "0x0";
 
       // CRITICAL FIX: Only zero out value for pure ERC-20 token swaps (no native tokens)
       // Native tokens (like USDC) REQUIRE non-zero ETH value via payable functions
       // ERC-20 tokens should NEVER have a non-zero value
       const isNativeInputFinal = NATIVE_TOKENS.includes(sellToken.symbol);
       const isNativeOutputFinal = NATIVE_TOKENS.includes(receiveToken.symbol);
-      const finalSwapValue = (!isNativeInputFinal && !isNativeOutputFinal) ? "0x0" : swapValue;
+      const finalSwapValue =
+        !isNativeInputFinal && !isNativeOutputFinal ? "0x0" : swapValue;
 
       if (finalSwapValue !== swapValue) {
         console.warn("Corrected swap value to 0x0 for pure ERC-20 token swap", {
@@ -967,41 +1051,58 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           // Per Tower Router convention, use the provided gasLimit when available
           gas: swapDataToSend.gasLimit ?? undefined,
         },
-        "SWAP"
+        "SWAP",
       );
 
       console.log("Swap transaction executed with hash:", txHash);
-      
+
       // Wait for transaction receipt to verify success
       let receipt: BrowserWalletTransactionReceipt | null = null;
       let retries = 0;
       const maxRetries = 30; // Try for up to 30 seconds (1 second intervals)
-      
+
       while (receipt === null && retries < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        
+
         try {
-          receipt = await eip1193Provider.request({
-            method: 'eth_getTransactionReceipt',
+          receipt = (await eip1193Provider.request({
+            method: "eth_getTransactionReceipt",
             params: [txHash],
-          }) as BrowserWalletTransactionReceipt | null;
-          
+          })) as BrowserWalletTransactionReceipt | null;
+
           if (receipt) {
             console.log("Transaction receipt received:", receipt);
-            
+
             // Check if transaction was successful (status === '0x1')
-            if (receipt.status === '0x0') {
+            if (receipt.status === "0x0") {
               console.error("Transaction failed! Getting revert reason...");
               let decodedReason: string | null = null;
 
               try {
-                const tx = await eip1193Provider.request({
-                  method: 'eth_getTransactionByHash',
+                const tx = (await eip1193Provider.request({
+                  method: "eth_getTransactionByHash",
                   params: [txHash],
-                }) as { from?: string; to?: string; value?: string; input?: string } | null;
+                })) as {
+                  from?: string;
+                  to?: string;
+                  value?: string;
+                  input?: string;
+                } | null;
 
                 if (tx?.from && tx?.to && tx?.input) {
-                  console.log("Failed transaction data:", JSON.stringify({ from: tx.from, to: tx.to, value: tx.value, inputLength: tx.input?.length }, null, 2));
+                  console.log(
+                    "Failed transaction data:",
+                    JSON.stringify(
+                      {
+                        from: tx.from,
+                        to: tx.to,
+                        value: tx.value,
+                        inputLength: tx.input?.length,
+                      },
+                      null,
+                      2,
+                    ),
+                  );
                   // Use public RPC for eth_call so we get revert data instead of "Internal JSON-RPC error"
                   decodedReason = await getRevertReasonViaPublicRpc({
                     from: tx.from,
@@ -1015,7 +1116,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                   }
                 }
               } catch (callError: unknown) {
-                const callErrorObj = callError instanceof Error ? callError : new Error(String(callError));
+                const callErrorObj =
+                  callError instanceof Error
+                    ? callError
+                    : new Error(String(callError));
                 console.error("Revert reason extraction error:", {
                   message: callErrorObj.message,
                   error: callError,
@@ -1025,29 +1129,34 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               throw new Error(
                 decodedReason
                   ? `Transaction failed: ${decodedReason}`
-                  : "Transaction failed on-chain (status: 0x0)"
+                  : "Transaction failed on-chain (status: 0x0)",
               );
             }
             break;
           }
         } catch (receiptError: unknown) {
-          const receiptErrorObj = receiptError instanceof Error ? receiptError : new Error(String(receiptError));
+          const receiptErrorObj =
+            receiptError instanceof Error
+              ? receiptError
+              : new Error(String(receiptError));
           // Rethrow our "Transaction failed" errors so the outer catch can show the decoded reason
           if (receiptErrorObj.message.startsWith("Transaction failed")) {
             throw receiptError;
           }
           console.error("Error fetching receipt:", receiptError);
         }
-        
+
         retries++;
       }
-      
+
       if (receipt === null) {
-        console.warn("Transaction receipt not received after 30 seconds, but hash was confirmed");
-      } else if (receipt.status === '0x0') {
+        console.warn(
+          "Transaction receipt not received after 30 seconds, but hash was confirmed",
+        );
+      } else if (receipt.status === "0x0") {
         throw new Error("Transaction failed on-chain");
       }
-      
+
       // Store the transaction hash
       setTransactionHash(txHash);
       setRevertReason(null);
@@ -1060,18 +1169,19 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       // Step 8: Submit platform fee with atomic distribution through FeeCollector
       // Swap output went to FeeCollector, now execute atomic fee split
       const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
-      console.log('[SwapCard] Fee collection check:', {
+      console.log("[SwapCard] Fee collection check:", {
         hasExpectedFeeCollectorOutput: !!feeCollectorOutput,
         feeCollectorOutput: feeCollectorOutput,
         platformFeeAmount: swapTx?.platformFeeAmount,
         expectedUserOutput: swapTx?.expectedUserOutput,
-        isNativeUSDC: sellToken.symbol === 'USDC',
+        isNativeUSDC: sellToken.symbol === "USDC",
       });
 
       if (feeCollectorOutput && feeCollectorOutput !== "0") {
         const outputTokenForFee = tokenOutAddress || quote.outputToken;
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        
+        const backendUrl =
+          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+
         console.log("[SwapCard] Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
           totalAmount: feeCollectorOutput,
@@ -1079,16 +1189,16 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           backendUrl,
           sellToken: sellToken.symbol,
         });
-        
+
         try {
           const feeResponse = await fetch(`${backendUrl}/api/swap/submit-fee`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               outputToken: outputTokenForFee,
-              totalAmount: feeCollectorOutput,  // Full amount that FeeCollector received
-              userAddress: userAddress,           // User address to receive (amount - fee)
-              feeBps: 25,                        // 0.25% = 25 basis points
+              totalAmount: feeCollectorOutput, // Full amount that FeeCollector received
+              userAddress: userAddress, // User address to receive (amount - fee)
+              feeBps: 25, // 0.25% = 25 basis points
             }),
           });
 
@@ -1100,20 +1210,29 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             });
           } else {
             const feeResult = await feeResponse.json();
-            console.log("[SwapCard] Atomic fee collection and distribution successful:", {
-              transactionHash: feeResult.data?.transactionHash || feeResult.transactionHash,
-              outputToken: feeResult.data?.outputToken || feeResult.outputToken,
-              feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
-            });
+            console.log(
+              "[SwapCard] Atomic fee collection and distribution successful:",
+              {
+                transactionHash:
+                  feeResult.data?.transactionHash || feeResult.transactionHash,
+                outputToken:
+                  feeResult.data?.outputToken || feeResult.outputToken,
+                feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
+              },
+            );
 
             // Record the fee in the database
-            let registerResult: Awaited<ReturnType<typeof registerSwapFee>> | null = null;
-            const feeAmount = feeResult.data?.feeAmount || feeResult.feeAmount || "0";
-            const transactionHash = feeResult.data?.transactionHash || feeResult.transactionHash;
+            let registerResult: Awaited<
+              ReturnType<typeof registerSwapFee>
+            > | null = null;
+            const feeAmount =
+              feeResult.data?.feeAmount || feeResult.feeAmount || "0";
+            const transactionHash =
+              feeResult.data?.transactionHash || feeResult.transactionHash;
             if (userAddress && feeAmount !== "0") {
               const formattedFeeAmount = formatTokenAmountByAddress(
                 feeAmount,
-                outputTokenForFee
+                outputTokenForFee,
               );
               const feeUsdValue = formattedFeeAmount * receiveToken.usdPrice;
               registerResult = await registerSwapFee({
@@ -1136,38 +1255,54 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                   feeAmountUsd: feeUsdValue,
                 });
               } else {
-                console.warn("[SwapCard] Failed to record fee in database:", registerResult.error);
+                console.warn(
+                  "[SwapCard] Failed to record fee in database:",
+                  registerResult.error,
+                );
               }
             }
 
             // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
             // This ensures the user receives their tokens before we query the balance
             if (feeResult.data?.transactionHash || feeResult.transactionHash) {
-              const feeDistributionTxHash = feeResult.data?.transactionHash || feeResult.transactionHash;
-              console.log("[SwapCard] Waiting for fee distribution transaction to finalize:", feeDistributionTxHash);
-              
+              const feeDistributionTxHash =
+                feeResult.data?.transactionHash || feeResult.transactionHash;
+              console.log(
+                "[SwapCard] Waiting for fee distribution transaction to finalize:",
+                feeDistributionTxHash,
+              );
+
               // Poll for fee distribution confirmation (up to 30 seconds)
               let feeDistributionConfirmed = false;
               for (let attempt = 0; attempt < 30; attempt++) {
                 try {
-                  const feeReceipt = await eip1193Provider.request({
-                    method: 'eth_getTransactionReceipt',
+                  const feeReceipt = (await eip1193Provider.request({
+                    method: "eth_getTransactionReceipt",
                     params: [feeDistributionTxHash],
-                  }) as { status: string; blockNumber: string } | null;
-                  
-                  if (feeReceipt && feeReceipt.status === '0x1') {
-                    console.log("[SwapCard] Fee distribution transaction confirmed!");
+                  })) as { status: string; blockNumber: string } | null;
+
+                  if (feeReceipt && feeReceipt.status === "0x1") {
+                    console.log(
+                      "[SwapCard] Fee distribution transaction confirmed!",
+                    );
                     feeDistributionConfirmed = true;
 
                     // Update fee confirmation status with block number
-                    if (registerResult && registerResult.success && registerResult.id) {
+                    if (
+                      registerResult &&
+                      registerResult.success &&
+                      registerResult.id
+                    ) {
                       const blockNumber = parseInt(feeReceipt.blockNumber, 16);
                       await updateSwapFeeConfirmation(
                         registerResult.id,
                         feeDistributionTxHash,
-                        blockNumber
+                        blockNumber,
                       ).catch((err) => {
-                        console.warn("[SwapCard] Failed to update fee confirmation:", err);
+                        console.warn(
+                          "[SwapCard] Failed to update fee confirmation:",
+                          err,
+                        );
                       });
                     }
                     break;
@@ -1177,26 +1312,36 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                 }
                 await new Promise((resolve) => setTimeout(resolve, 1000));
               }
-              
+
               if (feeDistributionConfirmed) {
-                console.log("[SwapCard] Refreshing balance after fee distribution confirmed");
+                console.log(
+                  "[SwapCard] Refreshing balance after fee distribution confirmed",
+                );
                 // Immediate balance refresh after fee distribution is confirmed
                 await fetchUserBalances();
               } else {
-                console.warn("[SwapCard] Fee distribution transaction not confirmed within timeout - will refresh anyway");
+                console.warn(
+                  "[SwapCard] Fee distribution transaction not confirmed within timeout - will refresh anyway",
+                );
               }
             }
           }
         } catch (feeError: unknown) {
-          console.error("[SwapCard] Error submitting fee with atomic distribution:", {
-            message: feeError instanceof Error ? feeError.message : String(feeError),
-            outputToken: outputTokenForFee,
-            totalAmount: feeCollectorOutput,
-          });
+          console.error(
+            "[SwapCard] Error submitting fee with atomic distribution:",
+            {
+              message:
+                feeError instanceof Error ? feeError.message : String(feeError),
+              outputToken: outputTokenForFee,
+              totalAmount: feeCollectorOutput,
+            },
+          );
           // Don't throw - fee submission failure shouldn't block the swap success
         }
       } else {
-        console.warn('[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0');
+        console.warn(
+          "[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0",
+        );
       }
 
       // Auto-dismiss notification after 5 seconds
@@ -1248,7 +1393,9 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       // Ensure UI shows decoded revert reason (state may not have updated yet)
       const msg = errorDetails.message as string | undefined;
-      const decodedFromMessage = msg?.startsWith("Transaction failed: ") ? msg.slice("Transaction failed: ".length) : null;
+      const decodedFromMessage = msg?.startsWith("Transaction failed: ")
+        ? msg.slice("Transaction failed: ".length)
+        : null;
       if (decodedFromMessage) {
         const displayReason =
           decodedFromMessage.toLowerCase() === "execution reverted"
@@ -1257,12 +1404,16 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         setRevertReason(displayReason);
         errorDetails.revertReason = decodedFromMessage;
         if (decodedFromMessage.toLowerCase() === "execution reverted") {
-          errorDetails.hint = "Try: approve the sell token again, or increase slippage in Settings.";
+          errorDetails.hint =
+            "Try: approve the sell token again, or increase slippage in Settings.";
         }
       }
 
-      console.error("Swap transaction error - Full details:", JSON.stringify(errorDetails, null, 2));
-      
+      console.error(
+        "Swap transaction error - Full details:",
+        JSON.stringify(errorDetails, null, 2),
+      );
+
       setSwapState("failed");
       setNotification("failed");
       setTransactionHash(null);
@@ -1333,7 +1484,9 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               // CRITICAL: Refresh balances when user closes the notification
               // This ensures the displayed balance is up-to-date after successful swap
               if (notification === "success") {
-                console.log("[SwapCard] Success notification closed - refreshing balances");
+                console.log(
+                  "[SwapCard] Success notification closed - refreshing balances",
+                );
                 fetchUserBalances();
               }
             }}
@@ -1349,19 +1502,27 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
           <div className="mb-4 flex items-center justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
+            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1 relative">
+              <motion.span
+                layoutId="activeTab"
+                className="absolute inset-y-1 rounded-full bg-[#1f2125]"
+                style={{ width: "calc(50% - 2px)" }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
               <button
                 type="button"
-                className="px-3 py-1.5 text-xs font-medium rounded-full bg-[#1f2125] text-foreground"
+                className="relative px-3 py-1.5 text-xs font-medium rounded-full text-foreground z-10"
               >
                 Swap
               </button>
               <button
                 type="button"
                 onClick={() =>
-                  onNavigateToBridge ? onNavigateToBridge() : router.push("/bridge")
+                  onNavigateToBridge
+                    ? onNavigateToBridge()
+                    : router.push("/bridge")
                 }
-                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
+                className="relative px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground transition-colors z-10"
               >
                 Bridge
               </button>
@@ -1393,15 +1554,17 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                 <Wallet className="w-4 h-4" />
                 <span>
-                  {isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(sellToken.symbol).toString())} ${sellToken.symbol}`}
+                  {isLoadingBalances
+                    ? "Loading..."
+                    : `${formatBalance(getTokenBalance(sellToken.symbol).toString())} ${sellToken.symbol}`}
                 </span>
-                <button 
+                <button
                   onClick={handle50Percent}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   50%
                 </button>
-                <button 
+                <button
                   onClick={handleMaxAmount}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -1409,7 +1572,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <TokenSelector
                 selected={sellToken}
                 onSelect={setSellToken}
@@ -1448,11 +1611,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               {receiveToken && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Wallet className="w-4 h-4" />
-                  <span>{isLoadingBalances ? "Loading..." : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}</span>
+                  <span>
+                    {isLoadingBalances
+                      ? "Loading..."
+                      : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}
+                  </span>
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <TokenSelector
                 selected={receiveToken}
                 onSelect={setReceiveToken}
@@ -1470,7 +1637,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
           {/* Router Display */}
           <div className="mb-4">
-            <RouterDisplay 
+            <RouterDisplay
               selectedRouterId={selectedRouterId}
               onRouterSelect={setSelectedRouterId}
             />

@@ -64,7 +64,7 @@ const isGenericSessionTitle = (title: string) => {
 
 const getFeeCollectorOutputAmount = (
   transaction?: { expectedFeeCollectorOutput?: string },
-  quote?: { outputAmount?: string }
+  quote?: { outputAmount?: string },
 ) => {
   const feeCollectorOutput = transaction?.expectedFeeCollectorOutput;
 
@@ -76,7 +76,7 @@ const getFeeCollectorOutputAmount = (
 };
 
 const getHistorySessionMetadata = (
-  history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
+  history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[],
 ) => {
   const firstUserMessage =
     history.find((item) => item.user_query?.trim())?.user_query?.trim() || "";
@@ -89,13 +89,13 @@ const getHistorySessionMetadata = (
     timestamp: Number.isFinite(firstCreatedAt) ? firstCreatedAt : Date.now(),
     messageCount: history.reduce(
       (count, item) => count + (item.user_query ? 1 : 0),
-      0
+      0,
     ),
   };
 };
 
 const sanitizeBalanceResponse = (
-  response: AIAgentResponse
+  response: AIAgentResponse,
 ): AIAgentResponse => {
   const balances = response.data?.balances;
 
@@ -105,7 +105,7 @@ const sanitizeBalanceResponse = (
 
   const hiddenTokenPattern = /\b(QTM|SWPRC)\b/i;
   const filteredBalances = balances.filter(
-    (balance) => !HIDDEN_BALANCE_TOKENS.has(balance.token.toUpperCase())
+    (balance) => !HIDDEN_BALANCE_TOKENS.has(balance.token.toUpperCase()),
   );
   const filteredReply = response.reply
     .split(/\r?\n/)
@@ -127,7 +127,9 @@ const sanitizeBalanceResponse = (
 const normalizeSession = (session: ChatSession): ChatSession => ({
   ...session,
   title: session.title?.trim() || "New Chat",
-  timestamp: Number.isFinite(session.timestamp) ? session.timestamp : Date.now(),
+  timestamp: Number.isFinite(session.timestamp)
+    ? session.timestamp
+    : Date.now(),
   messageCount:
     typeof session.messageCount === "number" && session.messageCount >= 0
       ? session.messageCount
@@ -143,7 +145,9 @@ export const AIChat = () => {
   const [activePrompt, setActivePrompt] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
+    null,
+  );
   const [profileImageError, setProfileImageError] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -158,7 +162,7 @@ export const AIChat = () => {
   const loadSessions = (walletAddress: string): ChatSession[] => {
     try {
       const sessionsData = localStorage.getItem(
-        `tower-ai-sessions-${walletAddress}`
+        `tower-ai-sessions-${walletAddress}`,
       );
       return sessionsData
         ? (JSON.parse(sessionsData) as ChatSession[]).map(normalizeSession)
@@ -174,67 +178,73 @@ export const AIChat = () => {
     try {
       localStorage.setItem(
         `tower-ai-sessions-${walletAddress}`,
-        JSON.stringify(sessionsData)
+        JSON.stringify(sessionsData),
       );
     } catch (error) {
       console.error("Error saving sessions:", error);
     }
   };
 
-  const syncSessionFromHistory = useCallback((
-    targetSessionId: string,
-    history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
-  ) => {
-    const walletAddress = user?.wallet?.address;
-    if (!walletAddress || history.length === 0) return;
+  const syncSessionFromHistory = useCallback(
+    (
+      targetSessionId: string,
+      history: Pick<
+        ChatHistoryItem,
+        "created_at" | "user_query" | "ai_response"
+      >[],
+    ) => {
+      const walletAddress = user?.wallet?.address;
+      if (!walletAddress || history.length === 0) return;
 
-    const nextMetadata = getHistorySessionMetadata(history);
+      const nextMetadata = getHistorySessionMetadata(history);
 
-    setSessions((prevSessions) => {
-      let changed = false;
+      setSessions((prevSessions) => {
+        let changed = false;
 
-      const updatedSessions = prevSessions.map((session) => {
-        if (session.id !== targetSessionId) return session;
+        const updatedSessions = prevSessions.map((session) => {
+          if (session.id !== targetSessionId) return session;
 
-        const shouldRefreshTimestamp =
-          isGenericSessionTitle(session.title) ||
-          session.messageCount === 0 ||
-          !Number.isFinite(session.timestamp);
-        const nextTitle = isGenericSessionTitle(session.title)
-          ? nextMetadata.title
-          : session.title;
-        const nextTimestamp = shouldRefreshTimestamp
-          ? nextMetadata.timestamp
-          : session.timestamp;
-        const nextMessageCount = Math.max(
-          session.messageCount,
-          nextMetadata.messageCount
-        );
+          const shouldRefreshTimestamp =
+            isGenericSessionTitle(session.title) ||
+            session.messageCount === 0 ||
+            !Number.isFinite(session.timestamp);
+          const nextTitle = isGenericSessionTitle(session.title)
+            ? nextMetadata.title
+            : session.title;
+          const nextTimestamp = shouldRefreshTimestamp
+            ? nextMetadata.timestamp
+            : session.timestamp;
+          const nextMessageCount = Math.max(
+            session.messageCount,
+            nextMetadata.messageCount,
+          );
 
-        if (
-          nextTitle !== session.title ||
-          nextTimestamp !== session.timestamp ||
-          nextMessageCount !== session.messageCount
-        ) {
-          changed = true;
-          return {
-            ...session,
-            title: nextTitle,
-            timestamp: nextTimestamp,
-            messageCount: nextMessageCount,
-          };
+          if (
+            nextTitle !== session.title ||
+            nextTimestamp !== session.timestamp ||
+            nextMessageCount !== session.messageCount
+          ) {
+            changed = true;
+            return {
+              ...session,
+              title: nextTitle,
+              timestamp: nextTimestamp,
+              messageCount: nextMessageCount,
+            };
+          }
+
+          return session;
+        });
+
+        if (changed) {
+          saveSessions(walletAddress, updatedSessions);
         }
 
-        return session;
+        return updatedSessions;
       });
-
-      if (changed) {
-        saveSessions(walletAddress, updatedSessions);
-      }
-
-      return updatedSessions;
-    });
-  }, [user?.wallet?.address]);
+    },
+    [user?.wallet?.address],
+  );
 
   // Start a new chat
   const startNewChat = async () => {
@@ -282,7 +292,7 @@ export const AIChat = () => {
       // Load history for this session
       const history = await getConversationHistory(
         newSessionId,
-        user.wallet.address
+        user.wallet.address,
       );
 
       if (history.length > 0) {
@@ -350,21 +360,27 @@ export const AIChat = () => {
       try {
         // Load profile picture from localStorage or fetch from Supabase
         const profilePicUrl = await loadProfileData(user.wallet.address);
-        console.log("Profile picture URL loaded:", profilePicUrl ? "✓ URL exists" : "✗ No URL");
+        console.log(
+          "Profile picture URL loaded:",
+          profilePicUrl ? "✓ URL exists" : "✗ No URL",
+        );
         console.log("Profile URL:", profilePicUrl);
         setProfilePictureUrl(profilePicUrl);
         setProfileImageError(false);
 
         // Load all sessions for this user
         const userSessions = loadSessions(user.wallet.address);
-        
+
         // Try to use stored session or create a new one
         let sessionIdToUse = localStorage.getItem("ai-session-id");
-        
-        if (!sessionIdToUse || !userSessions.find((s) => s.id === sessionIdToUse)) {
+
+        if (
+          !sessionIdToUse ||
+          !userSessions.find((s) => s.id === sessionIdToUse)
+        ) {
           const response = await createAIAgentSession(user.wallet.address);
           sessionIdToUse = response.sessionId;
-          
+
           // Add to sessions list if not already there
           if (!userSessions.find((s) => s.id === sessionIdToUse)) {
             const newSession: ChatSession = {
@@ -377,7 +393,7 @@ export const AIChat = () => {
             saveSessions(user.wallet.address, userSessions);
           }
         }
-        
+
         setSessions(userSessions);
         localStorage.setItem("ai-session-id", sessionIdToUse);
         setSessionId(sessionIdToUse);
@@ -385,13 +401,13 @@ export const AIChat = () => {
         // Load chat history from Supabase
         const history = await getConversationHistory(
           sessionIdToUse,
-          user.wallet.address
+          user.wallet.address,
         );
 
         if (history.length > 0) {
           const loadedMessages: Message[] = [];
           let messageId = 1;
-          
+
           history.forEach((item) => {
             if (item.user_query) {
               loadedMessages.push({
@@ -428,8 +444,8 @@ export const AIChat = () => {
     const isTouchEnabled = () => {
       return (
         window.matchMedia("(pointer:coarse)").matches ||
-        ("ontouchstart" in window) ||
-        (navigator.maxTouchPoints > 0)
+        "ontouchstart" in window ||
+        navigator.maxTouchPoints > 0
       );
     };
     setIsTouchDevice(isTouchEnabled());
@@ -476,8 +492,14 @@ export const AIChat = () => {
     try {
       // Detect user intent to enable appropriate features
       const lowerMessage = text.toLowerCase();
-      const enableWalletAccess = /balance|holding|wallet|token|asset|portfolio|position/.test(lowerMessage);
-      const enablePortfolioAnalysis = /portfolio|performance|pnl|profit|loss|trading|volume|analysis/.test(lowerMessage);
+      const enableWalletAccess =
+        /balance|holding|wallet|token|asset|portfolio|position/.test(
+          lowerMessage,
+        );
+      const enablePortfolioAnalysis =
+        /portfolio|performance|pnl|profit|loss|trading|volume|analysis/.test(
+          lowerMessage,
+        );
       const enableSwap = /swap|exchange|trade/.test(lowerMessage);
 
       const rawResponse = await sendMessageToAIAgent({
@@ -504,12 +526,15 @@ export const AIChat = () => {
 
       // Check if swap execution data is present
       if (response.data?.swap_execution) {
-        console.log("Swap execution data detected:", response.data.swap_execution);
-        
+        console.log(
+          "Swap execution data detected:",
+          response.data.swap_execution,
+        );
+
         // Validate transaction structure
         const txData = response.data.swap_execution.transaction;
         const quote = response.data.swap_execution.quote;
-        
+
         // Enhanced quote logging
         if (quote) {
           console.log("═══ FULL QUOTE OBJECT FROM BACKEND ═══");
@@ -522,17 +547,21 @@ export const AIChat = () => {
           console.log("quote.outputAmount:", quote.outputAmount);
           console.log("═════════════════════════════════════════");
         }
-        
+
         if (txData) {
           console.log("Transaction fields:", {
             to: txData.to || "MISSING",
-            data: txData.data ? `${txData.data.substring(0, 66)}...` : "MISSING",
+            data: txData.data
+              ? `${txData.data.substring(0, 66)}...`
+              : "MISSING",
             value: txData.value || "MISSING",
             from: txData.from || "MISSING",
             gasLimit: txData.gasLimit || "MISSING",
           });
         } else {
-          console.error("Transaction object is undefined in swap_execution data");
+          console.error(
+            "Transaction object is undefined in swap_execution data",
+          );
         }
 
         setShowSwapConfirmation(true);
@@ -542,7 +571,7 @@ export const AIChat = () => {
           try {
             if (!txData || !txData.to) {
               throw new Error(
-                "Cannot execute swap: Transaction object missing or 'to' address is undefined. Backend may not have returned proper swap execution data."
+                "Cannot execute swap: Transaction object missing or 'to' address is undefined. Backend may not have returned proper swap execution data.",
               );
             }
 
@@ -552,11 +581,11 @@ export const AIChat = () => {
               quote.outputToken.startsWith("0x")
                 ? await getErc20TokenBalance(
                     quote.outputToken,
-                    FEE_COLLECTOR_ADDRESS
+                    FEE_COLLECTOR_ADDRESS,
                   ).catch((balanceError) => {
                     console.warn(
                       "Unable to read FeeCollector balance before swap:",
-                      balanceError
+                      balanceError,
                     );
                     return null;
                   })
@@ -572,38 +601,54 @@ export const AIChat = () => {
                 console.log("SWAP CONFIRMATION RECEIVED");
                 console.log("═══════════════════════════════════════════");
                 console.log("Swap confirmed:", confirmation);
-                
+
                 // Submit fee using captured quote data
                 console.log("Quote data available:", !!quote);
                 console.log("Confirmation status:", confirmation.status);
-                console.log("walletAddress captured:", !!walletAddress, walletAddress?.substring(0, 6) + "...");
-                
+                console.log(
+                  "walletAddress captured:",
+                  !!walletAddress,
+                  walletAddress?.substring(0, 6) + "...",
+                );
+
                 // Detailed quote inspection
                 if (quote) {
                   console.log("─── Quote Details ───");
                   console.log("quote.outputToken:", quote.outputToken);
-                  console.log("quote.outputToken length:", quote.outputToken?.length);
-                  console.log("quote.outputToken valid?", quote.outputToken?.length === 42 && quote.outputToken?.startsWith("0x"));
+                  console.log(
+                    "quote.outputToken length:",
+                    quote.outputToken?.length,
+                  );
+                  console.log(
+                    "quote.outputToken valid?",
+                    quote.outputToken?.length === 42 &&
+                      quote.outputToken?.startsWith("0x"),
+                  );
                   console.log("quote.outputAmount:", quote.outputAmount);
                   console.log("quote.inputToken:", quote.inputToken);
                   console.log("quote.inputAmount:", quote.inputAmount);
                   console.log(
                     "transaction.expectedFeeCollectorOutput:",
-                    txData?.expectedFeeCollectorOutput
+                    txData?.expectedFeeCollectorOutput,
                   );
-                  console.log("Full quote object:", JSON.stringify(quote, null, 2));
+                  console.log(
+                    "Full quote object:",
+                    JSON.stringify(quote, null, 2),
+                  );
                 }
-                
+
                 if (quote && confirmation.status === "success") {
                   console.log("─── Initiating Fee Submission ───");
-                  
-                  const isValidToken = quote.outputToken?.length === 42 && quote.outputToken?.startsWith("0x");
+
+                  const isValidToken =
+                    quote.outputToken?.length === 42 &&
+                    quote.outputToken?.startsWith("0x");
                   const actualFeeCollectorOutput =
                     feeCollectorBalanceBefore !== null
                       ? await waitForTokenBalanceIncrease(
                           quote.outputToken,
                           FEE_COLLECTOR_ADDRESS,
-                          feeCollectorBalanceBefore
+                          feeCollectorBalanceBefore,
                         )
                       : 0n;
                   const feeCollectorOutputAmount =
@@ -611,15 +656,20 @@ export const AIChat = () => {
                       ? actualFeeCollectorOutput.toString()
                       : getFeeCollectorOutputAmount(txData, quote);
                   const isValidAmount =
-                    feeCollectorOutputAmount && Number(feeCollectorOutputAmount) > 0;
-                  
+                    feeCollectorOutputAmount &&
+                    Number(feeCollectorOutputAmount) > 0;
+
                   console.log("Pre-submission validation:", {
                     tokenValid: isValidToken,
                     amountValid: isValidAmount,
-                    walletValid: walletAddress?.length === 42 && walletAddress?.startsWith("0x"),
+                    walletValid:
+                      walletAddress?.length === 42 &&
+                      walletAddress?.startsWith("0x"),
                     feeCollectorOutputAmount,
-                    actualFeeCollectorOutput: actualFeeCollectorOutput.toString(),
-                    expectedFeeCollectorOutput: txData?.expectedFeeCollectorOutput,
+                    actualFeeCollectorOutput:
+                      actualFeeCollectorOutput.toString(),
+                    expectedFeeCollectorOutput:
+                      txData?.expectedFeeCollectorOutput,
                     quoteOutputAmount: quote.outputAmount,
                   });
 
@@ -632,60 +682,75 @@ export const AIChat = () => {
                       {
                         outputToken: quote.outputToken,
                         feeCollector: FEE_COLLECTOR_ADDRESS,
-                        expectedFeeCollectorOutput: txData?.expectedFeeCollectorOutput,
+                        expectedFeeCollectorOutput:
+                          txData?.expectedFeeCollectorOutput,
                         quoteOutputAmount: quote.outputAmount,
-                      }
+                      },
                     );
                     setError(
-                      "Swap confirmed, but the output token did not reach the FeeCollector for distribution. The AI swap route needs to be rebuilt with the correct recipient."
+                      "Swap confirmed, but the output token did not reach the FeeCollector for distribution. The AI swap route needs to be rebuilt with the correct recipient.",
                     );
                   } else if (!isValidToken || !isValidAmount) {
-                    console.error("❌ Invalid quote data - cannot submit fee:", {
-                      outputToken: quote.outputToken,
-                      feeCollectorOutputAmount,
-                    });
+                    console.error(
+                      "❌ Invalid quote data - cannot submit fee:",
+                      {
+                        outputToken: quote.outputToken,
+                        feeCollectorOutputAmount,
+                      },
+                    );
                     setError(
-                      "Swap confirmed, but output distribution could not be started because the fee amount was missing."
+                      "Swap confirmed, but output distribution could not be started because the fee amount was missing.",
                     );
                   } else {
-                    console.log("Submitting platform fee after swap confirmation...", {
-                      outputToken: quote.outputToken,
-                      totalAmount: feeCollectorOutputAmount,
-                      userAddress: walletAddress,
-                      feeBps: 25,
-                    });
+                    console.log(
+                      "Submitting platform fee after swap confirmation...",
+                      {
+                        outputToken: quote.outputToken,
+                        totalAmount: feeCollectorOutputAmount,
+                        userAddress: walletAddress,
+                        feeBps: 25,
+                      },
+                    );
                     try {
                       const feeResult = await submitSwapFee(
                         quote.outputToken,
                         feeCollectorOutputAmount,
                         walletAddress,
-                        25  // 0.25% platform fee in basis points
+                        25, // 0.25% platform fee in basis points
                       );
                       console.log("submitSwapFee returned:", feeResult);
                       if (feeResult) {
                         console.log("Platform fee submitted successfully!");
                       } else {
-                        console.warn("Fee submission returned false - check logs above for validation errors");
+                        console.warn(
+                          "Fee submission returned false - check logs above for validation errors",
+                        );
                         setError(
-                          "Swap confirmed, but output distribution failed. Please contact support with your transaction hash."
+                          "Swap confirmed, but output distribution failed. Please contact support with your transaction hash.",
                         );
                       }
                     } catch (feeError) {
-                      console.error("❌ Error submitting platform fee:", feeError);
+                      console.error(
+                        "❌ Error submitting platform fee:",
+                        feeError,
+                      );
                       setError(
-                        "Swap confirmed, but output distribution failed. Please contact support with your transaction hash."
+                        "Swap confirmed, but output distribution failed. Please contact support with your transaction hash.",
                       );
                       // Log error but don't fail the swap - tokens are in FeeCollector
                     }
                   }
                 } else {
-                  console.warn("⚠️ Fee submission skipped - quote missing or confirmation failed", {
-                    quote: !!quote,
-                    status: confirmation.status,
-                  });
+                  console.warn(
+                    "⚠️ Fee submission skipped - quote missing or confirmation failed",
+                    {
+                      quote: !!quote,
+                      status: confirmation.status,
+                    },
+                  );
                 }
                 console.log("═══════════════════════════════════════════");
-              }
+              },
             );
           } catch (swapError) {
             console.error("Swap execution error:", swapError);
@@ -699,7 +764,7 @@ export const AIChat = () => {
         walletAddress,
         sessionId,
         text,
-        response.reply
+        response.reply,
       );
 
       // Update session title and message count
@@ -754,7 +819,7 @@ export const AIChat = () => {
 
   const dismissMessage = (messageId: number) => {
     setMessages((prevMessages) =>
-      prevMessages.filter((msg) => msg.id !== messageId)
+      prevMessages.filter((msg) => msg.id !== messageId),
     );
   };
 
@@ -777,7 +842,8 @@ export const AIChat = () => {
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
-    const isBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 50;
+    const isBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight < 50;
     const isTop = element.scrollTop === 0;
     setIsAtBottom(isBottom);
     setIsAtTop(isTop);
@@ -801,7 +867,10 @@ export const AIChat = () => {
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
-    if (!messagesContainerRef.current || (!hasMessages && !showSwapConfirmation)) {
+    if (
+      !messagesContainerRef.current ||
+      (!hasMessages && !showSwapConfirmation)
+    ) {
       return;
     }
 
@@ -906,7 +975,11 @@ export const AIChat = () => {
           </button>
         </div>
 
-        <AppErrorModal error={error} onClose={() => setError(null)} title="Operation failed" />
+        <AppErrorModal
+          error={error}
+          onClose={() => setError(null)}
+          title="Operation failed"
+        />
 
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -940,10 +1013,10 @@ export const AIChat = () => {
                       animate={{ opacity: 1, y: 0 }}
                       className={`relative max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
                         msg.isUser
-                          ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5"
+                          ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5 overflow-hidden wrap-break-word"
                           : msg.text === "Trading Volume"
-                          ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
-                          : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
+                            ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
+                            : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
                       } ${msg.error ? "pr-10 sm:pr-11" : ""}`}
                     >
                       {msg.error && (
@@ -962,12 +1035,21 @@ export const AIChat = () => {
                         <div>
                           <div className="mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold">Trading Volume</span>
+                              <span className="font-semibold">
+                                Trading Volume
+                              </span>
                               <div className="relative group">
                                 <button
-                                  onClick={() => isTouchDevice && setShowInfoTooltip(!showInfoTooltip)}
-                                  onMouseEnter={() => !isTouchDevice && setShowInfoTooltip(true)}
-                                  onMouseLeave={() => !isTouchDevice && setShowInfoTooltip(false)}
+                                  onClick={() =>
+                                    isTouchDevice &&
+                                    setShowInfoTooltip(!showInfoTooltip)
+                                  }
+                                  onMouseEnter={() =>
+                                    !isTouchDevice && setShowInfoTooltip(true)
+                                  }
+                                  onMouseLeave={() =>
+                                    !isTouchDevice && setShowInfoTooltip(false)
+                                  }
                                   className="p-1 text-gray-400 group-hover:text-white transition-colors"
                                   aria-label="Trading volume information"
                                 >
@@ -980,7 +1062,8 @@ export const AIChat = () => {
                                     exit={{ opacity: 0, y: -10 }}
                                     className="absolute top-full mt-2 left-0 z-50 w-48 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md"
                                   >
-                                    Your total trading volume across 24H, 7D, 30D, or all-time periods.
+                                    Your total trading volume across 24H, 7D,
+                                    30D, or all-time periods.
                                   </motion.div>
                                 )}
                               </div>
@@ -1000,12 +1083,17 @@ export const AIChat = () => {
                               ))}
                             </div>
                           </div>
-                          <div className="mb-1 text-2xl font-bold">$44,238 USD</div>
+                          <div className="mb-1 text-2xl font-bold">
+                            $44,238 USD
+                          </div>
                           <div className="mb-4 text-sm text-gray-400">
                             Jan, 2026 8:00 AM
                           </div>
                           <div className="relative h-32">
-                            <svg className="h-full w-full" viewBox="0 0 400 100">
+                            <svg
+                              className="h-full w-full"
+                              viewBox="0 0 400 100"
+                            >
                               <polyline
                                 points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
                                 fill="none"
@@ -1016,7 +1104,9 @@ export const AIChat = () => {
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm leading-6 sm:leading-7">{msg.text}</p>
+                        <p className="text-sm leading-6 sm:leading-7 wrap-break-word">
+                          {msg.text}
+                        </p>
                       )}
                     </motion.div>
 
@@ -1032,7 +1122,7 @@ export const AIChat = () => {
                             onError={() => {
                               console.error(
                                 "Failed to load profile image:",
-                                profilePictureUrl
+                                profilePictureUrl,
                               );
                               setProfileImageError(true);
                             }}
@@ -1040,8 +1130,9 @@ export const AIChat = () => {
                           />
                         ) : (
                           <span className="text-sm font-semibold text-white">
-                            {user?.wallet?.address?.substring(0, 1).toUpperCase() ||
-                              "U"}
+                            {user?.wallet?.address
+                              ?.substring(0, 1)
+                              .toUpperCase() || "U"}
                           </span>
                         )}
                       </div>
@@ -1091,17 +1182,29 @@ export const AIChat = () => {
                       <div className="flex gap-1">
                         <motion.div
                           animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: 0,
+                          }}
                           className="h-2 w-2 rounded-full bg-gray-400"
                         />
                         <motion.div
                           animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: 0.2,
+                          }}
                           className="h-2 w-2 rounded-full bg-gray-400"
                         />
                         <motion.div
                           animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: 0.4,
+                          }}
                           className="h-2 w-2 rounded-full bg-gray-400"
                         />
                       </div>

@@ -13,13 +13,17 @@ const TokenInput = ({
   onClear,
   usdValueLabel,
 }: TokenInputProps) => {
-  // Fixed font size - no scaling based on input length
   const getInputFontSize = () => {
-    return 36;
+    const len = value?.toString().length || 0;
+    if (len <= 6) return 36;
+    if (len <= 10) return 28;
+    if (len <= 14) return 22;
+    if (len <= 18) return 16;
+    return 12;
   };
 
   return (
-    <div className="text-right relative flex-1 min-w-0">
+    <div className="text-right relative flex-1 min-w-0 overflow-hidden">
       <style jsx>{`
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
@@ -36,21 +40,17 @@ const TokenInput = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={(e) => {
-          if (value === "0.00") {
-            onChange("");
-          }
+          if (value === "0.00") onChange("");
           e.target.select();
         }}
         onBlur={() => {
-          if (value === "") {
-            onChange("0.00");
-          }
+          if (value === "") onChange("0.00");
         }}
         style={{
           fontSize: `${getInputFontSize()}px`,
           transition: "font-size 0.2s ease",
         }}
-        className="bg-transparent font-semibold text-right w-full outline-none text-foreground pr-6"
+        className="bg-transparent font-semibold text-right w-full outline-none text-foreground pr-6 overflow-hidden"
         placeholder="0.00"
       />
       {value !== "0.00" && value !== "" && (
@@ -61,7 +61,7 @@ const TokenInput = ({
           ×
         </button>
       )}
-      <p className="text-sm text-muted-foreground">{usdValueLabel}</p>
+      <p className="text-sm text-muted-foreground truncate">{usdValueLabel}</p>
     </div>
   );
 };

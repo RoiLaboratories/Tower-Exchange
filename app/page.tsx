@@ -21,7 +21,9 @@ export default function Home() {
           </div>
         ) : (
           <div className="w-full max-w-md">
-            <BridgeCardContent onNavigateToSwap={() => setCurrentView("swap")} />
+            <BridgeCardContent
+              onNavigateToSwap={() => setCurrentView("swap")}
+            />
           </div>
         )}
       </main>
