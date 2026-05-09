@@ -57,7 +57,7 @@ const arcTestnet = {
     symbol: "ARC",
   },
   rpcUrls: {
-    default: { http: ["https://rpc.blockdaemon.testnet.arc.network"] },
+    default: { http: ["https://rpc.testnet.arc.network"] },
   },
   blockExplorers: {
     default: { name: "Explorer", url: "https://explorer.testnet.arc.network" },

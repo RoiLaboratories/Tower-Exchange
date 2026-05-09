@@ -1,199 +1,212 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Info } from "lucide-react";
-import { AppErrorModal } from "@/components/AppErrorModal";
+import Image, { type StaticImageData } from "next/image";
+import { motion } from "framer-motion";
+import { Info } from "lucide-react";
 
-interface Router {
-  id: string;
-  name: string;
-  type: string;
-  enabled: boolean;
+import quotesIcon from "@/public/assets/quotes icon.svg";
+import synthraLogo from "@/public/assets/synthralogo.svg";
+import xylonetLogo from "@/public/assets/xylonetlogo.svg";
+
+interface RouteOption {
+  dexId: string;
+  dexName: string;
+  outputAmount: string;
+  routeType: string;
 }
 
 interface RouterDisplayProps {
   selectedRouterId?: string;
-  onRouterSelect?: (routerId: string) => void;
-  isAutoSelected?: boolean; // Indicates router was auto-selected by backend optimizer
+  routeOptions?: RouteOption[];
+  isAutoSelected?: boolean;
 }
+
+type SupportedRouter = {
+  id: "xylonet-adapter" | "synthra";
+  aliases: string[];
+  name: string;
+  logo: StaticImageData | string;
+};
+
+const SUPPORTED_ROUTERS: SupportedRouter[] = [
+  {
+    id: "xylonet-adapter",
+    aliases: ["xylonet", "xylonet-adapter"],
+    name: "XyloNet",
+    logo: xylonetLogo,
+  },
+  {
+    id: "synthra",
+    aliases: ["synthra", "synthra-v3"],
+    name: "Synthra",
+    logo: synthraLogo,
+  },
+];
+
+const normalizeRouterId = (id = "") => {
+  const normalizedId = id.toLowerCase();
+
+  return (
+    SUPPORTED_ROUTERS.find((router) => router.aliases.includes(normalizedId))?.id ||
+    normalizedId
+  );
+};
+
+const outputAmountToBigInt = (amount?: string) => {
+  try {
+    return BigInt(amount || "0");
+  } catch {
+    return 0n;
+  }
+};
+
+const formatQuoteAmount = (amount?: string) => {
+  const rawAmount = outputAmountToBigInt(amount);
+
+  if (rawAmount <= 0n) {
+    return "-";
+  }
+
+  const whole = rawAmount / 10n ** 18n;
+  const fraction = rawAmount % 10n ** 18n;
+  const cents = (fraction * 100n) / 10n ** 18n;
+
+  return `$${whole.toString()}.${cents.toString().padStart(2, "0")}`;
+};
 
 export default function RouterDisplay({
   selectedRouterId,
-  onRouterSelect,
-  isAutoSelected = true, // Default to true since backend always selects now
+  routeOptions = [],
 }: RouterDisplayProps) {
-  const [routers, setRouters] = useState<Router[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
+    const dexId = normalizeRouterId(option.dexId);
+    const existingOption = optionsByDexId.get(dexId);
 
-  useEffect(() => {
-    const fetchRouters = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/api/swap/dexes");
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch routers: ${response.status} ${response.statusText}`);
-        }
+    if (
+      !existingOption ||
+      outputAmountToBigInt(option.outputAmount) >
+        outputAmountToBigInt(existingOption.outputAmount)
+    ) {
+      optionsByDexId.set(dexId, option);
+    }
 
-        const data = await response.json();
-        console.log("[RouterDisplay] Fetched routers:", data);
-        
-        // Extract array from data.data (NextResponse.json wraps in data property)
-        const routersArray = data?.data || [];
-        
-        if (!Array.isArray(routersArray)) {
-          console.warn("[RouterDisplay] Routers is not an array:", routersArray);
-          throw new Error("Invalid routers response format");
-        }
-        
-        setRouters(routersArray);
-        setError(null);
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load routers";
-        setError(errorMessage);
-        console.error("[RouterDisplay] Router fetch error:", err);
-        setRouters([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    return optionsByDexId;
+  }, new Map<string, RouteOption>());
 
-    fetchRouters();
-  }, []);
+  const bestOutputAmount = SUPPORTED_ROUTERS.reduce((bestAmount, router) => {
+    const option = routeOptionByDexId.get(router.id);
+    const outputAmount = outputAmountToBigInt(option?.outputAmount);
 
-  const selectedRouter = routers.find((r) => r.id === selectedRouterId);
-  const routerTypeColor = {
-    "pool-based": "bg-purple-500/10 text-purple-300",
-    v3: "bg-blue-500/10 text-blue-300",
-    v2: "bg-green-500/10 text-green-300",
-    stable: "bg-orange-500/10 text-orange-300",
-  };
+    return outputAmount > bestAmount ? outputAmount : bestAmount;
+  }, 0n);
+  const sortedRouters = [...SUPPORTED_ROUTERS].sort((leftRouter, rightRouter) => {
+    const leftOutputAmount = outputAmountToBigInt(
+      routeOptionByDexId.get(leftRouter.id)?.outputAmount,
+    );
+    const rightOutputAmount = outputAmountToBigInt(
+      routeOptionByDexId.get(rightRouter.id)?.outputAmount,
+    );
 
-  const typeColor =
-    routerTypeColor[selectedRouter?.type as keyof typeof routerTypeColor] ||
-    "bg-gray-500/10 text-gray-300";
+    if (leftOutputAmount === rightOutputAmount) {
+      return 0;
+    }
+
+    return leftOutputAmount > rightOutputAmount ? -1 : 1;
+  });
+  const normalizedSelectedRouterId = selectedRouterId
+    ? normalizeRouterId(selectedRouterId)
+    : undefined;
+  const dexCount = SUPPORTED_ROUTERS.length;
 
   return (
-    <>
-      <AppErrorModal error={error} onClose={() => setError(null)} onRetry={()=>{ setLoading(true); }} title="Failed to load routers" />
-      <div className="w-full">
-      <motion.div
-        className="p-3 bg-secondary/50 rounded-lg border border-primary/20 hover:border-primary/40 transition-colors cursor-pointer"
-        onClick={() => !isAutoSelected && setIsOpen(!isOpen)}
-        whileHover={{ backgroundColor: "rgba(123, 184, 255, 0.05)" }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
-            <Info className="w-4 h-4 text-primary/60" />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">
-                  {isAutoSelected ? "Auto-Selected Router" : "Selected Router"}
-                </p>
-                {isAutoSelected && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">
-                    Optimized
+    <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[#20242a] px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Image
+            src={quotesIcon}
+            alt=""
+            width={16}
+            height={16}
+            aria-hidden
+            className="h-4 w-4 shrink-0 object-contain"
+          />
+          <span className="text-sm font-semibold text-white">Quotes</span>
+        </div>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="flex h-3.5 min-w-6 shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+            style={{
+              backgroundColor: "#2E2E2E",
+            }}
+            aria-label={`${dexCount} DEX routes available`}
+          >
+            {dexCount}
+          </span>
+          <span className="truncate text-[11px] font-medium text-white/80">
+            <span className="text-[9px] font-normal text-white/45">Via</span>{" "}
+            <span>XyloNet & Synthra</span>
+          </span>
+          <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
+            <Info
+              className="h-3.5 w-3.5 text-white/70"
+              tabIndex={0}
+              aria-describedby="router-quotes-info"
+            />
+            <span
+              id="router-quotes-info"
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 w-64 rounded-lg border border-white/10 bg-[#08090a] px-3 py-2 text-left text-[11px] font-normal leading-4 text-white/80 opacity-0 shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              Quotes from major routers on Tower are simulated on the same block to find the best executable prices.
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-1 p-1.5">
+        {sortedRouters.map((router) => {
+          const option = routeOptionByDexId.get(router.id);
+          const outputAmount = outputAmountToBigInt(option?.outputAmount);
+          const isBestPrice = outputAmount > 0n && outputAmount === bestOutputAmount;
+          const isSelected =
+            normalizedSelectedRouterId === router.id ||
+            (!normalizedSelectedRouterId && isBestPrice);
+          const isAvailable = Boolean(option);
+
+          return (
+            <motion.div
+              key={router.id}
+              role="listitem"
+              className={`flex h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left transition-colors ${
+                isSelected
+                  ? "border border-[#35404a] bg-[#161a20]"
+                  : "border border-transparent"
+              } ${isAvailable ? "" : "opacity-45"}`}
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <Image
+                  src={router.logo}
+                  alt={`${router.name} logo`}
+                  width={18}
+                  height={18}
+                  className="h-[18px] w-[18px] shrink-0 object-contain"
+                />
+                <span className="truncate text-sm font-medium text-white/90">
+                  {router.name}
+                </span>
+                {isBestPrice && (
+                  <span className="rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium text-[#8fbce7]">
+                    Best Price
                   </span>
                 )}
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedRouter ? (
-                  <>
-                    <p className="text-sm font-medium text-white">
-                      {selectedRouter.name}
-                    </p>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full font-mono ${typeColor}`}
-                    >
-                      {selectedRouter.type}
-                    </span>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {loading ? "Loading..." : "No router selected"}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-          {!isAutoSelected && (
-            <motion.div
-              animate={{ rotate: isOpen ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="w-5 h-5 text-primary/60" />
+              </span>
+              <span className="shrink-0 text-sm tabular-nums text-white/90">
+                {isAvailable ? formatQuoteAmount(option?.outputAmount) : "Unavailable"}
+              </span>
             </motion.div>
-          )}
-        </div>
-      </motion.div>
-
-      <AnimatePresence>
-        {isOpen && !isAutoSelected && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="absolute z-50 mt-2 w-full max-w-md bg-secondary border border-primary/20 rounded-lg shadow-lg overflow-hidden"
-          >
-            <div className="max-h-96 overflow-y-auto p-2">
-              {loading ? (
-                <div className="p-4 text-center text-muted-foreground text-sm">
-                  Loading available routers...
-                </div>
-              ) : routers.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground text-sm">
-                  No routers available
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {routers.map((router) => (
-                    <motion.button
-                      key={router.id}
-                      onClick={() => {
-                        onRouterSelect?.(router.id);
-                        setIsOpen(false);
-                      }}
-                      whileHover={{ backgroundColor: "rgba(123, 184, 255, 0.1)" }}
-                      className={`w-full p-3 text-left rounded-md transition-colors ${
-                        selectedRouterId === router.id
-                          ? "bg-primary/20 border-l-2 border-primary"
-                          : "hover:bg-primary/5"
-                      } ${!router.enabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                      disabled={!router.enabled}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-white">
-                            {router.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Type: {router.type}
-                          </p>
-                        </div>
-                        <div
-                          className={`text-xs px-2 py-1 rounded-full font-mono ${
-                            routerTypeColor[
-                              router.type as keyof typeof routerTypeColor
-                            ] || "bg-gray-500/10 text-gray-300"
-                          }`}
-                        >
-                          {router.enabled ? "✓" : "✗"}
-                        </div>
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          );
+        })}
       </div>
-    </>
+    </section>
   );
 }

@@ -22,7 +22,7 @@ import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
-import { AppErrorModal } from "@/components/AppErrorModal";
+import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
@@ -115,6 +115,8 @@ export default function BridgePageContent({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [walletBalance, setWalletBalance] = useState("0.00");
   const [toChainBalance, setToChainBalance] = useState("0.00");
+  const [sourceGasBalance, setSourceGasBalance] = useState("0.00");
+  const [destinationGasBalance, setDestinationGasBalance] = useState("0.00");
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
 
   useEffect(() => {
@@ -241,6 +243,81 @@ export default function BridgePageContent({
     fetchToChainBalance();
   }, [fetchToChainBalance]);
 
+  const fetchNativeGasBalance = useCallback(
+    async (chainId: string, address: string) => {
+      const chainConfig =
+        SUPPORTED_CHAINS[chainId as keyof typeof SUPPORTED_CHAINS];
+      if (!chainConfig) {
+        return "0.00";
+      }
+
+      const response = await fetch("/api/wallet/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address,
+          chainId,
+          rpcUrl: chainConfig.rpcUrl,
+          balanceType: "native",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch native gas balance");
+      }
+
+      const data = await response.json();
+      return data.balance || "0.00";
+    },
+    [],
+  );
+
+  const fetchBridgeGasBalances = useCallback(async () => {
+    if (!user?.wallet?.address) {
+      setSourceGasBalance("0.00");
+      setDestinationGasBalance("0.00");
+      return;
+    }
+
+    try {
+      if (fromChainId) {
+        const balance = await fetchNativeGasBalance(
+          fromChainId,
+          user.wallet.address,
+        );
+        setSourceGasBalance(balance);
+      } else {
+        setSourceGasBalance("0.00");
+      }
+
+      if (toChainId) {
+        const recipientAddress = receivingAddress || user.wallet.address;
+        const balance = await fetchNativeGasBalance(
+          toChainId,
+          recipientAddress,
+        );
+        setDestinationGasBalance(balance);
+      } else {
+        setDestinationGasBalance("0.00");
+      }
+    } catch (error) {
+      console.error("Error fetching bridge gas balances:", error);
+      setSourceGasBalance("0.00");
+      setDestinationGasBalance("0.00");
+    }
+  }, [
+    user?.wallet?.address,
+    fromChainId,
+    toChainId,
+    receivingAddress,
+    fetchNativeGasBalance,
+  ]);
+
+  useEffect(() => {
+    fetchBridgeGasBalances();
+  }, [fetchBridgeGasBalances]);
+
+  // Calculate bridge fees and estimated time when chain/amount changes
   const feeTokenSymbol = fromToken?.symbol || "USDC";
 
   useEffect(() => {
@@ -400,10 +477,26 @@ export default function BridgePageContent({
 
   return (
     <>
-      <AppErrorModal
+      <BridgeErrorModal
         error={bridgeHook.error}
         onClose={bridgeHook.clearError}
-        title="Bridge operation failed"
+        onRetry={handleBridge}
+        fromChainName={fromChain?.name}
+        toChainName={toChain?.name}
+        fromGasBalance={sourceGasBalance}
+        toGasBalance={destinationGasBalance}
+        fromGasTokenSymbol={
+          fromChainId
+            ? (SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
+                ?.nativeTokenSymbol ?? null)
+            : null
+        }
+        toGasTokenSymbol={
+          toChainId
+            ? (SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]
+                ?.nativeTokenSymbol ?? null)
+            : null
+        }
       />
 
       <div className="flex w-full items-start justify-center">

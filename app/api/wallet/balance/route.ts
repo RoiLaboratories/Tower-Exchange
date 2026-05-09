@@ -13,7 +13,7 @@ const ARC_NATIVE_USDC_DECIMALS = 18;
 
 export async function POST(request: NextRequest) {
   try {
-    const { address, chainId, rpcUrl, tokenAddress } = await request.json();
+    const { address, chainId, rpcUrl, tokenAddress, balanceType } = await request.json();
 
     if (!address || !chainId || !rpcUrl) {
       return NextResponse.json(
@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
     const publicClient = createPublicClient({
       transport: http(rpcUrl),
     });
+
+    if (balanceType === "native") {
+      const balance = await publicClient.getBalance({
+        address: address as `0x${string}`,
+      });
+
+      return NextResponse.json({
+        balance: Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(6),
+      });
+    }
 
     // Use provided token address, or default to USDC for the chain
     const contractAddress = tokenAddress || getUSDCAddressForChain(chainId);

@@ -1,7 +1,7 @@
 // Arc Testnet Configuration and utilities
 export const ARC_TESTNET_CONFIG = {
   chainId: 5042002,
-  rpcUrl: "https://rpc.blockdaemon.testnet.arc.network",
+  rpcUrl: "https://rpc.testnet.arc.network",
   currency: "USDC",
   decimals: 18,
   explorerUrl: "https://testnet.arcscan.app",
@@ -25,10 +25,10 @@ export const ARC_ADD_NETWORK_PARAMS = [
       decimals: 18,
     },
     rpcUrls: [
-      "https://rpc.blockdaemon.testnet.arc.network",
       "https://rpc.testnet.arc.network",
       "https://rpc.drpc.testnet.arc.network",
       "https://rpc.quicknode.testnet.arc.network",
+      "https://rpc.blockdaemon.testnet.arc.network",
     ],
     blockExplorerUrls: ["https://testnet.arcscan.app"],
   },
