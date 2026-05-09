@@ -69,6 +69,8 @@ const tokens = [
   // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
   // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
 ];
+const NATIVE_USDC_GAS_RESERVE = 0.05;
+const QUOTE_REFRESH_INTERVAL_MS = 10000;
 
 interface TokenSelectorProps {
   selected: (typeof tokens)[0] | null;
@@ -226,6 +228,18 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     return "0x" + v.toString(16);
   };
 
+  const getActiveWalletAddress = async (
+    provider = getBrowserWalletProvider(),
+  ) => {
+    const accounts = await provider.request({ method: "eth_accounts" });
+
+    if (!Array.isArray(accounts) || typeof accounts[0] !== "string") {
+      throw new Error("No active wallet account found. Please reconnect your wallet.");
+    }
+
+    return accounts[0];
+  };
+
   // Minimal calldata encoding for ERC20 approve(spender, amount)
   // approve(address,uint256) selector = 0x095ea7b3
   const encodeErc20Approve = (spender: string, amountWei: string) => {
@@ -377,6 +391,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     sellAmount !== "0.00" &&
     parseFloat(receiveAmount) > 0 &&
     receiveAmount !== "0.00";
+  const shouldShowRouterDisplay =
+    parseFloat(sellAmount) > 0 &&
+    sellAmount !== "0.00" &&
+    Boolean(receiveToken);
 
   const handleSwapTokens = () => {
     if (!receiveToken) {
@@ -391,27 +409,28 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     setReceiveAmount(tempAmount);
   };
 
-  const handleRouterSelect = (routerId: string) => {
-    setSelectedRouterId(routerId);
-
-    if (sellAmount && parseFloat(sellAmount) > 0 && receiveToken) {
-      getQuoteForSwap(sellAmount, routerId);
-    }
-  };
-
-  // Simulate DEX aggregator calculation
-  const handleSellAmountChange = (value: string) => {
-    setSellAmount(value);
-    if (value && parseFloat(value) > 0) {
-      // Get quote from Arc pool for actual exchange rate
-      getQuoteForSwap(value);
-    } else {
-      setReceiveAmount("0.00");
-    }
-  };
+  // Helper function to calculate using mock rates
+  const calculateMockRate = useCallback((sellAmountValue: string) => {
+    const mockRate =
+      sellToken.symbol === "ETH"
+        ? 1500
+        : sellToken.symbol === "USDC"
+        ? 1
+        : sellToken.symbol === "USDT"
+        ? 1
+        : sellToken.symbol === "UNI"
+        ? 12
+        : sellToken.symbol === "EURC"
+        ? 1.05
+        : sellToken.symbol === "SWPRC"
+        ? 0.5
+        : 8;
+    const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
+    setReceiveAmount(calculated);
+  }, [sellToken.symbol]);
 
   // Get swap quote from Tower Exchange backend
-  const getQuoteForSwap = async (sellAmountValue: string, routerId = selectedRouterId) => {
+  const getQuoteForSwap = useCallback(async (sellAmountValue: string, routerId?: string) => {
     try {
       // Check if both tokens are selected
       if (!receiveToken) {
@@ -498,30 +517,45 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       setReceiveAmount(quoteAmount.toFixed(receiveTokenDecimals));
     } catch (error) {
-      console.error("Error getting swap quote:", error);
+        console.error("Error getting swap quote:", error);
       // Fallback to mock calculation on error
       calculateMockRate(sellAmountValue);
     }
-  };
+  }, [
+    calculateMockRate,
+    getQuote,
+    receiveToken,
+    sellToken.symbol,
+    slippageTolerance,
+    towerError,
+  ]);
 
-  // Helper function to calculate using mock rates
-  const calculateMockRate = (sellAmountValue: string) => {
-    const mockRate =
-      sellToken.symbol === "ETH"
-        ? 1500
-        : sellToken.symbol === "USDC"
-        ? 1
-        : sellToken.symbol === "USDT"
-        ? 1
-        : sellToken.symbol === "UNI"
-        ? 12
-        : sellToken.symbol === "EURC"
-        ? 1.05
-        : sellToken.symbol === "SWPRC"
-        ? 0.5
-        : 8;
-    const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
-    setReceiveAmount(calculated);
+  useEffect(() => {
+    if (!shouldShowRouterDisplay || swapState === "loading") {
+      return;
+    }
+
+    const refreshQuotes = () => {
+      getQuoteForSwap(sellAmount);
+    };
+    refreshQuotes();
+    const intervalId = window.setInterval(
+      refreshQuotes,
+      QUOTE_REFRESH_INTERVAL_MS,
+    );
+
+    return () => window.clearInterval(intervalId);
+  }, [getQuoteForSwap, sellAmount, shouldShowRouterDisplay, swapState]);
+
+  // Simulate DEX aggregator calculation
+  const handleSellAmountChange = (value: string) => {
+    setSellAmount(value);
+    if (value && parseFloat(value) > 0) {
+      // Get quote from Arc pool for actual exchange rate
+      getQuoteForSwap(value);
+    } else {
+      setReceiveAmount("0.00");
+    }
   };
 
   // Handle 50% button click
@@ -534,7 +568,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   // Handle Max button click
   const handleMaxAmount = () => {
     const balance = getTokenBalance(sellToken.symbol);
-    const maxAmount = balance.toFixed(2);
+    const spendableBalance = NATIVE_TOKENS.includes(sellToken.symbol)
+      ? Math.max(0, balance - NATIVE_USDC_GAS_RESERVE)
+      : balance;
+    const maxAmount = spendableBalance.toFixed(2);
     handleSellAmountChange(maxAmount);
   };
 
@@ -598,7 +635,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       }
 
       // Use the EIP1193 provider directly to send transactions
-      const userAddress = user.wallet?.address;
+      const userAddress = await getActiveWalletAddress(eip1193Provider);
       if (!userAddress) {
         throw new Error("User wallet address not available");
       }
@@ -710,6 +747,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         );
       }
 
+      if (
+        NATIVE_TOKENS.includes(sellToken.symbol) &&
+        sellAmountNum + NATIVE_USDC_GAS_RESERVE > balance
+      ) {
+        throw new Error(
+          `Keep at least ${NATIVE_USDC_GAS_RESERVE} ${sellToken.symbol} for Arc gas. You have ${balance.toFixed(6)} ${sellToken.symbol}, so reduce the swap amount.`
+        );
+      }
+
       // Step 2: Convert amounts to wei using correct decimals
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
 
@@ -724,7 +770,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenOutAddress,
         amountInWei,
         amountInHuman: sellAmount,
-        walletAddress: user.wallet.address,
+        walletAddress: userAddress,
         balanceOfSellToken: balance,
         sellTokenDecimals,
       });
@@ -734,8 +780,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
-        slippageTolerance,
-        selectedRouterId
+        slippageTolerance
       );
 
       if (!quote) {
@@ -753,67 +798,80 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       // Step 4: Get swap transaction (which includes approval if needed)
       console.log("Building swap transaction with automatic approval detection...");
-      const transaction = await buildSwapTransaction(quote, user.wallet.address);
+      const transaction = await buildSwapTransaction(quote, userAddress);
 
       if (!transaction) {
         throw new Error(towerError || "Failed to build swap transaction");
       }
 
       const { approval: approvalTx, swap: swapTx } = transaction;
+      const approvalTxs = approvalTx
+        ? Array.isArray(approvalTx)
+          ? approvalTx
+          : [approvalTx]
+        : [];
 
       // Step 5: If approval is needed, submit approval transaction first
-      if (approvalTx) {
+      if (approvalTxs.length > 0) {
         console.log("Approval required - submitting approval transaction...");
         try {
-          console.log("Sending approval transaction to MetaMask...");
-          const approveTxHash = await sendTransactionViaProvider(
-            {
-              to: approvalTx.to,
-              data: approvalTx.data,
-              value: "0x0",
-              gas: approvalTx.gasLimit,
-            },
-            "APPROVAL"
-          );
+          for (let approvalIndex = 0; approvalIndex < approvalTxs.length; approvalIndex++) {
+            const approvalTx = approvalTxs[approvalIndex];
+            const approvalLabel =
+              approvalTxs.length > 1
+                ? `APPROVAL ${approvalIndex + 1}/${approvalTxs.length}`
+                : "APPROVAL";
 
-          console.log("Approval transaction sent:", approveTxHash);
+            console.log(`Sending ${approvalLabel} transaction to MetaMask...`);
+            const approveTxHash = await sendTransactionViaProvider(
+              {
+                to: approvalTx.to,
+                data: approvalTx.data,
+                value: "0x0",
+                gas: approvalTx.gasLimit,
+              },
+              approvalLabel
+            );
 
-          // Wait for approval confirmation - poll until receipt is found
-          let approvalReceipt: BrowserWalletTransactionReceipt | null = null;
-          let approvalRetries = 0;
-          const maxApprovalRetries = 30; // Wait up to 30 seconds
+            console.log(`${approvalLabel} transaction sent:`, approveTxHash);
 
-          while (approvalReceipt === null && approvalRetries < maxApprovalRetries) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // Wait for approval confirmation - poll until receipt is found
+            let approvalReceipt: BrowserWalletTransactionReceipt | null = null;
+            let approvalRetries = 0;
+            const maxApprovalRetries = 30; // Wait up to 30 seconds
 
-            try {
-              approvalReceipt = await eip1193Provider.request({
-                method: "eth_getTransactionReceipt",
-                params: [approveTxHash],
-              }) as BrowserWalletTransactionReceipt | null;
+            while (approvalReceipt === null && approvalRetries < maxApprovalRetries) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
 
-              if (approvalReceipt) {
-                if (approvalReceipt.status === "0x0") {
-                  throw new Error("Approval transaction failed on-chain");
+              try {
+                approvalReceipt = await eip1193Provider.request({
+                  method: "eth_getTransactionReceipt",
+                  params: [approveTxHash],
+                }) as BrowserWalletTransactionReceipt | null;
+
+                if (approvalReceipt) {
+                  if (approvalReceipt.status === "0x0") {
+                    throw new Error(`${approvalLabel} transaction failed on-chain`);
+                  }
+                  console.log(`${approvalLabel} transaction confirmed:`, approvalReceipt);
+                  break;
                 }
-                console.log("Approval transaction confirmed:", approvalReceipt);
-                break;
+              } catch (err) {
+                // Continue polling
               }
-            } catch (err) {
-              // Continue polling
+
+              approvalRetries++;
             }
 
-            approvalRetries++;
+            if (!approvalReceipt) {
+              throw new Error(`${approvalLabel} transaction not confirmed after 30 seconds`);
+            }
+
+            // Additional wait to ensure block is finalized
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
 
-          if (!approvalReceipt) {
-            throw new Error("Approval transaction not confirmed after 30 seconds");
-          }
-
-          // Additional wait to ensure block is finalized
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          console.log("Approval transaction confirmed successfully!");
+          console.log("Approval transaction(s) confirmed successfully!");
           
           // CRITICAL: Rebuild swap transaction after approval to get fresh deadline
           // Using old swap data will cause "execution reverted" due to stale deadline
@@ -822,15 +880,14 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             tokenInAddress,
             tokenOutAddress,
             amountInWei,
-            slippageTolerance,
-            selectedRouterId
+            slippageTolerance
           );
 
           if (!freshQuote) {
             throw new Error(towerError || "Failed to get fresh quote after approval");
           }
 
-          const freshTransaction = await buildSwapTransaction(freshQuote, user.wallet.address);
+          const freshTransaction = await buildSwapTransaction(freshQuote, userAddress);
           if (!freshTransaction) {
             throw new Error(towerError || "Failed to build fresh swap transaction after approval");
           }
@@ -1482,16 +1539,6 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             </div>
           </div>
 
-          {/* Router Display */}
-          <div className="mb-4">
-            <RouterDisplay 
-              selectedRouterId={selectedRouterId}
-              onRouterSelect={handleRouterSelect}
-              routeOptions={routeOptions}
-              isAutoSelected={!selectedRouterId}
-            />
-          </div>
-
           {/* Action Button */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button
@@ -1504,6 +1551,16 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
               {getButtonContent()}
             </Button>
           </motion.div>
+
+          {shouldShowRouterDisplay && (
+            <div className="mt-4">
+              <RouterDisplay
+                selectedRouterId={selectedRouterId}
+                routeOptions={routeOptions}
+                isAutoSelected={!selectedRouterId}
+              />
+            </div>
+          )}
         </motion.div>
 
         {/* Token Quick Access Buttons */}

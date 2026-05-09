@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   buildSynthraApprovalTransaction,
   buildSynthraExactInputTransaction,
+  buildSynthraPermit2ApproveTransaction,
   createSynthraPublicClient,
   ERC20_APPROVE_ABI,
   SYNTHRA_ADDRESSES,
@@ -10,7 +11,6 @@ import {
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
-const GENERIC_SWAP_SELECTOR = "0x9908fc8b";
 
 type SwapQuote = {
   inputToken: string;
@@ -18,6 +18,7 @@ type SwapQuote = {
   inputAmount: string;
   outputAmount: string;
   minOut: string;
+  slippageTolerance?: number;
   route: {
     type: "single" | "multi" | "split";
     rawPath?: `0x${string}`;
@@ -42,6 +43,24 @@ const ERC20_ALLOWANCE_ABI = [
       { name: "spender", type: "address" },
     ],
     outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+const PERMIT2_ALLOWANCE_ABI = [
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "token", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" },
+      { name: "nonce", type: "uint48" },
+    ],
   },
 ] as const;
 
@@ -87,7 +106,7 @@ const buildSynthraQuoteForTx = (quote: SwapQuote): SynthraQuote => {
     tokenIn: quote.inputToken as `0x${string}`,
     tokenOut: quote.outputToken as `0x${string}`,
     amountIn: toNativeAmount(quote.inputAmount, quote.inputToken),
-    amountOut: toNativeAmount(quote.outputAmount, quote.outputToken),
+    amountOut: toNativeAmount(quote.minOut || quote.outputAmount, quote.outputToken),
     route: {
       tokens: hop.path as `0x${string}`[],
       fees: [],
@@ -98,36 +117,65 @@ const buildSynthraQuoteForTx = (quote: SwapQuote): SynthraQuote => {
 
 const buildSynthraFallback = async (quote: SwapQuote, userAddress: string) => {
   const synthraTxQuote = buildSynthraQuoteForTx(quote);
+  const spender = SYNTHRA_ADDRESSES.universalRouter;
 
   if (synthraTxQuote.route.path === "0x") {
     throw new Error("Synthra quote is missing encoded route path");
   }
 
-  const currentAllowance = await createSynthraPublicClient().readContract({
+  const publicClient = createSynthraPublicClient();
+  const currentPermit2TokenAllowance = await publicClient.readContract({
     address: quote.inputToken as `0x${string}`,
     abi: ERC20_ALLOWANCE_ABI,
     functionName: "allowance",
-    args: [userAddress as `0x${string}`, SYNTHRA_ADDRESSES.universalRouter],
+    args: [userAddress as `0x${string}`, SYNTHRA_ADDRESSES.permit2],
   });
-  const approval =
-    currentAllowance < synthraTxQuote.amountIn
-      ? {
+  const permit2Allowance = (await publicClient.readContract({
+    address: SYNTHRA_ADDRESSES.permit2,
+    abi: PERMIT2_ALLOWANCE_ABI,
+    functionName: "allowance",
+    args: [
+      userAddress as `0x${string}`,
+      quote.inputToken as `0x${string}`,
+      SYNTHRA_ADDRESSES.universalRouter,
+    ],
+  })) as readonly [bigint, number, number];
+  const [permit2Amount, permit2Expiration] = permit2Allowance;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const approvals = [
+    ...(currentPermit2TokenAllowance < synthraTxQuote.amountIn
+      ? [
+        {
           ...buildSynthraApprovalTransaction({
             tokenAddress: quote.inputToken,
-            amount: synthraTxQuote.amountIn,
+            spender: SYNTHRA_ADDRESSES.permit2,
           }),
           from: userAddress,
           gasLimit: "0x186a0",
-        }
-      : null;
+        },
+      ]
+      : []),
+    ...(permit2Amount < synthraTxQuote.amountIn || permit2Expiration <= nowSeconds
+      ? [
+        {
+          ...buildSynthraPermit2ApproveTransaction({
+            tokenAddress: quote.inputToken,
+            spender,
+          }),
+          from: userAddress,
+          gasLimit: "0x186a0",
+        },
+      ]
+      : []),
+  ];
 
   return {
-    approval,
+    approval: approvals.length === 0 ? null : approvals,
     swap: {
       ...buildSynthraExactInputTransaction({
         quote: synthraTxQuote,
         recipient: userAddress,
-        slippageBps: 50,
+        slippageBps: 0,
         payerIsUser: true,
         wrapNativeInput: false,
       }),
@@ -144,6 +192,14 @@ export async function POST(request: NextRequest) {
       quote?: SwapQuote;
       userAddress?: string;
     };
+
+    if (quote && userAddress && isSynthraQuote(quote)) {
+      return NextResponse.json({
+        success: true,
+        data: await buildSynthraFallback(quote, userAddress),
+      });
+    }
+
     const response = await fetch(`${BACKEND_URL}/api/swap/build-tx`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -154,23 +210,6 @@ export async function POST(request: NextRequest) {
     const data = contentType.includes("application/json")
       ? await response.json()
       : { success: false, error: await response.text() };
-    const returnedSwap = data?.data?.swap;
-    const returnedBadSynthraCalldata =
-      response.ok &&
-      isSynthraQuote(quote) &&
-      returnedSwap?.to?.toLowerCase() === SYNTHRA_ADDRESSES.universalRouter.toLowerCase() &&
-      returnedSwap?.data?.toLowerCase().startsWith(GENERIC_SWAP_SELECTOR);
-
-    if (returnedBadSynthraCalldata && quote && userAddress) {
-      console.warn(
-        "[swap/build-tx] Backend returned generic swap calldata for Synthra; rebuilding Universal Router execute calldata locally.",
-      );
-
-      return NextResponse.json({
-        success: true,
-        data: await buildSynthraFallback(quote, userAddress),
-      });
-    }
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

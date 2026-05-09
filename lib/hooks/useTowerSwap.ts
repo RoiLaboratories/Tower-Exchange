@@ -126,7 +126,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       quote: SwapQuote,
       userAddress: string,
       referrer?: string
-    ): Promise<{ approval?: ApprovalTransaction | null; swap: SwapTransaction } | null> => {
+    ): Promise<{ approval?: ApprovalTransaction | ApprovalTransaction[] | null; swap: SwapTransaction } | null> => {
       setIsLoading(true);
       setError(null);
 

@@ -41,6 +41,7 @@ export const SYNTHRA_ADDRESSES = {
   swapRouter02: "0xA545bCB1Bd7985c59ea162aB1748A0803434C31b",
   universalRouter: "0xbf4479c07dc6fdc6daa764a0cca06969e894275f",
   multicall2: "0xe139b61c9B8Eebf32bb335cb11AA6B7Cd69e13f4",
+  permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
 } as const satisfies Record<string, Address>;
 
 export const SYNTHRA_FEE_TIERS = [3000] as const;
@@ -125,6 +126,21 @@ export const ERC20_APPROVE_ABI = [
       { name: "amount", type: "uint256" },
     ],
     outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+export const PERMIT2_APPROVE_ABI = [
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" },
+    ],
+    outputs: [],
   },
 ] as const;
 
@@ -494,13 +510,43 @@ export function buildSynthraExactInputTransaction(params: {
 export function buildSynthraApprovalTransaction(params: {
   tokenAddress: string;
   amount?: bigint | string;
+  spender?: string;
 }): SynthraTransaction {
   return {
     to: normalizeSynthraAddress(params.tokenAddress),
     data: encodeFunctionData({
       abi: ERC20_APPROVE_ABI,
       functionName: "approve",
-      args: [SYNTHRA_ADDRESSES.universalRouter, params.amount == null ? maxUint256 : BigInt(params.amount)],
+      args: [
+        normalizeSynthraAddress(params.spender ?? SYNTHRA_ADDRESSES.universalRouter),
+        params.amount == null ? maxUint256 : BigInt(params.amount),
+      ],
+    }),
+    value: "0x0",
+    chainId: SYNTHRA_CHAIN_ID,
+  };
+}
+
+export function buildSynthraPermit2ApproveTransaction(params: {
+  tokenAddress: string;
+  spender?: string;
+  amount?: bigint | string;
+  expiration?: bigint | number;
+}): SynthraTransaction {
+  const maxUint160 = (1n << 160n) - 1n;
+  const maxUint48 = 2 ** 48 - 1;
+
+  return {
+    to: SYNTHRA_ADDRESSES.permit2,
+    data: encodeFunctionData({
+      abi: PERMIT2_APPROVE_ABI,
+      functionName: "approve",
+      args: [
+        normalizeSynthraAddress(params.tokenAddress),
+        normalizeSynthraAddress(params.spender ?? SYNTHRA_ADDRESSES.universalRouter),
+        params.amount == null ? maxUint160 : BigInt(params.amount),
+        params.expiration == null ? maxUint48 : Number(params.expiration),
+      ],
     }),
     value: "0x0",
     chainId: SYNTHRA_CHAIN_ID,
