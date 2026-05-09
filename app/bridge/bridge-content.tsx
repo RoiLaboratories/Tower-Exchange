@@ -501,12 +501,10 @@ export default function BridgePageContent({
 
       <div className="flex w-full items-start justify-center">
         <div className="w-full max-w-md shrink-0">
-          {/* ── Main card — mirrors SwapCard: bg-[#191A1C] border rounded-2xl px-6 pt-6 pb-3 ── */}
           <motion.div
             className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 flex flex-col"
             whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
           >
-            {/* Header — identical tab pill + icon row to SwapCard */}
             <div className="mb-4 flex items-center justify-between">
               <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1 relative">
                 <motion.span
@@ -555,8 +553,6 @@ export default function BridgePageContent({
                 </motion.button>
               </div>
             </div>
-
-            {/* ── Bridge From — mirrors SwapCard "Sell" section ── */}
             <div className="bg-[#151617] rounded-xl p-4 mb-2">
               <div className="flex items-center justify-between mb-2 ">
                 <span className="text-sm text-muted-foreground">

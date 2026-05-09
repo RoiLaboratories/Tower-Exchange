@@ -1651,7 +1651,7 @@ const SwapCard = ({
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <TokenSelector
                 selected={sellToken}
                 onSelect={setSellToken}
@@ -1698,7 +1698,7 @@ const SwapCard = ({
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <TokenSelector
                 selected={receiveToken}
                 onSelect={setReceiveToken}
