@@ -7,35 +7,29 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { 
-  fetchERC20Allowance,
-  formatBalance, 
+import { formatUnits, parseUnits } from "viem";
+import {
+  formatBalance,
   getRevertReasonViaPublicRpc,
   ARC_TESTNET_CONFIG,
   TOKEN_CONTRACTS,
   TOKEN_DECIMALS,
   NATIVE_TOKENS,
-  ERC20_TOKENS,
   ARC_CHAIN_HEX,
   ARC_ADD_NETWORK_PARAMS,
-  ARC_POOLS,
 } from "@/lib/arcNetwork";
 import { useTowerSwap, type SwapRouteOption } from "@/lib/hooks/useTowerSwap";
-
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
-import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
-import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
-import hypeLogo from "@/public/assets/hype.png";
-import eurcLogo from "@/public/assets/Euro_Coin logo.png";
-import usycLogo from "@/public/assets/USYC_LOGO.svg";
-import swprcLogo from "@/public/assets/swapr_logo.png";
-import syntharaLogo from "@/public/assets/synthra logo.png";
-import quantumLogo from "@/public/assets/quantum-logo.png";
+import {
+  getSupportedCounterpartyTokens,
+  isSupportedSwapPair,
+  SWAP_TOKENS,
+  type SwapToken,
+  type SwapTokenSymbol,
+} from "@/lib/swapTokens";
 import TokenModal from "./TokenModal";
 import SettingsModal from "./SettingsModal";
 import ChartModal from "./ChartModal";
@@ -55,27 +49,11 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
-
-// Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
-// Currently only USDC and EURC are swappable via XyloNet
-const tokens = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
-  // TODO: Uncomment when DEX routes are integrated
-  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
-  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
-  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100, usdPrice: 0 },
-  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300, usdPrice: 0 },
-  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
-  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
-];
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 
 interface TokenSelectorProps {
-  selected: (typeof tokens)[0] | null;
-  onSelect: (token: (typeof tokens)[0]) => void;
-  excludeSymbol?: string;
+  selected: SwapToken | null;
   onOpenModal: () => void;
 }
 
@@ -214,7 +192,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             method: "wallet_addEthereumChain",
             params: ARC_ADD_NETWORK_PARAMS,
           });
-        } catch (addError) {
+        } catch {
           throw new Error("Failed to add Arc Testnet network");
         }
       } else {
@@ -240,21 +218,11 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     return accounts[0];
   };
 
-  // Minimal calldata encoding for ERC20 approve(spender, amount)
-  // approve(address,uint256) selector = 0x095ea7b3
-  const encodeErc20Approve = (spender: string, amountWei: string) => {
-    const selector = "0x095ea7b3";
-    const spenderNo0x = spender.toLowerCase().replace(/^0x/, "");
-    const spenderPadded = spenderNo0x.padStart(64, "0");
-    const amountHex = BigInt(amountWei).toString(16).padStart(64, "0");
-    return selector + spenderPadded + amountHex;
-  };
-
   // Token and amount states
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
-  const [sellToken, setSellToken] = useState(tokens[0]);
-  const [receiveToken, setReceiveToken] = useState<typeof tokens[0] | null>(null);
+  const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
+  const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
 
   const logSwapActivity = useCallback(
     async (status: "Successful" | "Failed", txHash?: string | null) => {
@@ -281,17 +249,11 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     [sellToken.symbol, receiveToken?.symbol, sellAmount, user?.wallet?.address, sellToken.usdPrice]
   );
 
-  // Actual wallet balances - only for swappable tokens (currently USDC and EURC)
+  // Actual wallet balances for tokens currently supported on the swap card
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
     USDC: 0,
     EURC: 0,
-    // TODO: Add when other DEX routes are integrated
-    // WUSDC: 0,
-    // USDT: 0,
-    // USYC: 0,
-    // SYN: 0,
-    // SWPRC: 0,
-    // QTM: 0,
+    USDT: 0,
   });
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
@@ -306,7 +268,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     receiveToken?.usdPrice ?? 0
   );
 
-  const fetchSwapTokenBalance = useCallback(async (tokenSymbol: "USDC" | "EURC") => {
+  const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
 
     if (!tokenAddress || !user?.wallet?.address) {
@@ -343,20 +305,23 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     console.log("Fetching balances for wallet:", user.wallet.address);
     setIsLoadingBalances(true);
     try {
-      const [usdcBalance, eurcBalance] = await Promise.all([
+      const [usdcBalance, eurcBalance, usdtBalance] = await Promise.all([
         fetchSwapTokenBalance("USDC"),
         fetchSwapTokenBalance("EURC"),
+        fetchSwapTokenBalance("USDT"),
       ]);
 
       console.log("Swap token balances:", {
         USDC: usdcBalance,
         EURC: eurcBalance,
+        USDT: usdtBalance,
       });
 
       setTokenBalances((prev) => ({
         ...prev,
         USDC: usdcBalance,
         EURC: eurcBalance,
+        USDT: usdtBalance,
       }));
     } catch (error) {
       console.error("Failed to fetch wallet balances:", error);
@@ -375,6 +340,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       setTokenBalances({
         USDC: 0,
         EURC: 0,
+        USDT: 0,
       });
     }
   }, [authenticated, user, fetchUserBalances]);
@@ -383,6 +349,17 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const getTokenBalance = (symbol: string): number => {
     return tokenBalances[symbol] || 0;
   };
+
+  const sellTokenBalance = getTokenBalance(sellToken.symbol);
+  const maxSwapAmount = NATIVE_TOKENS.includes(sellToken.symbol)
+    ? Math.max(0, sellTokenBalance - NATIVE_USDC_GAS_RESERVE)
+    : sellTokenBalance;
+  const sellAmountValue = Number.parseFloat(sellAmount);
+  const isSwapBalanceInsufficient =
+    isWalletConnected &&
+    Number.isFinite(sellAmountValue) &&
+    sellAmountValue > 0 &&
+    sellAmountValue > maxSwapAmount;
 
   // Check if swap button should be active
   const isSwapActive =
@@ -394,7 +371,37 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
   const shouldShowRouterDisplay =
     parseFloat(sellAmount) > 0 &&
     sellAmount !== "0.00" &&
-    Boolean(receiveToken);
+    Boolean(receiveToken) &&
+    isSupportedSwapPair(sellToken.symbol, receiveToken?.symbol);
+
+  const availableSellTokens = useMemo(
+    () =>
+      receiveToken
+        ? SWAP_TOKENS.filter(
+            (token) =>
+              token.symbol !== receiveToken.symbol &&
+              isSupportedSwapPair(token.symbol, receiveToken.symbol),
+          )
+        : [...SWAP_TOKENS],
+    [receiveToken],
+  );
+  const availableReceiveTokens = useMemo(
+    () => getSupportedCounterpartyTokens(sellToken.symbol),
+    [sellToken.symbol],
+  );
+
+  useEffect(() => {
+    if (!receiveToken) {
+      return;
+    }
+
+    if (!isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)) {
+      setReceiveToken(availableReceiveTokens[0] ?? null);
+      setReceiveAmount("0.00");
+      setRouteOptions([]);
+      setSelectedRouterId(undefined);
+    }
+  }, [availableReceiveTokens, receiveToken, sellToken.symbol]);
 
   const handleSwapTokens = () => {
     if (!receiveToken) {
@@ -409,32 +416,14 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
     setReceiveAmount(tempAmount);
   };
 
-  // Helper function to calculate using mock rates
-  const calculateMockRate = useCallback((sellAmountValue: string) => {
-    const mockRate =
-      sellToken.symbol === "ETH"
-        ? 1500
-        : sellToken.symbol === "USDC"
-        ? 1
-        : sellToken.symbol === "USDT"
-        ? 1
-        : sellToken.symbol === "UNI"
-        ? 12
-        : sellToken.symbol === "EURC"
-        ? 1.05
-        : sellToken.symbol === "SWPRC"
-        ? 0.5
-        : 8;
-    const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
-    setReceiveAmount(calculated);
-  }, [sellToken.symbol]);
-
   // Get swap quote from Tower Exchange backend
   const getQuoteForSwap = useCallback(async (sellAmountValue: string, routerId?: string) => {
     try {
       // Check if both tokens are selected
-      if (!receiveToken) {
+      if (!receiveToken || !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)) {
         setReceiveAmount("0.00");
+        setRouteOptions([]);
+        setSelectedRouterId(undefined);
         return;
       }
 
@@ -457,15 +446,15 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         console.warn(
           `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`
         );
-        calculateMockRate(sellAmountValue);
+        setReceiveAmount("0.00");
+        setRouteOptions([]);
+        setSelectedRouterId(undefined);
         return;
       }
 
       // Convert sell amount to wei using correct decimals for the sell token
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-      const amountInWei = BigInt(
-        parseFloat(sellAmountValue) * 10 ** sellTokenDecimals
-      ).toString();
+      const amountInWei = parseUnits(sellAmountValue, sellTokenDecimals).toString();
 
       console.log("Getting quote from Tower Exchange:", {
         sellToken: sellToken.symbol,
@@ -498,9 +487,12 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       setRouteOptions(quoteData.routeOptions || []);
 
-      // Convert quote back from wei using correct decimals for the receive token
+      // Quotes are normalized to 18 decimals at the API boundary for consistent display.
       const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-      const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 1e18;
+      const displayPrecision = Math.min(receiveTokenDecimals, 6);
+      const quoteAmount = Number.parseFloat(
+        formatUnits(BigInt(quoteData.outputAmount || "0"), 18),
+      );
       
       // Convert priceImpact from basis points to percentage (50 = 0.50%)
       const priceImpactPercent = typeof quoteData.priceImpact === 'number' 
@@ -512,17 +504,19 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
         outputAmount_wei: quoteData.outputAmount,
         quoteAmount_tokens: quoteAmount,
         priceImpact: priceImpactPercent,
-        calculation: `${quoteData.outputAmount} / 1e18 = ${quoteAmount}`,
+        displayPrecision,
       });
 
-      setReceiveAmount(quoteAmount.toFixed(receiveTokenDecimals));
+      setReceiveAmount(
+        Number.isFinite(quoteAmount) ? quoteAmount.toFixed(displayPrecision) : "0.00",
+      );
     } catch (error) {
-        console.error("Error getting swap quote:", error);
-      // Fallback to mock calculation on error
-      calculateMockRate(sellAmountValue);
+      console.error("Error getting swap quote:", error);
+      setReceiveAmount("0.00");
+      setRouteOptions([]);
+      setSelectedRouterId(undefined);
     }
   }, [
-    calculateMockRate,
     getQuote,
     receiveToken,
     sellToken.symbol,
@@ -611,6 +605,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       if (!receiveToken) {
         throw new Error("Please select a receive token");
+      }
+
+      if (!isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)) {
+        throw new Error("This token pair is not currently supported on Tower Swap.");
       }
 
       // Check if on correct network
@@ -758,10 +756,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
 
       // Step 2: Convert amounts to wei using correct decimals
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-
-      const amountInWei = BigInt(
-        Math.floor(sellAmountNum * 10 ** sellTokenDecimals)
-      ).toString();
+      const amountInWei = parseUnits(sellAmount, sellTokenDecimals).toString();
 
       console.log("Preparing swap via Tower Exchange:", {
         sellToken: sellToken.symbol,
@@ -856,7 +851,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                   console.log(`${approvalLabel} transaction confirmed:`, approvalReceipt);
                   break;
                 }
-              } catch (err) {
+              } catch {
                 // Continue polling
               }
 
@@ -1243,7 +1238,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
                     }
                     break;
                   }
-                } catch (err) {
+                } catch {
                   // Continue polling
                 }
                 await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -1365,6 +1360,10 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       );
     }
 
+    if (isSwapBalanceInsufficient) {
+      return "Insufficient Balance";
+    }
+
     if (!isSwapActive) {
       return "Swap";
     }
@@ -1381,7 +1380,7 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
       return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
     }
 
-    if (isWalletConnected && !isSwapActive) {
+    if (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient)) {
       return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
     }
 
@@ -1483,8 +1482,6 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             <div className="flex items-center justify-between">
               <TokenSelector
                 selected={sellToken}
-                onSelect={setSellToken}
-                excludeSymbol={receiveToken?.symbol || ""}
                 onOpenModal={() => setIsSellTokenModalOpen(true)}
               />
               <TokenInput
@@ -1526,8 +1523,6 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             <div className="flex items-center justify-between">
               <TokenSelector
                 selected={receiveToken}
-                onSelect={setReceiveToken}
-                excludeSymbol={receiveToken?.symbol || sellToken.symbol}
                 onOpenModal={() => setIsReceiveTokenModalOpen(true)}
               />
               <TokenInput
@@ -1544,7 +1539,8 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
             <Button
               onClick={isWalletConnected ? handleSwap : handleConnectWallet}
               disabled={
-                swapState === "loading" || (isWalletConnected && !isSwapActive)
+                swapState === "loading" ||
+                (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient))
               }
               className={getButtonStyles()}
             >
@@ -1620,15 +1616,17 @@ const SwapCard = ({ onNavigateToBridge }: { onNavigateToBridge?: () => void }) =
           selected={sellToken}
           onSelect={setSellToken}
           excludeSymbol={receiveToken?.symbol || ""}
+          availableTokens={availableSellTokens}
           tokenBalances={tokenBalances}
         />
 
         <TokenModal
           isOpen={isReceiveTokenModalOpen}
           onClose={() => setIsReceiveTokenModalOpen(false)}
-          selected={receiveToken || tokens[0]}
+          selected={receiveToken || availableReceiveTokens[0] || sellToken}
           onSelect={setReceiveToken}
           excludeSymbol={sellToken.symbol}
+          availableTokens={availableReceiveTokens}
           tokenBalances={tokenBalances}
         />
 

@@ -11,6 +11,11 @@ import {
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const FEE_COLLECTOR_ADDRESS =
+  process.env.NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS ||
+  "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+const PLATFORM_FEE_BPS = 25n;
+const BPS_DENOMINATOR = 10000n;
 
 type SwapQuote = {
   inputToken: string;
@@ -118,6 +123,10 @@ const buildSynthraQuoteForTx = (quote: SwapQuote): SynthraQuote => {
 const buildSynthraFallback = async (quote: SwapQuote, userAddress: string) => {
   const synthraTxQuote = buildSynthraQuoteForTx(quote);
   const spender = SYNTHRA_ADDRESSES.universalRouter;
+  const expectedFeeCollectorOutput = synthraTxQuote.amountOut;
+  const platformFeeAmount =
+    (expectedFeeCollectorOutput * PLATFORM_FEE_BPS) / BPS_DENOMINATOR;
+  const expectedUserOutput = expectedFeeCollectorOutput - platformFeeAmount;
 
   if (synthraTxQuote.route.path === "0x") {
     throw new Error("Synthra quote is missing encoded route path");
@@ -174,13 +183,18 @@ const buildSynthraFallback = async (quote: SwapQuote, userAddress: string) => {
     swap: {
       ...buildSynthraExactInputTransaction({
         quote: synthraTxQuote,
-        recipient: userAddress,
+        recipient: FEE_COLLECTOR_ADDRESS,
         slippageBps: 0,
         payerIsUser: true,
         wrapNativeInput: false,
       }),
       from: userAddress,
       gasLimit: "0x7a120",
+      expectedFeeCollectorOutput: expectedFeeCollectorOutput.toString(),
+      platformFeeAmount: platformFeeAmount.toString(),
+      expectedUserOutput: expectedUserOutput.toString(),
+      feeRecipient: FEE_COLLECTOR_ADDRESS,
+      feeBps: Number(PLATFORM_FEE_BPS),
     },
   };
 };
