@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createSynthraPublicClient,
   getBestSynthraQuote,
+  isSynthraExclusivePair,
   SYNTHRA_ADDRESSES,
   type SynthraQuote,
 } from "@/lib/synthraDex";
@@ -165,16 +166,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const backendQuote = await fetchBackendQuote({
-      inputToken,
-      outputToken,
-      inputAmount,
-      slippageTolerance,
-      dexId: normalizedRequestedDexId,
-    });
+    const synthraExclusivePair = isSynthraExclusivePair(inputToken, outputToken);
+    const backendQuote = synthraExclusivePair
+      ? null
+      : await fetchBackendQuote({
+          inputToken,
+          outputToken,
+          inputAmount,
+          slippageTolerance,
+          dexId: normalizedRequestedDexId,
+        });
     const backendQuoteDexId = backendQuote ? routeOptionFromQuote(backendQuote).dexId : null;
     const shouldFetchLocalSynthraQuote =
-      normalizedRequestedDexId !== "xylonet-adapter" && backendQuoteDexId !== "synthra";
+      synthraExclusivePair ||
+      (normalizedRequestedDexId !== "xylonet-adapter" && backendQuoteDexId !== "synthra");
     const synthraQuote = shouldFetchLocalSynthraQuote
       ? await getBestSynthraQuote(
           createSynthraPublicClient(),

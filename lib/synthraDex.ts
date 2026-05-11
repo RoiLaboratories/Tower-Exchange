@@ -168,6 +168,7 @@ const MULTICALL2_ABI = [
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const SYNTHRA_USDC_EURC_FEE: SynthraFeeTier = 3000;
+const SYNTHRA_USDT_USDC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_UNIVERSAL_ROUTER_COMMANDS = {
   V3_SWAP_EXACT_IN: "0x00",
   WRAP_NATIVE: "0x0b",
@@ -237,6 +238,49 @@ export function sortSynthraTokens(tokenA: string, tokenB: string): [Address, Add
   }
 
   return a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
+}
+
+type SynthraDirectPairConfig = {
+  key: string;
+  tokens: readonly [Address, Address];
+  fee: SynthraFeeTier;
+  poolAddress?: Address;
+  synthraExclusive?: boolean;
+};
+
+const SYNTHRA_DIRECT_PAIRS: readonly SynthraDirectPairConfig[] = [
+  {
+    key: "USDC/EURC",
+    tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDC, TOKEN_CONTRACTS.EURC),
+    fee: SYNTHRA_USDC_EURC_FEE,
+  },
+  {
+    key: "USDT/USDC",
+    tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDT, TOKEN_CONTRACTS.USDC),
+    fee: SYNTHRA_USDT_USDC_FEE,
+    poolAddress: normalizeSynthraAddress("0x715F78dE0CEA7428a5Ede4A0C491B05E7a8caFf2"),
+    synthraExclusive: true,
+  },
+] as const;
+
+const getSynthraDirectPair = (tokenA: string, tokenB: string) => {
+  const [sortedTokenA, sortedTokenB] = sortSynthraTokens(tokenA, tokenB);
+
+  return (
+    SYNTHRA_DIRECT_PAIRS.find(
+      ({ tokens }) =>
+        tokens[0].toLowerCase() === sortedTokenA.toLowerCase() &&
+        tokens[1].toLowerCase() === sortedTokenB.toLowerCase(),
+    ) ?? null
+  );
+};
+
+export function isSynthraSupportedPair(tokenA: string, tokenB: string) {
+  return getSynthraDirectPair(tokenA, tokenB) !== null;
+}
+
+export function isSynthraExclusivePair(tokenA: string, tokenB: string) {
+  return getSynthraDirectPair(tokenA, tokenB)?.synthraExclusive === true;
 }
 
 export function encodeSynthraV3Path(tokens: string[], fees: readonly number[]): Hex {
@@ -315,67 +359,30 @@ export async function buildSynthraRouteCandidates(
     intermediateTokens?: readonly string[];
   } = {},
 ): Promise<SynthraRoute[]> {
+  void client;
   const normalizedTokenIn = normalizeSynthraAddress(tokenIn);
   const normalizedTokenOut = normalizeSynthraAddress(tokenOut);
-  const usdc = normalizeSynthraAddress(TOKEN_CONTRACTS.USDC);
-  const eurc = normalizeSynthraAddress(TOKEN_CONTRACTS.EURC);
-  const isSupportedPair =
-    (normalizedTokenIn.toLowerCase() === usdc.toLowerCase() &&
-      normalizedTokenOut.toLowerCase() === eurc.toLowerCase()) ||
-    (normalizedTokenIn.toLowerCase() === eurc.toLowerCase() &&
-      normalizedTokenOut.toLowerCase() === usdc.toLowerCase());
+  const directPair = getSynthraDirectPair(normalizedTokenIn, normalizedTokenOut);
 
-  if (!isSupportedPair) {
+  if (!directPair) {
     return [];
   }
 
   const feeTiers = options.feeTiers ?? SYNTHRA_FEE_TIERS;
-  const intermediateTokens = options.intermediateTokens ?? SYNTHRA_INTERMEDIATE_TOKENS;
-  const routes: SynthraRoute[] = [
+  if (!feeTiers.includes(directPair.fee)) {
+    return [];
+  }
+
+  return [
     {
       tokens: [normalizedTokenIn, normalizedTokenOut],
-      fees: [SYNTHRA_USDC_EURC_FEE],
+      fees: [directPair.fee],
       path: encodeSynthraV3Path(
         [normalizedTokenIn, normalizedTokenOut],
-        [SYNTHRA_USDC_EURC_FEE],
+        [directPair.fee],
       ),
     },
   ];
-
-  if (!feeTiers.includes(SYNTHRA_USDC_EURC_FEE)) {
-    return routes;
-  }
-
-  for (const intermediateToken of intermediateTokens) {
-    const tokenMid = normalizeSynthraAddress(intermediateToken);
-    const isDuplicate =
-      tokenMid.toLowerCase() === normalizedTokenIn.toLowerCase() ||
-      tokenMid.toLowerCase() === normalizedTokenOut.toLowerCase();
-
-    if (isDuplicate) {
-      continue;
-    }
-
-    const [firstLegPools, secondLegPools] = await Promise.all([
-      discoverSynthraPools(client, normalizedTokenIn, tokenMid, feeTiers),
-      discoverSynthraPools(client, tokenMid, normalizedTokenOut, feeTiers),
-    ]);
-
-    for (const firstLeg of firstLegPools) {
-      for (const secondLeg of secondLegPools) {
-        const fees = [firstLeg.fee, secondLeg.fee] as SynthraFeeTier[];
-        const tokens = [normalizedTokenIn, tokenMid, normalizedTokenOut];
-
-        routes.push({
-          tokens,
-          fees,
-          path: encodeSynthraV3Path(tokens, fees),
-        });
-      }
-    }
-  }
-
-  return routes;
 }
 
 export async function quoteSynthraRoute(
@@ -565,7 +572,9 @@ export function getSynthraDexInfo() {
     type: "v3" as const,
     chainId: SYNTHRA_CHAIN_ID,
     enabled: true,
-    supportedTokens: [TOKEN_CONTRACTS.USDC, TOKEN_CONTRACTS.EURC],
+    supportedTokens: Array.from(
+      new Set(SYNTHRA_DIRECT_PAIRS.flatMap((pair) => pair.tokens)),
+    ),
     feeTiers: SYNTHRA_FEE_TIERS,
   };
 }

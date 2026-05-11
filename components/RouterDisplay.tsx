@@ -136,13 +136,15 @@ export default function RouterDisplay({
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <span
-            className="flex h-3.5 min-w-6 shrink-0 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white"
+            className="inline-grid h-3.5 min-w-6 shrink-0 place-items-center rounded-full px-1 text-white"
             style={{
               backgroundColor: "#2E2E2E",
             }}
             aria-label={`${dexCount} DEX routes available`}
           >
-            {dexCount}
+            <span className="block translate-y-[0.5px] text-[9px] font-bold leading-none">
+              {dexCount}
+            </span>
           </span>
           <span className="truncate text-[11px] font-medium text-white/80">
             <span className="text-[9px] font-normal text-white/45">Via</span>{" "}

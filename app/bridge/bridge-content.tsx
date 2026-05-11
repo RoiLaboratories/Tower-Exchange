@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import {
   ArrowDown,
   ArrowUp,
@@ -15,7 +15,6 @@ import {
   Plus,
   X,
   Wallet,
-  AlertCircle,
   Loader,
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
@@ -43,13 +42,27 @@ type BridgeToken = {
   label: string;
   usdValue: string;
   usdPrice: number;
-  logo?: any;
+  logo?: StaticImageData;
 };
 
 type BridgeChain = {
   id: string;
   name: string;
-  logo?: any;
+  logo?: StaticImageData;
+};
+
+type SupportedChainConfig =
+  (typeof SUPPORTED_CHAINS)[keyof typeof SUPPORTED_CHAINS];
+
+const getBridgeTokenAddress = (
+  chainConfig: SupportedChainConfig,
+  tokenSymbol?: string,
+) => {
+  if (tokenSymbol === "EURC" && "eurcAddress" in chainConfig) {
+    return chainConfig.eurcAddress;
+  }
+
+  return chainConfig.usdcAddress;
 };
 
 const BRIDGE_TOKENS: BridgeToken[] = [
@@ -100,6 +113,7 @@ export default function BridgePageContent({
   const searchParams = useSearchParams();
   const { user, login, authenticated } = useRainbowKitAuth();
   const bridgeHook = useBridge();
+  const calculateBridgeDetails = bridgeHook.calculateBridgeDetails;
 
   const [fromAmount, setFromAmount] = useState("0.00");
   const [toAmount, setToAmount] = useState("0.00");
@@ -172,10 +186,17 @@ export default function BridgePageContent({
       const chainConfig =
         SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
+<<<<<<< fix/Ui
       const tokenAddress =
         fromToken?.symbol === "EURC"
           ? (chainConfig as any).eurcAddress
           : (chainConfig as any).usdcAddress;
+=======
+
+      // Get the token address for the selected token
+      const tokenAddress = getBridgeTokenAddress(chainConfig, fromToken?.symbol);
+
+>>>>>>> main
       if (!tokenAddress) {
         setWalletBalance("0.00");
         return;
@@ -212,10 +233,17 @@ export default function BridgePageContent({
       const chainConfig =
         SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
+<<<<<<< fix/Ui
       const tokenAddress =
         toToken?.symbol === "EURC"
           ? (chainConfig as any).eurcAddress
           : (chainConfig as any).usdcAddress;
+=======
+
+      // Get the token address for the selected token
+      const tokenAddress = getBridgeTokenAddress(chainConfig, toToken?.symbol);
+
+>>>>>>> main
       if (!tokenAddress) {
         setToChainBalance("0.00");
         return;
@@ -322,14 +350,14 @@ export default function BridgePageContent({
 
   useEffect(() => {
     if (fromChainId && toChainId && fromAmount && parseFloat(fromAmount) > 0) {
-      bridgeHook.calculateBridgeDetails(
+      calculateBridgeDetails(
         fromChainId,
         toChainId,
         fromAmount,
         feeTokenSymbol,
       );
     }
-  }, [fromChainId, toChainId, fromAmount, feeTokenSymbol]);
+  }, [calculateBridgeDetails, fromChainId, toChainId, fromAmount, feeTokenSymbol]);
 
   useEffect(() => {
     const feeAmount = parseFloat(bridgeHook.estimatedFee);
@@ -365,6 +393,21 @@ export default function BridgePageContent({
       alert("Please connect your wallet first");
       return;
     }
+<<<<<<< fix/Ui
+=======
+
+    const requestedAmount = Number.parseFloat(fromAmount);
+    const availableBalance = Number.parseFloat(walletBalance);
+    if (
+      Number.isFinite(requestedAmount) &&
+      requestedAmount > 0 &&
+      requestedAmount > availableBalance
+    ) {
+      return;
+    }
+
+    // Use receiving address if provided, otherwise use connected wallet
+>>>>>>> main
     const destinationAddress = receivingAddress || user.wallet?.address;
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
@@ -418,12 +461,21 @@ export default function BridgePageContent({
     toChainId,
     fromAmount,
     fromToken,
+    receivingAddress,
+    walletBalance,
     fetchWalletBalance,
     fetchToChainBalance,
   ]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken ?? BRIDGE_TOKENS[0];
+  const requestedBridgeAmount = Number.parseFloat(fromAmount);
+  const availableBridgeBalance = Number.parseFloat(walletBalance);
+  const isBridgeBalanceInsufficient =
+    Boolean(user) &&
+    Number.isFinite(requestedBridgeAmount) &&
+    requestedBridgeAmount > 0 &&
+    requestedBridgeAmount > availableBridgeBalance;
   const fromChain = fromChainId
     ? (BRIDGE_CHAINS.find((c) => c.id === fromChainId) ?? null)
     : null;
@@ -435,6 +487,7 @@ export default function BridgePageContent({
     !toChainId ||
     !fromAmount ||
     parseFloat(fromAmount) <= 0 ||
+    isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
   const isBridgeButtonDisabled = user ? isBridgeActionDisabled : false;
@@ -473,6 +526,27 @@ export default function BridgePageContent({
     } catch (error) {
       console.error("Wallet connection failed:", error);
     }
+  };
+
+  const getBridgeButtonContent = () => {
+    if (!user) {
+      return "Connect Wallet";
+    }
+
+    if (bridgeHook.isBridging) {
+      return (
+        <>
+          <Loader className="h-4 w-4 animate-spin" />
+          Bridging...
+        </>
+      );
+    }
+
+    if (isBridgeBalanceInsufficient) {
+      return "Insufficient Balance";
+    }
+
+    return "Bridge";
   };
 
   return (
@@ -767,7 +841,25 @@ export default function BridgePageContent({
                 )}
               </button>
             </motion.div>
+<<<<<<< fix/Ui
           </motion.div>
+=======
+          )}
+
+          {/* Primary bridge button */}
+          <button
+            type="button"
+            onClick={!user ? handleConnectWallet : handleBridge}
+            disabled={isBridgeButtonDisabled}
+            className={`inline-flex items-center justify-center gap-2 w-full rounded-xl h-14 text-base font-semibold transition-all ${
+              isBridgeButtonDisabled
+                ? "bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500"
+                : "bg-primary hover:opacity-90 text-black"
+            }`}
+          >
+            {getBridgeButtonContent()}
+          </button>
+>>>>>>> main
 
           {/* ── Token pills below card — mirrors SwapCard quick-access buttons ── */}
           <div className="flex items-center justify-center gap-4 mt-4">

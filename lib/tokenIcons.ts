@@ -7,7 +7,7 @@ import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import hypeLogo from "@/public/assets/hype.png";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
+import usdtLogo from "@/public/assets/USDT logo.png";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import qtmLogo from "@/public/assets/quantum-logo.png";
 

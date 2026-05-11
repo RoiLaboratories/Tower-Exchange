@@ -5,33 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useDebounce } from "use-debounce";
 import Image from "next/image";
 
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
-import eurcLogo from "@/public/assets/Euro_Coin logo.png";
-import usycLogo from "@/public/assets/USYC_LOGO.svg";
-import swprcLogo from "@/public/assets/swapr_logo.png";
-import syntharaLogo from "@/public/assets/synthra logo.png";
-import quantumLogo from "@/public/assets/quantum-logo.png";
-
-// Currently only USDC and EURC are swappable via XyloNet
-const tokens = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
-  // TODO: Uncomment when DEX routes are integrated
-  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
-  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
-  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100, usdPrice: 0 },
-  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300, usdPrice: 0 },
-  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
-  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
-];
+import { SWAP_TOKENS, type SwapToken } from "@/lib/swapTokens";
 
 interface TokenModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selected: (typeof tokens)[0];
-  onSelect: (token: (typeof tokens)[0]) => void;
+  selected: SwapToken;
+  onSelect: (token: SwapToken) => void;
   excludeSymbol?: string;
+  availableTokens?: readonly SwapToken[];
   tokenBalances?: Record<string, number>;
 }
 
@@ -41,6 +23,7 @@ const TokenModal = ({
   selected,
   onSelect,
   excludeSymbol,
+  availableTokens = SWAP_TOKENS,
   tokenBalances = {},
 }: TokenModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,7 +43,7 @@ const TokenModal = ({
   }, [isOpen]);
 
   const filteredTokens = useMemo(() => {
-    return tokens.filter((token) => {
+    return availableTokens.filter((token) => {
       if (token.symbol === excludeSymbol) return false;
 
       const matchesSearch =
@@ -72,7 +55,7 @@ const TokenModal = ({
 
       return matchesSearch;
     });
-  }, [debouncedSearchQuery, excludeSymbol]);
+  }, [availableTokens, debouncedSearchQuery, excludeSymbol]);
 
   if (!isOpen) return null;
 
@@ -179,12 +162,6 @@ const TokenModal = ({
                             </p>
                           </div>
                         )}
-                        {isSelected && (
-                          <span className="text-primary text-lg font-bold">✓</span>
-                        )}
-                        {!isSelected && (
-                          <span className="text-muted-foreground/40 text-lg">−</span>
-                        )}
                       </div>
                     </motion.button>
                   );
@@ -199,5 +176,4 @@ const TokenModal = ({
 };
 
 export default TokenModal;
-export { tokens };
 export type { TokenModalProps };

@@ -1,6 +1,5 @@
 import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import usdtLogo from "@/public/assets/usdt_logo-removebg-preview.png";
 import eurcLogo from "@/public/assets/Euro_Coin logo.png";
 
 export interface Token {
