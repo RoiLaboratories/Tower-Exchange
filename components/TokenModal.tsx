@@ -162,12 +162,6 @@ const TokenModal = ({
                             </p>
                           </div>
                         )}
-                        {isSelected && (
-                          <span className="text-primary text-lg font-bold">✓</span>
-                        )}
-                        {!isSelected && (
-                          <span className="text-muted-foreground/40 text-lg">−</span>
-                        )}
                       </div>
                     </motion.button>
                   );
