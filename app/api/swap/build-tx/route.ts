@@ -8,9 +8,10 @@ import {
   SYNTHRA_ADDRESSES,
   type SynthraQuote,
 } from "@/lib/synthraDex";
+import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = resolveSwapBackendUrl();
 const FEE_COLLECTOR_ADDRESS =
   process.env.NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS ||
   "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";

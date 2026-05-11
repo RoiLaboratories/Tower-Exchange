@@ -169,6 +169,7 @@ const MULTICALL2_ABI = [
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const SYNTHRA_USDC_EURC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDT_USDC_FEE: SynthraFeeTier = 3000;
+const SYNTHRA_USDT_EURC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_UNIVERSAL_ROUTER_COMMANDS = {
   V3_SWAP_EXACT_IN: "0x00",
   WRAP_NATIVE: "0x0b",
@@ -259,6 +260,13 @@ const SYNTHRA_DIRECT_PAIRS: readonly SynthraDirectPairConfig[] = [
     tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDT, TOKEN_CONTRACTS.USDC),
     fee: SYNTHRA_USDT_USDC_FEE,
     poolAddress: normalizeSynthraAddress("0x715F78dE0CEA7428a5Ede4A0C491B05E7a8caFf2"),
+    synthraExclusive: true,
+  },
+  {
+    key: "USDT/EURC",
+    tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDT, TOKEN_CONTRACTS.EURC),
+    fee: SYNTHRA_USDT_EURC_FEE,
+    poolAddress: normalizeSynthraAddress("0x66A038f2f6000cf42D34C3cCD6C97Ccfa16443bd"),
     synthraExclusive: true,
   },
 ] as const;

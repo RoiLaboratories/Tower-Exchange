@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getSynthraDexInfo } from '@/lib/synthraDex';
+import { getUnitFlowDexInfo } from '@/lib/unitflowDex';
+import { resolveSwapBackendUrl } from '@/lib/resolveSwapBackendUrl';
 
-type DexInfo = ReturnType<typeof getSynthraDexInfo> & {
+type DexInfo = {
   id: string;
   name: string;
   enabled: boolean;
+  routerAddress?: string;
+  factoryAddress?: string;
+  quoterAddress?: string;
+  universalRouterAddress?: string;
+  multicallAddress?: string;
+  permit2Address?: string;
+  type?: string;
+  chainId?: number;
+  supportedTokens?: readonly string[];
+  feeTiers?: readonly number[];
+  poolAddresses?: readonly string[];
 };
 
 const HIDDEN_DEX_IDS = new Set(["swaparc", "quantum-exchange"]);
@@ -13,6 +26,12 @@ const getCanonicalSynthraDex = (): DexInfo => ({
   ...getSynthraDexInfo(),
   id: "synthra",
   name: "Synthra",
+});
+
+const getCanonicalUnitFlowDex = (): DexInfo => ({
+  ...getUnitFlowDexInfo(),
+  id: "unitflow",
+  name: "UnitFlow",
 });
 
 const normalizeDex = (dex: DexInfo): DexInfo => {
@@ -24,6 +43,15 @@ const normalizeDex = (dex: DexInfo): DexInfo => {
       ...dex,
       id: "synthra",
       name: "Synthra",
+      enabled: dex.enabled !== false,
+    };
+  }
+
+  if (id === "unitflow-v3" || id === "unitflow" || name.includes("unitflow")) {
+    return {
+      ...dex,
+      id: "unitflow",
+      name: "UnitFlow",
       enabled: dex.enabled !== false,
     };
   }
@@ -62,8 +90,9 @@ const getVisibleDexes = (dexes: DexInfo[]) => {
 export async function GET() {
   try {
     const synthraDex = getCanonicalSynthraDex();
+    const unitFlowDex = getCanonicalUnitFlowDex();
     // Fetch routers from backend API
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+    const backendUrl = resolveSwapBackendUrl();
     const response = await fetch(`${backendUrl}/api/swap/dexes`, {
       method: 'GET',
       headers: {
@@ -75,7 +104,7 @@ export async function GET() {
       console.error('Backend DEX API error:', response.statusText);
       return NextResponse.json({
         success: true,
-        data: [synthraDex],
+        data: [synthraDex, unitFlowDex],
       });
     }
 
@@ -87,13 +116,13 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: getVisibleDexes([...dexesArray, synthraDex]),
+      data: getVisibleDexes([...dexesArray, synthraDex, unitFlowDex]),
     });
   } catch (error) {
     console.error('Error fetching DEXes:', error);
     return NextResponse.json({
       success: true,
-      data: [getCanonicalSynthraDex()],
+      data: [getCanonicalSynthraDex(), getCanonicalUnitFlowDex()],
     });
   }
 }

@@ -6,6 +6,7 @@ import {
   SYNTHRA_ADDRESSES,
   type SynthraQuote,
 } from "@/lib/synthraDex";
+import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
 type BackendQuote = {
@@ -41,9 +42,26 @@ type RouteOption = {
   quote: BackendQuote;
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = resolveSwapBackendUrl();
+const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
 
-const normalizeDexId = (dexId?: string) => (dexId === "synthra-v3" ? "synthra" : dexId);
+const normalizeDexId = (dexId?: string) => {
+  const normalized = String(dexId || "").toLowerCase();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "synthra-v3" || normalized.includes("synthra")) {
+    return "synthra";
+  }
+
+  if (normalized === "unitflow-v3" || normalized.includes("unitflow")) {
+    return "unitflow";
+  }
+
+  return normalized;
+};
 
 const getTokenDecimalsByAddress = (tokenAddress: string) => {
   const tokenSymbol = Object.entries(TOKEN_CONTRACTS).find(
@@ -105,7 +123,7 @@ const synthraToSwapQuote = (
 
 const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
   const hop = quote.route?.hops?.[0];
-  const dexId = hop?.dexId || hop?.dex || "unknown";
+  const dexId = hop?.dexId || hop?.dex || hop?.dexName || "unknown";
   const normalizedDexId = normalizeDexId(dexId) || "unknown";
 
   return {
@@ -113,6 +131,8 @@ const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
     dexName:
       normalizedDexId === "synthra"
         ? "Synthra"
+        : normalizedDexId === "unitflow"
+          ? "UnitFlow"
         : hop?.dexName || hop?.dexId || "Unknown Router",
     outputAmount: quote.outputAmount,
     routeType: quote.route?.type || "single",
@@ -141,6 +161,35 @@ async function fetchBackendQuote(body: Record<string, unknown>) {
   }
 }
 
+async function fetchBackendQuotes(params: {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  slippageTolerance: number;
+  dexId?: string;
+}) {
+  const { dexId, ...baseBody } = params;
+
+  if (dexId) {
+    const quote = await fetchBackendQuote({
+      ...baseBody,
+      dexId,
+    });
+    return quote ? [quote] : [];
+  }
+
+  const quotes = await Promise.all(
+    BACKEND_DEX_IDS.map((backendDexId) =>
+      fetchBackendQuote({
+        ...baseBody,
+        dexId: backendDexId,
+      }),
+    ),
+  );
+
+  return quotes.filter((quote): quote is BackendQuote => quote !== null);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -167,19 +216,19 @@ export async function POST(request: NextRequest) {
     }
 
     const synthraExclusivePair = isSynthraExclusivePair(inputToken, outputToken);
-    const backendQuote = synthraExclusivePair
-      ? null
-      : await fetchBackendQuote({
+    const backendQuotes = synthraExclusivePair || normalizedRequestedDexId === "synthra"
+      ? []
+      : await fetchBackendQuotes({
           inputToken,
           outputToken,
           inputAmount,
           slippageTolerance,
           dexId: normalizedRequestedDexId,
         });
-    const backendQuoteDexId = backendQuote ? routeOptionFromQuote(backendQuote).dexId : null;
     const shouldFetchLocalSynthraQuote =
       synthraExclusivePair ||
-      (normalizedRequestedDexId !== "xylonet-adapter" && backendQuoteDexId !== "synthra");
+      !normalizedRequestedDexId ||
+      normalizedRequestedDexId === "synthra";
     const synthraQuote = shouldFetchLocalSynthraQuote
       ? await getBestSynthraQuote(
           createSynthraPublicClient(),
@@ -193,7 +242,7 @@ export async function POST(request: NextRequest) {
       : null;
 
     const candidateQuotes = [
-      backendQuote,
+      ...backendQuotes,
       synthraQuote ? synthraToSwapQuote(synthraQuote, slippageTolerance) : null,
     ].filter((quote): quote is BackendQuote => quote !== null);
 

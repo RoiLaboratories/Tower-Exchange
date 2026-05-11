@@ -6,11 +6,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 
-const BACKEND_URL =
-  process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  "https://tower-backend.vercel.app";
+const BACKEND_URL = resolveSwapBackendUrl();
 
 export async function POST(request: NextRequest) {
   try {

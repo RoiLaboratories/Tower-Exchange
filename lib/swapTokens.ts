@@ -25,6 +25,8 @@ const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([
   "EURC:USDC",
   "USDC:USDT",
   "USDT:USDC",
+  "USDT:EURC",
+  "EURC:USDT",
 ]);
 
 export function isSupportedSwapPair(

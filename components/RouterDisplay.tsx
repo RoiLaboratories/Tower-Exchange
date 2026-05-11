@@ -6,6 +6,7 @@ import { Info } from "lucide-react";
 
 import quotesIcon from "@/public/assets/quotes icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
+import unitflowLogo from "@/public/assets/unitflow.svg";
 import xylonetLogo from "@/public/assets/xylonetlogo.svg";
 
 interface RouteOption {
@@ -22,7 +23,7 @@ interface RouterDisplayProps {
 }
 
 type SupportedRouter = {
-  id: "xylonet-adapter" | "synthra";
+  id: "xylonet-adapter" | "synthra" | "unitflow";
   aliases: string[];
   name: string;
   logo: StaticImageData | string;
@@ -40,6 +41,12 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
     aliases: ["synthra", "synthra-v3"],
     name: "Synthra",
     logo: synthraLogo,
+  },
+  {
+    id: "unitflow",
+    aliases: ["unitflow", "unitflow-v3", "unitflow-finance"],
+    name: "UnitFlow",
+    logo: unitflowLogo,
   },
 ];
 
@@ -119,6 +126,7 @@ export default function RouterDisplay({
     ? normalizeRouterId(selectedRouterId)
     : undefined;
   const dexCount = SUPPORTED_ROUTERS.length;
+  const dexNamesLabel = SUPPORTED_ROUTERS.map((router) => router.name).join(", ");
 
   return (
     <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
@@ -148,7 +156,7 @@ export default function RouterDisplay({
           </span>
           <span className="truncate text-[11px] font-medium text-white/80">
             <span className="text-[9px] font-normal text-white/45">Via</span>{" "}
-            <span>XyloNet & Synthra</span>
+            <span>{dexNamesLabel}</span>
           </span>
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info

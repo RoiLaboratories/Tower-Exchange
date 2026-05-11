@@ -186,17 +186,7 @@ export default function BridgePageContent({
       const chainConfig =
         SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
-<<<<<<< fix/Ui
-      const tokenAddress =
-        fromToken?.symbol === "EURC"
-          ? (chainConfig as any).eurcAddress
-          : (chainConfig as any).usdcAddress;
-=======
-
-      // Get the token address for the selected token
       const tokenAddress = getBridgeTokenAddress(chainConfig, fromToken?.symbol);
-
->>>>>>> main
       if (!tokenAddress) {
         setWalletBalance("0.00");
         return;
@@ -233,17 +223,7 @@ export default function BridgePageContent({
       const chainConfig =
         SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS];
       if (!chainConfig) return;
-<<<<<<< fix/Ui
-      const tokenAddress =
-        toToken?.symbol === "EURC"
-          ? (chainConfig as any).eurcAddress
-          : (chainConfig as any).usdcAddress;
-=======
-
-      // Get the token address for the selected token
       const tokenAddress = getBridgeTokenAddress(chainConfig, toToken?.symbol);
-
->>>>>>> main
       if (!tokenAddress) {
         setToChainBalance("0.00");
         return;
@@ -393,9 +373,6 @@ export default function BridgePageContent({
       alert("Please connect your wallet first");
       return;
     }
-<<<<<<< fix/Ui
-=======
-
     const requestedAmount = Number.parseFloat(fromAmount);
     const availableBalance = Number.parseFloat(walletBalance);
     if (
@@ -407,7 +384,6 @@ export default function BridgePageContent({
     }
 
     // Use receiving address if provided, otherwise use connected wallet
->>>>>>> main
     const destinationAddress = receivingAddress || user.wallet?.address;
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
@@ -823,43 +799,16 @@ export default function BridgePageContent({
                 type="button"
                 onClick={!user ? handleConnectWallet : handleBridge}
                 disabled={isBridgeButtonDisabled}
-                className={`w-full rounded-xl h-14 text-base font-semibold text-black transition-all ${
+                className={`inline-flex w-full items-center justify-center gap-2 rounded-xl h-14 text-base font-semibold transition-all ${
                   isBridgeButtonDisabled
                     ? "bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500"
-                    : "bg-primary hover:opacity-90"
+                    : "bg-primary hover:opacity-90 text-black"
                 }`}
               >
-                {!user ? (
-                  "Connect Wallet"
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    {bridgeHook.isBridging && (
-                      <Loader className="h-4 w-4 animate-spin" />
-                    )}
-                    {bridgeHook.isBridging ? "Bridging..." : "Bridge"}
-                  </span>
-                )}
+                {getBridgeButtonContent()}
               </button>
             </motion.div>
-<<<<<<< fix/Ui
           </motion.div>
-=======
-          )}
-
-          {/* Primary bridge button */}
-          <button
-            type="button"
-            onClick={!user ? handleConnectWallet : handleBridge}
-            disabled={isBridgeButtonDisabled}
-            className={`inline-flex items-center justify-center gap-2 w-full rounded-xl h-14 text-base font-semibold transition-all ${
-              isBridgeButtonDisabled
-                ? "bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500"
-                : "bg-primary hover:opacity-90 text-black"
-            }`}
-          >
-            {getBridgeButtonContent()}
-          </button>
->>>>>>> main
 
           {/* ── Token pills below card — mirrors SwapCard quick-access buttons ── */}
           <div className="flex items-center justify-center gap-4 mt-4">

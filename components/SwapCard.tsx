@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { formatUnits, parseUnits } from "viem";
 import {
   fetchERC20Allowance,
   formatBalance,
@@ -49,35 +50,6 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
-<<<<<<< fix/Ui
-
-// Tokens available on frontend (supported by Tower Exchange DEX Aggregator)
-// Currently only USDC and EURC are swappable via XyloNet
-const tokens = [
-  {
-    symbol: "USDC",
-    icon: usdcLogo,
-    name: "USD Coin",
-    balance: 1000,
-    usdPrice: 1,
-  },
-  {
-    symbol: "EURC",
-    icon: eurcLogo,
-    name: "Euro Coin",
-    balance: 750,
-    usdPrice: 1,
-  },
-  // TODO: Uncomment when DEX routes are integrated
-  // { symbol: "USDT", icon: usdtLogo, name: "Tether", balance: 500, usdPrice: 1 },
-  // { symbol: "USYC", icon: usycLogo, name: "USD Yield Coin", balance: 600, usdPrice: 1 },
-  // { symbol: "SYN", icon: syntharaLogo, name: "Synthra", balance: 100, usdPrice: 0 },
-  // { symbol: "SWPRC", icon: swprcLogo, name: "Swaparc Token", balance: 300, usdPrice: 0 },
-  // { symbol: "WUSDC", icon: usdcLogo, name: "Wrapped USDC", balance: 500, usdPrice: 1 },
-  // { symbol: "QTM", icon: quantumLogo, name: "Quantum", balance: 100, usdPrice: 0 },
-];
-=======
->>>>>>> main
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 
@@ -261,15 +233,8 @@ const SwapCard = ({
   // Token and amount states
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
-<<<<<<< fix/Ui
-  const [sellToken, setSellToken] = useState(tokens[0]);
-  const [receiveToken, setReceiveToken] = useState<(typeof tokens)[0] | null>(
-    null,
-  );
-=======
   const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
   const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
->>>>>>> main
 
   const logSwapActivity = useCallback(
     async (status: "Successful" | "Failed", txHash?: string | null) => {
@@ -321,14 +286,8 @@ const SwapCard = ({
     receiveToken?.usdPrice ?? 0,
   );
 
-<<<<<<< fix/Ui
-  const fetchSwapTokenBalance = useCallback(
-    async (tokenSymbol: "USDC" | "EURC") => {
-      const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
-=======
   const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
->>>>>>> main
 
       if (!tokenAddress || !user?.wallet?.address) {
         return 0;
@@ -479,79 +438,38 @@ const SwapCard = ({
     setReceiveAmount(tempAmount);
   };
 
-<<<<<<< fix/Ui
-  // Helper function to calculate using mock rates
-  const calculateMockRate = useCallback(
-    (sellAmountValue: string) => {
-      const mockRate =
-        sellToken.symbol === "ETH"
-          ? 1500
-          : sellToken.symbol === "USDC"
-            ? 1
-            : sellToken.symbol === "USDT"
-              ? 1
-              : sellToken.symbol === "UNI"
-                ? 12
-                : sellToken.symbol === "EURC"
-                  ? 1.05
-                  : sellToken.symbol === "SWPRC"
-                    ? 0.5
-                    : 8;
-      const calculated = (parseFloat(sellAmountValue) * mockRate).toFixed(2);
-      setReceiveAmount(calculated);
-    },
-    [sellToken.symbol],
-  );
-
   // Get swap quote from Tower Exchange backend
   const getQuoteForSwap = useCallback(
     async (sellAmountValue: string, routerId?: string) => {
       try {
-        // Check if both tokens are selected
-        if (!receiveToken) {
+        if (
+          !receiveToken ||
+          !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)
+        ) {
           setReceiveAmount("0.00");
+          setRouteOptions([]);
+          setSelectedRouterId(undefined);
           return;
         }
-=======
-  // Get swap quote from Tower Exchange backend
-  const getQuoteForSwap = useCallback(async (sellAmountValue: string, routerId?: string) => {
-    try {
-      // Check if both tokens are selected
-      if (!receiveToken || !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)) {
-        setReceiveAmount("0.00");
-        setRouteOptions([]);
-        setSelectedRouterId(undefined);
-        return;
-      }
->>>>>>> main
 
-        // Get token addresses for the swap
-        let tokenInAddress: string | null = null;
-        let tokenOutAddress: string | null = null;
-
-        // Map token symbols to contract addresses
         const addressMap: Record<string, string> = TOKEN_CONTRACTS;
-
-        if (addressMap[sellToken.symbol]) {
-          tokenInAddress = addressMap[sellToken.symbol];
-        }
-
-        if (addressMap[receiveToken.symbol]) {
-          tokenOutAddress = addressMap[receiveToken.symbol];
-        }
+        const tokenInAddress = addressMap[sellToken.symbol] ?? null;
+        const tokenOutAddress = addressMap[receiveToken.symbol] ?? null;
 
         if (!tokenInAddress || !tokenOutAddress) {
           console.warn(
             `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`,
           );
-          calculateMockRate(sellAmountValue);
+          setReceiveAmount("0.00");
+          setRouteOptions([]);
+          setSelectedRouterId(undefined);
           return;
         }
 
-        // Convert sell amount to wei using correct decimals for the sell token
         const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-        const amountInWei = BigInt(
-          parseFloat(sellAmountValue) * 10 ** sellTokenDecimals,
+        const amountInWei = parseUnits(
+          sellAmountValue,
+          sellTokenDecimals,
         ).toString();
 
         console.log("Getting quote from Tower Exchange:", {
@@ -562,7 +480,6 @@ const SwapCard = ({
           amountInWei,
         });
 
-        // Get quote from Tower Exchange backend
         const quoteData = await getQuote(
           tokenInAddress,
           tokenOutAddress,
@@ -570,28 +487,15 @@ const SwapCard = ({
           slippageTolerance,
           routerId,
         );
-<<<<<<< fix/Ui
 
         if (!quoteData) {
           throw new Error(
             towerError || "Failed to get quote from Tower Exchange",
           );
         }
-=======
-        setReceiveAmount("0.00");
-        setRouteOptions([]);
-        setSelectedRouterId(undefined);
-        return;
-      }
-
-      // Convert sell amount to wei using correct decimals for the sell token
-      const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-      const amountInWei = parseUnits(sellAmountValue, sellTokenDecimals).toString();
->>>>>>> main
 
         console.log("Quote received from Tower Exchange:", quoteData);
 
-        // Auto-set router from the best quote only when the user has not manually selected one.
         if (!routerId && quoteData.route?.hops?.[0]?.dexId) {
           setSelectedRouterId(quoteData.route.hops[0].dexId);
           console.log(
@@ -604,81 +508,37 @@ const SwapCard = ({
 
         setRouteOptions(quoteData.routeOptions || []);
 
-        // Convert quote back from wei using correct decimals for the receive token
         const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-        const quoteAmount = parseFloat(quoteData.outputAmount || "0") / 1e18;
-
-        // Convert priceImpact from basis points to percentage (50 = 0.50%)
+        const displayPrecision = Math.min(receiveTokenDecimals, 6);
+        const quoteAmount = Number.parseFloat(
+          formatUnits(BigInt(quoteData.outputAmount || "0"), 18),
+        );
         const priceImpactPercent =
           typeof quoteData.priceImpact === "number"
             ? (quoteData.priceImpact / 100).toFixed(2)
             : quoteData.priceImpact;
 
-<<<<<<< fix/Ui
-        // Debug logging with detailed breakdown
         console.log("Quote conversion details:", {
           outputAmount_wei: quoteData.outputAmount,
           quoteAmount_tokens: quoteAmount,
           priceImpact: priceImpactPercent,
-          calculation: `${quoteData.outputAmount} / 1e18 = ${quoteAmount}`,
+          displayPrecision,
         });
 
-        setReceiveAmount(quoteAmount.toFixed(receiveTokenDecimals));
+        setReceiveAmount(
+          Number.isFinite(quoteAmount)
+            ? quoteAmount.toFixed(displayPrecision)
+            : "0.00",
+        );
       } catch (error) {
         console.error("Error getting swap quote:", error);
-        // Fallback to mock calculation on error
-        calculateMockRate(sellAmountValue);
+        setReceiveAmount("0.00");
+        setRouteOptions([]);
+        setSelectedRouterId(undefined);
       }
     },
-    [
-      calculateMockRate,
-      getQuote,
-      receiveToken,
-      sellToken.symbol,
-      slippageTolerance,
-      towerError,
-    ],
+    [getQuote, receiveToken, sellToken.symbol, slippageTolerance, towerError],
   );
-=======
-      setRouteOptions(quoteData.routeOptions || []);
-
-      // Quotes are normalized to 18 decimals at the API boundary for consistent display.
-      const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-      const displayPrecision = Math.min(receiveTokenDecimals, 6);
-      const quoteAmount = Number.parseFloat(
-        formatUnits(BigInt(quoteData.outputAmount || "0"), 18),
-      );
-      
-      // Convert priceImpact from basis points to percentage (50 = 0.50%)
-      const priceImpactPercent = typeof quoteData.priceImpact === 'number' 
-        ? (quoteData.priceImpact / 100).toFixed(2)
-        : quoteData.priceImpact;
-
-      // Debug logging with detailed breakdown
-      console.log("Quote conversion details:", {
-        outputAmount_wei: quoteData.outputAmount,
-        quoteAmount_tokens: quoteAmount,
-        priceImpact: priceImpactPercent,
-        displayPrecision,
-      });
-
-      setReceiveAmount(
-        Number.isFinite(quoteAmount) ? quoteAmount.toFixed(displayPrecision) : "0.00",
-      );
-    } catch (error) {
-      console.error("Error getting swap quote:", error);
-      setReceiveAmount("0.00");
-      setRouteOptions([]);
-      setSelectedRouterId(undefined);
-    }
-  }, [
-    getQuote,
-    receiveToken,
-    sellToken.symbol,
-    slippageTolerance,
-    towerError,
-  ]);
->>>>>>> main
 
   useEffect(() => {
     if (!shouldShowRouterDisplay || swapState === "loading") {
@@ -926,14 +786,7 @@ const SwapCard = ({
 
       // Step 2: Convert amounts to wei using correct decimals
       const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
-<<<<<<< fix/Ui
-
-      const amountInWei = BigInt(
-        Math.floor(sellAmountNum * 10 ** sellTokenDecimals),
-      ).toString();
-=======
       const amountInWei = parseUnits(sellAmount, sellTokenDecimals).toString();
->>>>>>> main
 
       console.log("Preparing swap via Tower Exchange:", {
         sellToken: sellToken.symbol,

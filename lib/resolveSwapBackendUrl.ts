@@ -1,0 +1,14 @@
+const LOCAL_SWAP_BACKEND_URL = "http://localhost:3001";
+const PRODUCTION_SWAP_BACKEND_URL = "https://tower-backend.vercel.app";
+
+export function resolveSwapBackendUrl() {
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return LOCAL_SWAP_BACKEND_URL;
+  }
+
+  return process.env.NEXT_PUBLIC_BACKEND_URL || PRODUCTION_SWAP_BACKEND_URL;
+}
