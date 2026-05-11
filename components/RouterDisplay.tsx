@@ -47,8 +47,8 @@ const normalizeRouterId = (id = "") => {
   const normalizedId = id.toLowerCase();
 
   return (
-    SUPPORTED_ROUTERS.find((router) => router.aliases.includes(normalizedId))?.id ||
-    normalizedId
+    SUPPORTED_ROUTERS.find((router) => router.aliases.includes(normalizedId))
+      ?.id || normalizedId
   );
 };
 
@@ -99,20 +99,22 @@ export default function RouterDisplay({
 
     return outputAmount > bestAmount ? outputAmount : bestAmount;
   }, 0n);
-  const sortedRouters = [...SUPPORTED_ROUTERS].sort((leftRouter, rightRouter) => {
-    const leftOutputAmount = outputAmountToBigInt(
-      routeOptionByDexId.get(leftRouter.id)?.outputAmount,
-    );
-    const rightOutputAmount = outputAmountToBigInt(
-      routeOptionByDexId.get(rightRouter.id)?.outputAmount,
-    );
+  const sortedRouters = [...SUPPORTED_ROUTERS].sort(
+    (leftRouter, rightRouter) => {
+      const leftOutputAmount = outputAmountToBigInt(
+        routeOptionByDexId.get(leftRouter.id)?.outputAmount,
+      );
+      const rightOutputAmount = outputAmountToBigInt(
+        routeOptionByDexId.get(rightRouter.id)?.outputAmount,
+      );
 
-    if (leftOutputAmount === rightOutputAmount) {
-      return 0;
-    }
+      if (leftOutputAmount === rightOutputAmount) {
+        return 0;
+      }
 
-    return leftOutputAmount > rightOutputAmount ? -1 : 1;
-  });
+      return leftOutputAmount > rightOutputAmount ? -1 : 1;
+    },
+  );
   const normalizedSelectedRouterId = selectedRouterId
     ? normalizeRouterId(selectedRouterId)
     : undefined;
@@ -159,7 +161,8 @@ export default function RouterDisplay({
               role="tooltip"
               className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 w-64 rounded-lg border border-white/10 bg-[#08090a] px-3 py-2 text-left text-[11px] font-normal leading-4 text-white/80 opacity-0 shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
             >
-              Quotes from major routers on Tower are simulated on the same block to find the best executable prices.
+              Quotes from major routers on Tower are simulated on the same block
+              to find the best executable prices.
             </span>
           </span>
         </div>
@@ -169,7 +172,8 @@ export default function RouterDisplay({
         {sortedRouters.map((router) => {
           const option = routeOptionByDexId.get(router.id);
           const outputAmount = outputAmountToBigInt(option?.outputAmount);
-          const isBestPrice = outputAmount > 0n && outputAmount === bestOutputAmount;
+          const isBestPrice =
+            outputAmount > 0n && outputAmount === bestOutputAmount;
           const isSelected =
             normalizedSelectedRouterId === router.id ||
             (!normalizedSelectedRouterId && isBestPrice);
@@ -203,7 +207,9 @@ export default function RouterDisplay({
                 )}
               </span>
               <span className="shrink-0 text-sm tabular-nums text-white/90">
-                {isAvailable ? formatQuoteAmount(option?.outputAmount) : "Unavailable"}
+                {isAvailable
+                  ? formatQuoteAmount(option?.outputAmount)
+                  : "Unavailable"}
               </span>
             </motion.div>
           );

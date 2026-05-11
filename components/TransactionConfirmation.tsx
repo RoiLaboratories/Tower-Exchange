@@ -1,13 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, Loader, Copy, ExternalLink, X } from "lucide-react";
+import { Check, Loader, Copy, ExternalLink, X } from "lucide-react";
 import { useState } from "react";
 
 import { ErrorBadge } from "@/components/ui/error-badge";
 
 interface TransactionConfirmationProps {
-  status: "idle" | "signing" | "broadcasting" | "confirming" | "confirmed" | "error";
+  status:
+    | "idle"
+    | "signing"
+    | "broadcasting"
+    | "confirming"
+    | "confirmed"
+    | "error";
   statusMessage?: string;
   transactionHash?: string;
   blockNumber?: number;
@@ -17,7 +23,9 @@ interface TransactionConfirmationProps {
   errorLayout?: "inline" | "stacked";
 }
 
-export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = ({
+export const TransactionConfirmation: React.FC<
+  TransactionConfirmationProps
+> = ({
   status,
   statusMessage,
   transactionHash,
@@ -55,7 +63,11 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
           </motion.div>
         );
       case "confirmed":
-        return <CheckCircle size={24} className="text-green-500" />;
+        return (
+          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-500">
+            <Check className="h-4 w-4 text-white" strokeWidth={3} />
+          </div>
+        );
       case "error":
         return null;
       default:
@@ -114,7 +126,13 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
         </button>
       )}
 
-      <div className={showInlineError || showStackedError ? "block" : "flex items-start gap-3"}>
+      <div
+        className={
+          showInlineError || showStackedError
+            ? "block"
+            : "flex items-start gap-3"
+        }
+      >
         {!showInlineError && (
           <div className="mt-1 shrink-0">{getStatusIcon()}</div>
         )}
@@ -133,8 +151,10 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
                 <div className="mt-2">
                   <ErrorBadge message={error} fallback="Transaction failed." />
                 </div>
-              ) : statusMessage && (
-                <p className="mb-3 text-sm text-gray-300">{statusMessage}</p>
+              ) : (
+                statusMessage && (
+                  <p className="mb-3 text-sm text-gray-300">{statusMessage}</p>
+                )
               )}
             </>
           )}
@@ -167,7 +187,9 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
                 </div>
               </div>
               {copied && (
-                <p className="text-xs text-green-400 mt-1">Copied to clipboard!</p>
+                <p className="text-xs text-green-400 mt-1">
+                  Copied to clipboard!
+                </p>
               )}
             </div>
           )}
@@ -191,7 +213,7 @@ export const TransactionConfirmation: React.FC<TransactionConfirmationProps> = (
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  className="px-3 py-1.5 rounded text-sm bg-[#7BB8FF] hover:bg-[#629ee2] text-black transition-colors"
                 >
                   Close
                 </button>

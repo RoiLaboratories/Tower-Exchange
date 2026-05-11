@@ -26,8 +26,7 @@ export const AppErrorModal = ({
     return null;
   }
 
-  const isInviteGateOpen =
-    document.body.dataset.inviteGateOpen === "true";
+  const isInviteGateOpen = document.body.dataset.inviteGateOpen === "true";
 
   return createPortal(
     <AnimatePresence>
@@ -85,6 +84,6 @@ export const AppErrorModal = ({
         </motion.div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 };

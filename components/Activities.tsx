@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
+import { getChainLogoByName } from "@/lib/chains";
 import arcLogo from "@/public/assets/Arc Testnet logo.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
 
@@ -106,7 +107,7 @@ const Activities = ({
               time,
               isCancellation,
             };
-          }
+          },
         );
 
         setActivities(transformedActivities);
@@ -147,7 +148,11 @@ const Activities = ({
 
   return (
     <>
-      <AppErrorModal error={error} onClose={() => setError(null)} title="Failed to load activities" />
+      <AppErrorModal
+        error={error}
+        onClose={() => setError(null)}
+        title="Failed to load activities"
+      />
       <motion.div
         key="activities"
         initial={{ opacity: 0, y: 20 }}
@@ -161,101 +166,60 @@ const Activities = ({
         }}
       >
         {activities.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: "1px solid hsl(220, 15%, 18%)" }}>
-                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                  Type
-                </th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                  Source
-                </th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                  Destination
-                </th>
-                <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                  Status
-                </th>
-                <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {activities.map((activity, index) => (
-                <motion.tr
-                  key={`${activity.type}-${index}-${activity.date}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.3 }}
-                  whileHover={{
-                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  }}
-                  className="transition-colors"
-                  style={{
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                  }}
-                >
-                  <td className="py-5 px-6">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{activity.type}</span>
-                      {activity.isCancellation && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/50">
-                          Cancelled
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-5 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        {activity.source.icon ? (
-                          <div className="shrink-0 w-8 h-8">
-                            <Image
-                              src={activity.source.icon}
-                              alt={`${activity.source.token} logo`}
-                              width={32}
-                              height={32}
-                              className="object-contain w-full h-full"
-                            />
-                          </div>
-                        ) : (
-                          <div className="shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-                            <span className="text-xs font-medium">
-                              {activity.source.token[0]}
-                            </span>
-                          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: "1px solid hsl(220, 15%, 18%)" }}>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                    Type
+                  </th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                    Source
+                  </th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                    Destination
+                  </th>
+                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                    Status
+                  </th>
+                  <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                    Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {activities.map((activity, index) => (
+                  <motion.tr
+                    key={`${activity.type}-${index}-${activity.date}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05, duration: 0.3 }}
+                    whileHover={{
+                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    }}
+                    className="transition-colors"
+                    style={{
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                    }}
+                  >
+                    <td className="py-5 px-6">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{activity.type}</span>
+                        {activity.isCancellation && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/50">
+                            Cancelled
+                          </span>
                         )}
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-white border border-gray-300">
-                          <Image
-                            src={arcLogo}
-                            alt="Arc chain"
-                            width={16}
-                            height={16}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">
-                          {activity.source.token}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {activity.source.network}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-5 px-6">
-                    {activity.destination.token ? (
+                    </td>
+                    <td className="py-5 px-6">
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          {activity.destination.icon ? (
+                          {activity.source.icon ? (
                             <div className="shrink-0 w-8 h-8">
                               <Image
-                                src={activity.destination.icon}
-                                alt={`${activity.destination.token} logo`}
+                                src={activity.source.icon}
+                                alt={`${activity.source.token} logo`}
                                 width={32}
                                 height={32}
                                 className="object-contain w-full h-full"
@@ -264,14 +228,17 @@ const Activities = ({
                           ) : (
                             <div className="shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
                               <span className="text-xs font-medium">
-                                {activity.destination.token[0]}
+                                {activity.source.token[0]}
                               </span>
                             </div>
                           )}
                           <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-white border border-gray-300">
                             <Image
-                              src={arcLogo}
-                              alt="Arc chain"
+                              src={
+                                getChainLogoByName(activity.source.network) ??
+                                arcLogo
+                              }
+                              alt={activity.source.network}
                               width={16}
                               height={16}
                               className="w-full h-full object-contain"
@@ -280,76 +247,123 @@ const Activities = ({
                         </div>
                         <div>
                           <div className="font-medium">
-                            {activity.destination.token}
+                            {activity.source.token}
                           </div>
                           <div className="text-xs text-gray-400">
-                            {activity.destination.network}
+                            {activity.source.network}
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-gray-500">—</span>
-                    )}
-                  </td>
-                  <td className="py-5 px-6">
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{
-                        delay: index * 0.05 + 0.15,
-                        duration: 0.3,
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium border inline-block ${
-                        activity.status === "Successful"
-                          ? "text-green-400 border-green-400/30 bg-green-400/10"
-                          : "text-red-400 border-red-400/30 bg-red-400/10"
-                      }`}
-                    >
-                      {activity.status}
-                    </motion.span>
-                  </td>
-                  <td className="py-5 px-6 text-right">
-                    <div className="font-medium">{activity.date}</div>
-                    <div className="text-xs text-gray-400">{activity.time}</div>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="flex flex-col items-center justify-center py-20 px-6"
-        >
-          <div className="mb-6">
-            <Image
-              src="/assets/empty state icon.svg"
-              alt={
-                isWalletConnected
-                  ? "No transactions yet"
-                  : "No wallet connected"
-              }
-              width={80}
-              height={80}
-              className="w-20 h-20 opacity-60"
-            />
+                    </td>
+                    <td className="py-5 px-6">
+                      {activity.destination.token ? (
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            {activity.destination.icon ? (
+                              <div className="shrink-0 w-8 h-8">
+                                <Image
+                                  src={activity.destination.icon}
+                                  alt={`${activity.destination.token} logo`}
+                                  width={32}
+                                  height={32}
+                                  className="object-contain w-full h-full"
+                                />
+                              </div>
+                            ) : (
+                              <div className="shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                                <span className="text-xs font-medium">
+                                  {activity.destination.token[0]}
+                                </span>
+                              </div>
+                            )}
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center bg-white border border-gray-300">
+                              <Image
+                                src={
+                                  getChainLogoByName(
+                                    activity.destination.network,
+                                  ) ?? arcLogo
+                                }
+                                alt={activity.destination.network}
+                                width={16}
+                                height={16}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-medium">
+                              {activity.destination.token}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {activity.destination.network}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">—</span>
+                      )}
+                    </td>
+                    <td className="py-5 px-6">
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{
+                          delay: index * 0.05 + 0.15,
+                          duration: 0.3,
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border inline-block ${
+                          activity.status === "Successful"
+                            ? "text-green-400 border-green-400/30 bg-green-400/10"
+                            : "text-red-400 border-red-400/30 bg-red-400/10"
+                        }`}
+                      >
+                        {activity.status}
+                      </motion.span>
+                    </td>
+                    <td className="py-5 px-6 text-right">
+                      <div className="font-medium">{activity.date}</div>
+                      <div className="text-xs text-gray-400">
+                        {activity.time}
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <h4 className="text-xl font-semibold mb-2">
-            {isWalletConnected
-              ? "No transactions yet"
-              : "No wallet connected"}
-          </h4>
-          <p className="text-gray-400 text-center">
-            {isWalletConnected
-              ? "Your swap and transfer activity will appear here."
-              : "Connect your wallet to view activity."}
-          </p>
-        </motion.div>
-      )}
-    </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center justify-center py-20 px-6"
+          >
+            <div className="mb-6">
+              <Image
+                src="/assets/empty state icon.svg"
+                alt={
+                  isWalletConnected
+                    ? "No transactions yet"
+                    : "No wallet connected"
+                }
+                width={80}
+                height={80}
+                className="w-20 h-20 opacity-60"
+              />
+            </div>
+            <h4 className="text-xl font-semibold mb-2">
+              {isWalletConnected
+                ? "No transactions yet"
+                : "No wallet connected"}
+            </h4>
+            <p className="text-gray-400 text-center">
+              {isWalletConnected
+                ? "Your swap and transfer activity will appear here."
+                : "Connect your wallet to view activity."}
+            </p>
+          </motion.div>
+        )}
+      </motion.div>
     </>
   );
 };

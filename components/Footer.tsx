@@ -5,6 +5,7 @@ import { FaTelegram, FaDiscord } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
+const ANALYTICS_URL = "https://dune.com/towerexchange/tower-exchange-overview"; // Replace with your analytics URL
 const DOCS_URL = "https://tower-exchange.gitbook.io/tower"; // Replace with your docs URL
 const TERMS_URL = "#"; // Replace with your terms URL
 
@@ -86,6 +87,15 @@ const Footer = () => {
               transition={{ duration: 0.2 }}
               className="fixed bottom-20 left-6 z-50 w-56 rounded-xl border border-border bg-card/95 backdrop-blur-sm shadow-xl py-2"
             >
+              <a
+                href={ANALYTICS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                <span>Analytics</span>
+                <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+              </a>
               <a
                 href={DOCS_URL}
                 target="_blank"
