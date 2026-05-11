@@ -1,12 +1,15 @@
 import {
+  createPublicClient,
   encodeAbiParameters,
   encodeFunctionData,
   encodePacked,
   getAddress,
+  http,
   isAddress,
   maxUint256,
   type Address,
   type Hex,
+  type PublicClient,
 } from "viem";
 
 import { TOKEN_CONTRACTS } from "@/lib/arcNetwork";
@@ -16,14 +19,51 @@ import {
   SYNTHRA_CHAIN_ID,
 } from "@/lib/synthraDex";
 
+export const UNITFLOW_PUBLIC_RPC_URL = "https://rpc.testnet.arc.network";
+export const UNITFLOW_PROXY_RPC_PATH = "/api/rpc/5042002";
+
+export const unitFlowArcTestnet = {
+  id: SYNTHRA_CHAIN_ID,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "USDC",
+    symbol: "USDC",
+  },
+  rpcUrls: {
+    default: { http: [UNITFLOW_PUBLIC_RPC_URL] },
+  },
+  blockExplorers: {
+    default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
+  },
+  testnet: true,
+} as const;
+
 export const UNITFLOW_FEE_TIERS = [3000] as const;
 export type UnitFlowFeeTier = (typeof UNITFLOW_FEE_TIERS)[number];
 
 export const UNITFLOW_ADDRESSES = {
   factory: "0xAb6A8AAb7d490007634ef59d424b5d89688a1971",
+  quoter: "0x121aeB6DEf00F6F67665008CaC1C19805886ed1a",
   universalRouter: "0xC43cC6A1E0F6EB48Cd4131522C1C73B13f3Da0F1",
   permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
 } as const satisfies Record<string, Address>;
+
+export const UNITFLOW_NATIVE_USDC = TOKEN_CONTRACTS.USDC as Address;
+export const UNITFLOW_WRAPPED_USDC = TOKEN_CONTRACTS.WUSDC_SYNTHRA as Address;
+
+const UNITFLOW_QUOTER_ABI = [
+  {
+    type: "function",
+    name: "quoteExactInput",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "path", type: "bytes" },
+      { name: "amountIn", type: "uint256" },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
 
 const UNITFLOW_UNIVERSAL_ROUTER_ABI = [
   {
@@ -52,6 +92,7 @@ const UNITFLOW_UNIVERSAL_ROUTER_ABI = [
 const UNITFLOW_UNIVERSAL_ROUTER_COMMANDS = {
   V3_SWAP_EXACT_IN: "0x00",
   WRAP_NATIVE: "0x0b",
+  UNWRAP_NATIVE: "0x0c",
 } as const;
 
 const UNITFLOW_WUSDC_EURC_FEE: UnitFlowFeeTier = 3000;
@@ -95,6 +136,34 @@ export function normalizeUnitFlowAddress(address: string): Address {
   return getAddress(address);
 }
 
+const getDefaultUnitFlowRpcUrl = () =>
+  typeof window === "undefined" ? UNITFLOW_PUBLIC_RPC_URL : UNITFLOW_PROXY_RPC_PATH;
+
+export function createUnitFlowPublicClient(rpcUrl = getDefaultUnitFlowRpcUrl()) {
+  return createPublicClient({
+    chain: {
+      ...unitFlowArcTestnet,
+      rpcUrls: {
+        default: { http: [rpcUrl] },
+      },
+    },
+    transport: http(rpcUrl),
+  });
+}
+
+export function isUnitFlowNativeUsdc(address: string) {
+  return (
+    normalizeUnitFlowAddress(address).toLowerCase() ===
+    normalizeUnitFlowAddress(UNITFLOW_NATIVE_USDC).toLowerCase()
+  );
+}
+
+export function toUnitFlowPoolToken(address: string): Address {
+  return isUnitFlowNativeUsdc(address)
+    ? normalizeUnitFlowAddress(UNITFLOW_WRAPPED_USDC)
+    : normalizeUnitFlowAddress(address);
+}
+
 export function sortUnitFlowTokens(tokenA: string, tokenB: string): [Address, Address] {
   const a = normalizeUnitFlowAddress(tokenA);
   const b = normalizeUnitFlowAddress(tokenB);
@@ -118,7 +187,10 @@ const UNITFLOW_DIRECT_PAIRS: readonly UnitFlowDirectPairConfig[] = [
 ] as const;
 
 const getUnitFlowDirectPair = (tokenA: string, tokenB: string) => {
-  const [sortedTokenA, sortedTokenB] = sortUnitFlowTokens(tokenA, tokenB);
+  const [sortedTokenA, sortedTokenB] = sortUnitFlowTokens(
+    toUnitFlowPoolToken(tokenA),
+    toUnitFlowPoolToken(tokenB),
+  );
 
   return (
     UNITFLOW_DIRECT_PAIRS.find(
@@ -130,7 +202,11 @@ const getUnitFlowDirectPair = (tokenA: string, tokenB: string) => {
 };
 
 export function isUnitFlowSupportedPair(tokenA: string, tokenB: string) {
-  return getUnitFlowDirectPair(tokenA, tokenB) !== null;
+  try {
+    return getUnitFlowDirectPair(tokenA, tokenB) !== null;
+  } catch {
+    return false;
+  }
 }
 
 export function encodeUnitFlowV3Path(tokens: string[], fees: readonly number[]): Hex {
@@ -160,20 +236,68 @@ export function buildUnitFlowRouteFromTokens(
 ): UnitFlowRoute | null {
   const normalizedTokenIn = normalizeUnitFlowAddress(tokenIn);
   const normalizedTokenOut = normalizeUnitFlowAddress(tokenOut);
-  const directPair = getUnitFlowDirectPair(normalizedTokenIn, normalizedTokenOut);
+  const poolTokenIn = toUnitFlowPoolToken(normalizedTokenIn);
+  const poolTokenOut = toUnitFlowPoolToken(normalizedTokenOut);
+  const directPair = getUnitFlowDirectPair(poolTokenIn, poolTokenOut);
 
   if (!directPair) {
     return null;
   }
 
   return {
-    tokens: [normalizedTokenIn, normalizedTokenOut],
+    tokens: [poolTokenIn, poolTokenOut],
     fees: [directPair.fee],
     path: encodeUnitFlowV3Path(
-      [normalizedTokenIn, normalizedTokenOut],
+      [poolTokenIn, poolTokenOut],
       [directPair.fee],
     ),
   };
+}
+
+export async function quoteUnitFlowRoute(
+  client: PublicClient,
+  route: UnitFlowRoute,
+  amountIn: bigint | string,
+  tokenIn: string,
+  tokenOut: string,
+): Promise<UnitFlowQuote | null> {
+  try {
+    const amountOut = (await client.readContract({
+      address: UNITFLOW_ADDRESSES.quoter,
+      abi: UNITFLOW_QUOTER_ABI,
+      functionName: "quoteExactInput",
+      args: [route.path, BigInt(amountIn)],
+    })) as bigint;
+
+    return {
+      dexId: "unitflow",
+      dexName: "UnitFlow",
+      chainId: SYNTHRA_CHAIN_ID,
+      tokenIn: normalizeUnitFlowAddress(tokenIn),
+      tokenOut: normalizeUnitFlowAddress(tokenOut),
+      amountIn: BigInt(amountIn),
+      amountOut,
+      route,
+    };
+  } catch (error) {
+    console.warn("[UnitFlow] quote unavailable:", error);
+    return null;
+  }
+}
+
+export async function getBestUnitFlowQuote(
+  client: PublicClient,
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: bigint | string,
+): Promise<UnitFlowQuote | null> {
+  const route = buildUnitFlowRouteFromTokens(tokenIn, tokenOut);
+
+  if (!route) {
+    return null;
+  }
+
+  return quoteUnitFlowRoute(client, route, amountIn, tokenIn, tokenOut);
 }
 
 export function calculateUnitFlowAmountOutMinimum(
@@ -194,6 +318,7 @@ export function buildUnitFlowExactInputTransaction(params: {
   deadline?: bigint | number;
   payerIsUser?: boolean;
   wrapNativeInput?: boolean;
+  unwrapNativeOutput?: boolean;
 }): UnitFlowTransaction {
   const recipient = normalizeUnitFlowAddress(params.recipient);
   const deadline =
@@ -204,9 +329,14 @@ export function buildUnitFlowExactInputTransaction(params: {
     params.quote.amountOut,
     params.slippageBps,
   );
-  const commands = params.wrapNativeInput
-    ? (`${UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.WRAP_NATIVE}${UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.V3_SWAP_EXACT_IN.slice(2)}` as Hex)
-    : UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.V3_SWAP_EXACT_IN;
+  const commandList = [
+    ...(params.wrapNativeInput ? [UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.WRAP_NATIVE] : []),
+    UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.V3_SWAP_EXACT_IN,
+    ...(params.unwrapNativeOutput
+      ? [UNITFLOW_UNIVERSAL_ROUTER_COMMANDS.UNWRAP_NATIVE]
+      : []),
+  ];
+  const commands = `0x${commandList.map((command) => command.slice(2)).join("")}` as Hex;
   const inputs = [
     ...(params.wrapNativeInput
       ? [
@@ -228,13 +358,24 @@ export function buildUnitFlowExactInputTransaction(params: {
         { name: "payerIsUser", type: "bool" },
       ],
       [
-        recipient,
+        params.unwrapNativeOutput ? UNITFLOW_ADDRESSES.universalRouter : recipient,
         params.quote.amountIn,
         amountOutMinimum,
         params.quote.route.path,
         params.payerIsUser ?? !params.wrapNativeInput,
       ],
     ),
+    ...(params.unwrapNativeOutput
+      ? [
+          encodeAbiParameters(
+            [
+              { name: "recipient", type: "address" },
+              { name: "amountMinimum", type: "uint256" },
+            ],
+            [recipient, amountOutMinimum],
+          ),
+        ]
+      : []),
   ];
 
   return {

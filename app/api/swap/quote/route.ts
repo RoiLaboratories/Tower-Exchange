@@ -6,6 +6,13 @@ import {
   SYNTHRA_ADDRESSES,
   type SynthraQuote,
 } from "@/lib/synthraDex";
+import {
+  createUnitFlowPublicClient,
+  getBestUnitFlowQuote,
+  toUnitFlowPoolToken,
+  UNITFLOW_ADDRESSES,
+  type UnitFlowQuote,
+} from "@/lib/unitflowDex";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
@@ -83,6 +90,23 @@ const normalizeAmountTo18 = (amount: bigint, tokenAddress: string) => {
     : amount / 10n ** BigInt(decimals - 18);
 };
 
+const convertAmountByTokenDecimals = (
+  amount: bigint,
+  fromTokenAddress: string,
+  toTokenAddress: string,
+) => {
+  const fromDecimals = getTokenDecimalsByAddress(fromTokenAddress);
+  const toDecimals = getTokenDecimalsByAddress(toTokenAddress);
+
+  if (fromDecimals === toDecimals) {
+    return amount;
+  }
+
+  return fromDecimals < toDecimals
+    ? amount * 10n ** BigInt(toDecimals - fromDecimals)
+    : amount / 10n ** BigInt(fromDecimals - toDecimals);
+};
+
 const toMinOut = (amountOut: bigint, slippageTolerance: number) => {
   const slippageBps = Number.isFinite(slippageTolerance) ? Math.max(0, slippageTolerance) : 50;
   return ((amountOut * BigInt(10000 - slippageBps)) / 10000n).toString();
@@ -111,6 +135,48 @@ const synthraToSwapQuote = (
           dex: "synthra",
           dexName: "Synthra",
           dexRouter: SYNTHRA_ADDRESSES.universalRouter,
+          path: quote.route.tokens,
+          amountIn: normalizedAmountIn.toString(),
+          amountOut: normalizedAmountOut.toString(),
+          priceImpact: "0",
+        },
+      ],
+    },
+  };
+};
+
+const unitflowToSwapQuote = (
+  quote: UnitFlowQuote,
+  publicInputAmount: string,
+  slippageTolerance: number,
+): BackendQuote => {
+  const normalizedAmountIn = normalizeAmountTo18(
+    BigInt(publicInputAmount),
+    quote.tokenIn,
+  );
+  const routeOutputToken =
+    quote.route.tokens[quote.route.tokens.length - 1] ?? quote.tokenOut;
+  const normalizedAmountOut = normalizeAmountTo18(
+    quote.amountOut,
+    routeOutputToken,
+  );
+
+  return {
+    inputToken: quote.tokenIn,
+    outputToken: quote.tokenOut,
+    inputAmount: normalizedAmountIn.toString(),
+    outputAmount: normalizedAmountOut.toString(),
+    minOut: toMinOut(normalizedAmountOut, slippageTolerance),
+    priceImpact: "0",
+    route: {
+      type: quote.route.tokens.length > 2 ? "multi" : "single",
+      rawPath: quote.route.path,
+      hops: [
+        {
+          dexId: "unitflow",
+          dex: "unitflow",
+          dexName: "UnitFlow",
+          dexRouter: UNITFLOW_ADDRESSES.universalRouter,
           path: quote.route.tokens,
           amountIn: normalizedAmountIn.toString(),
           amountOut: normalizedAmountOut.toString(),
@@ -240,10 +306,36 @@ export async function POST(request: NextRequest) {
           return null;
         })
       : null;
+    const shouldFetchLocalUnitFlowQuote =
+      !synthraExclusivePair &&
+      (!normalizedRequestedDexId || normalizedRequestedDexId === "unitflow");
+    const unitflowQuote = shouldFetchLocalUnitFlowQuote
+      ? await (async () => {
+          const routeInputToken = toUnitFlowPoolToken(inputToken);
+          const unitflowInputAmount = convertAmountByTokenDecimals(
+            BigInt(inputAmount),
+            inputToken,
+            routeInputToken,
+          );
+
+          return getBestUnitFlowQuote(
+            createUnitFlowPublicClient(),
+            inputToken,
+            outputToken,
+            unitflowInputAmount,
+          );
+        })().catch((error) => {
+          console.warn("[swap/quote] UnitFlow quote unavailable:", error);
+          return null;
+        })
+      : null;
 
     const candidateQuotes = [
       ...backendQuotes,
       synthraQuote ? synthraToSwapQuote(synthraQuote, slippageTolerance) : null,
+      unitflowQuote
+        ? unitflowToSwapQuote(unitflowQuote, inputAmount, slippageTolerance)
+        : null,
     ].filter((quote): quote is BackendQuote => quote !== null);
 
     if (candidateQuotes.length === 0) {
