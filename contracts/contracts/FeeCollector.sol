@@ -22,6 +22,7 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
     using SafeERC20 for IERC20;
 
     address public constant NATIVE_USDC = 0x3600000000000000000000000000000000000000;
+    uint256 public constant NATIVE_USDC_DECIMAL_SCALE = 1e12;
 
     address public treasury;
     
@@ -179,6 +180,40 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
         uint256 feeBps,
         address recipient
     ) external nonReentrant {
+        _splitNativeFeesInPlace(totalAmount, feeBps, recipient);
+    }
+
+    /**
+     * @dev Split native USDC using the 6-decimal units returned by NATIVE_USDC.balanceOf().
+     * Arc native value transfers use 18 decimals, while the 0x3600... token interface reports
+     * 6-decimal balances. This helper prevents manual callers from sending dust by mistake.
+     */
+    function splitNativeTokenFeesInPlace(
+        uint256 totalAmountTokenUnits,
+        uint256 feeBps,
+        address recipient
+    ) external nonReentrant {
+        _splitNativeFeesInPlace(totalAmountTokenUnits * NATIVE_USDC_DECIMAL_SCALE, feeBps, recipient);
+    }
+
+    /**
+     * @dev Split all unallocated native USDC currently held by this contract.
+     * Excludes already-accounted accumulated fees so recovery calls do not re-split treasury fees.
+     */
+    function splitAvailableNativeFeesInPlace(
+        uint256 feeBps,
+        address recipient
+    ) external nonReentrant {
+        uint256 accountedFees = accumulatedFees[NATIVE_USDC];
+        require(address(this).balance > accountedFees, "No unallocated native balance");
+        _splitNativeFeesInPlace(address(this).balance - accountedFees, feeBps, recipient);
+    }
+
+    function _splitNativeFeesInPlace(
+        uint256 totalAmount,
+        uint256 feeBps,
+        address recipient
+    ) internal {
         require(authorizedCollectors[msg.sender], "Not authorized to collect fees");
         require(totalAmount > 0, "Invalid amount");
         require(recipient != address(0), "Invalid recipient address");

@@ -22,6 +22,16 @@ interface IFeeCollector {
     function splitNativeFeesInPlace(uint256 totalAmount, uint256 feeBps, address recipient) external;
 
     /**
+     * @dev Split native USDC using 6-decimal token units returned by NATIVE_USDC.balanceOf().
+     */
+    function splitNativeTokenFeesInPlace(uint256 totalAmountTokenUnits, uint256 feeBps, address recipient) external;
+
+    /**
+     * @dev Split all unallocated native USDC, excluding already-accounted accumulated fees.
+     */
+    function splitAvailableNativeFeesInPlace(uint256 feeBps, address recipient) external;
+
+    /**
      * @dev Get accumulated fees for a specific token
      */
     function getAccumulatedFees(address token) external view returns (uint256);

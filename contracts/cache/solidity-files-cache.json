@@ -548,8 +548,8 @@
       ]
     },
     "C:\\Users\\Chidozie Collins\\Documents\\GitHub\\Tower-Finance\\contracts\\contracts\\FeeCollector.sol": {
-      "lastModificationDate": 1778582962414,
-      "contentHash": "615521f2571426faa2ed2238a45b9f9e",
+      "lastModificationDate": 1778597588276,
+      "contentHash": "cb28d5391a49fd04e323819aa211080c",
       "sourceName": "contracts/FeeCollector.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -591,8 +591,8 @@
       ]
     },
     "C:\\Users\\Chidozie Collins\\Documents\\GitHub\\Tower-Finance\\contracts\\contracts\\interfaces\\IFeeCollector.sol": {
-      "lastModificationDate": 1778582962509,
-      "contentHash": "2a0dfb2c00a070a7890691bb79a4392e",
+      "lastModificationDate": 1778597600912,
+      "contentHash": "ea02ba71bcc79c5edfcab045b9d17f19",
       "sourceName": "contracts/interfaces/IFeeCollector.sol",
       "solcConfig": {
         "version": "0.8.24",
