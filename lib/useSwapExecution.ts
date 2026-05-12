@@ -49,7 +49,7 @@ export const useSwapExecution = () => {
           (status, details) => {
             console.log("Swap status update:", status, details);
             setState({
-              status: status as any,
+              status: status as SwapExecutionState["status"],
               loading: true,
               error: null,
               transactionHash: details?.transactionHash,

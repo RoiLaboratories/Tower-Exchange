@@ -30,12 +30,25 @@ export interface ConfirmationResult {
   gasUsed: string;
 }
 
+export interface SwapStatusDetails {
+  message?: string;
+  transactionHash?: string;
+  blockNumber?: number;
+}
+
+interface RpcTransactionReceipt {
+  blockNumber: string;
+  gasUsed: string;
+  status: string;
+  [key: string]: unknown;
+}
+
 /**
  * Arc testnet RPC endpoint
  */
 const ARC_RPC_URL = "/api/rpc/5042002";
 
-export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+export const FEE_COLLECTOR_ADDRESS = "0xB75B3b4f75327276Fa8aD9975cdD2d3B4abf1945";
 
 const encodeBalanceOfCall = (walletAddress: string) => {
   const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");
@@ -375,7 +388,7 @@ export const pollTransactionConfirmation = async (
  */
 const getTransactionReceipt = async (
   transactionHash: string
-): Promise<any | null> => {
+): Promise<RpcTransactionReceipt | null> => {
   try {
     const response = await fetch(ARC_RPC_URL, {
       method: "POST",
@@ -414,7 +427,7 @@ const getTransactionReceipt = async (
 export const executeSwapFlow = async (
   transaction: TransactionData,
   walletAddress: string,
-  onStatusChange: (status: string, details?: any) => void,
+  onStatusChange: (status: string, details?: SwapStatusDetails) => void,
   onError: (error: string) => void
 ): Promise<ConfirmationResult | null> => {
   try {

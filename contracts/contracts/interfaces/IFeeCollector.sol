@@ -17,6 +17,11 @@ interface IFeeCollector {
     function collectFee(address token, uint256 amount) external;
 
     /**
+     * @dev Split native USDC already in the collector.
+     */
+    function splitNativeFeesInPlace(uint256 totalAmount, uint256 feeBps, address recipient) external;
+
+    /**
      * @dev Get accumulated fees for a specific token
      */
     function getAccumulatedFees(address token) external view returns (uint256);

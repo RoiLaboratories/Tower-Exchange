@@ -46,7 +46,7 @@ export const UNITFLOW_ADDRESSES = {
   factory: "0xAb6A8AAb7d490007634ef59d424b5d89688a1971",
   quoter: "0x121aeB6DEf00F6F67665008CaC1C19805886ed1a",
   universalRouter: "0xC43cC6A1E0F6EB48Cd4131522C1C73B13f3Da0F1",
-  permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  permit2: "0x4ce562f687d0ced27b79ba51d79b63bd978f7f48",
 } as const satisfies Record<string, Address>;
 
 export const UNITFLOW_NATIVE_USDC = TOKEN_CONTRACTS.USDC as Address;

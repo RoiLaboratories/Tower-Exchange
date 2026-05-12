@@ -25,7 +25,10 @@ import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 const BACKEND_URL = resolveSwapBackendUrl();
 const FEE_COLLECTOR_ADDRESS =
   process.env.NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS ||
-  "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+  "0xB75B3b4f75327276Fa8aD9975cdD2d3B4abf1945";
+const FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT =
+  process.env.FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT === "true" ||
+  process.env.NEXT_PUBLIC_FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT === "true";
 const PLATFORM_FEE_BPS = 25n;
 const BPS_DENOMINATOR = 10000n;
 
@@ -262,7 +265,9 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
   const routeInputToken = unitflowTxQuote.route.tokens[0];
   const wrapNativeInput = isUnitFlowNativeUsdc(quote.inputToken);
   const unwrapNativeOutput = isUnitFlowNativeUsdc(quote.outputToken);
-  const recipient = unwrapNativeOutput ? userAddress : FEE_COLLECTOR_ADDRESS;
+  const routeNativeOutputToUser =
+    unwrapNativeOutput && !FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT;
+  const recipient = routeNativeOutputToUser ? userAddress : FEE_COLLECTOR_ADDRESS;
   const spender = UNITFLOW_ADDRESSES.universalRouter;
   const expectedFeeCollectorOutput = unitflowTxQuote.amountOut;
   const platformFeeAmount =
@@ -326,7 +331,7 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
       }),
       from: userAddress,
       gasLimit: "0x7a120",
-      ...(!unwrapNativeOutput
+      ...(!routeNativeOutputToUser
         ? {
             expectedFeeCollectorOutput: expectedFeeCollectorOutput.toString(),
             platformFeeAmount: platformFeeAmount.toString(),

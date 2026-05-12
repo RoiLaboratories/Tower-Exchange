@@ -167,16 +167,6 @@ export const RecurringOrdersDashboard = () => {
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  };
-
   const formatDateTimeShort = (dateString?: string) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleString("en-US", {
@@ -202,13 +192,8 @@ export const RecurringOrdersDashboard = () => {
     });
   };
 
-  const getFrequencyColor = () => {
-    return {
-      backgroundColor: "rgba(123, 184, 255, 0.15)",
-      color: "#7BB8FF",
-      borderColor: "rgba(123, 184, 255, 0.4)",
-    };
-  };
+  const frequencyPillClassName =
+    "border-[#7BB8FF]/40 bg-[#7BB8FF]/15 text-[#7BB8FF]";
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -332,7 +317,7 @@ export const RecurringOrdersDashboard = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border ${getFrequencyColor()}`}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border ${frequencyPillClassName}`}
                         >
                           {order.frequency}
                         </span>
@@ -425,7 +410,7 @@ export const RecurringOrdersDashboard = () => {
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
                     <span className="text-zinc-400">Frequency</span>
                     <span
-                      className={`font-semibold px-3 py-1 rounded-full text-xs border ${getFrequencyColor()}`}
+                      className={`font-semibold px-3 py-1 rounded-full text-xs border ${frequencyPillClassName}`}
                     >
                       {selectedOrder.frequency}
                     </span>

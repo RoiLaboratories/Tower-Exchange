@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { formatUnits, parseUnits } from "viem";
 import {
-  fetchERC20Allowance,
   formatBalance,
   getRevertReasonViaPublicRpc,
   ARC_TESTNET_CONFIG,
@@ -1206,8 +1205,6 @@ const SwapCard = ({
       // Store the transaction hash
       setTransactionHash(txHash);
       setRevertReason(null);
-      setSwapState("success");
-      setNotification("success");
 
       // Log successful swap activity
       logSwapActivity("Successful", txHash);
@@ -1225,19 +1222,18 @@ const SwapCard = ({
 
       if (feeCollectorOutput && feeCollectorOutput !== "0") {
         const outputTokenForFee = tokenOutAddress || quote.outputToken;
-        const backendUrl =
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+        const feeSubmitUrl = "/api/swap/submit-fee";
 
         console.log("[SwapCard] Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
           totalAmount: feeCollectorOutput,
           userAddress: userAddress,
-          backendUrl,
+          feeSubmitUrl,
           sellToken: sellToken.symbol,
         });
 
         try {
-          const feeResponse = await fetch(`${backendUrl}/api/swap/submit-fee`, {
+          const feeResponse = await fetch(feeSubmitUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1250,17 +1246,25 @@ const SwapCard = ({
 
           if (!feeResponse.ok) {
             const feeError = await feeResponse.text();
-            console.warn("[SwapCard] Fee submission response not OK:", {
+            console.error("[SwapCard] Fee submission response not OK:", {
               status: feeResponse.status,
               error: feeError,
             });
+            throw new Error(
+              `Fee distribution failed (${feeResponse.status}): ${feeError}`,
+            );
           } else {
             const feeResult = await feeResponse.json();
+            const feeDistributionTxHash =
+              feeResult.data?.transactionHash || feeResult.transactionHash;
+            if (!feeDistributionTxHash) {
+              throw new Error("Fee distribution did not return a transaction hash");
+            }
+
             console.log(
               "[SwapCard] Atomic fee collection and distribution successful:",
               {
-                transactionHash:
-                  feeResult.data?.transactionHash || feeResult.transactionHash,
+                transactionHash: feeDistributionTxHash,
                 outputToken:
                   feeResult.data?.outputToken || feeResult.outputToken,
                 feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
@@ -1273,8 +1277,6 @@ const SwapCard = ({
             > | null = null;
             const feeAmount =
               feeResult.data?.feeAmount || feeResult.feeAmount || "0";
-            const transactionHash =
-              feeResult.data?.transactionHash || feeResult.transactionHash;
             if (userAddress && feeAmount !== "0") {
               const formattedFeeAmount = formatTokenAmountByAddress(
                 feeAmount,
@@ -1289,7 +1291,7 @@ const SwapCard = ({
                 feeAmountUsd: feeUsdValue.toString(),
                 feeBasisPoints: 25,
                 totalAmount: feeCollectorOutput,
-                transactionHash: transactionHash,
+                transactionHash: feeDistributionTxHash,
                 status: "Recorded",
               });
 
@@ -1310,9 +1312,7 @@ const SwapCard = ({
 
             // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
             // This ensures the user receives their tokens before we query the balance
-            if (feeResult.data?.transactionHash || feeResult.transactionHash) {
-              const feeDistributionTxHash =
-                feeResult.data?.transactionHash || feeResult.transactionHash;
+            if (feeDistributionTxHash) {
               console.log(
                 "[SwapCard] Waiting for fee distribution transaction to finalize:",
                 feeDistributionTxHash,
@@ -1382,13 +1382,20 @@ const SwapCard = ({
               totalAmount: feeCollectorOutput,
             },
           );
-          // Don't throw - fee submission failure shouldn't block the swap success
+          throw new Error(
+            `Fee distribution failed: ${
+              feeError instanceof Error ? feeError.message : String(feeError)
+            }`,
+          );
         }
       } else {
         console.warn(
           "[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0",
         );
       }
+
+      setSwapState("success");
+      setNotification("success");
 
       // Auto-dismiss notification after 5 seconds
       setTimeout(() => {
