@@ -16,10 +16,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
 import {
-  FEE_COLLECTOR_ADDRESS,
-  getErc20TokenBalance,
   submitSwapFee,
-  waitForTokenBalanceIncrease,
 } from "@/lib/swapExecutionService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
@@ -575,22 +572,6 @@ export const AIChat = () => {
               );
             }
 
-            const feeCollectorBalanceBefore =
-              quote?.outputToken &&
-              quote.outputToken.length === 42 &&
-              quote.outputToken.startsWith("0x")
-                ? await getErc20TokenBalance(
-                    quote.outputToken,
-                    FEE_COLLECTOR_ADDRESS,
-                  ).catch((balanceError) => {
-                    console.warn(
-                      "Unable to read FeeCollector balance before swap:",
-                      balanceError,
-                    );
-                    return null;
-                  })
-                : null;
-
             await swapExecution.executeSwap(
               txData,
               walletAddress,
@@ -643,18 +624,8 @@ export const AIChat = () => {
                   const isValidToken =
                     quote.outputToken?.length === 42 &&
                     quote.outputToken?.startsWith("0x");
-                  const actualFeeCollectorOutput =
-                    feeCollectorBalanceBefore !== null
-                      ? await waitForTokenBalanceIncrease(
-                          quote.outputToken,
-                          FEE_COLLECTOR_ADDRESS,
-                          feeCollectorBalanceBefore,
-                        )
-                      : 0n;
                   const feeCollectorOutputAmount =
-                    actualFeeCollectorOutput > 0n
-                      ? actualFeeCollectorOutput.toString()
-                      : getFeeCollectorOutputAmount(txData, quote);
+                    getFeeCollectorOutputAmount(txData, quote);
                   const isValidAmount =
                     feeCollectorOutputAmount &&
                     Number(feeCollectorOutputAmount) > 0;
@@ -666,31 +637,12 @@ export const AIChat = () => {
                       walletAddress?.length === 42 &&
                       walletAddress?.startsWith("0x"),
                     feeCollectorOutputAmount,
-                    actualFeeCollectorOutput:
-                      actualFeeCollectorOutput.toString(),
                     expectedFeeCollectorOutput:
                       txData?.expectedFeeCollectorOutput,
                     quoteOutputAmount: quote.outputAmount,
                   });
 
-                  if (
-                    feeCollectorBalanceBefore !== null &&
-                    actualFeeCollectorOutput === 0n
-                  ) {
-                    console.error(
-                      "Swap confirmed, but FeeCollector did not receive output tokens.",
-                      {
-                        outputToken: quote.outputToken,
-                        feeCollector: FEE_COLLECTOR_ADDRESS,
-                        expectedFeeCollectorOutput:
-                          txData?.expectedFeeCollectorOutput,
-                        quoteOutputAmount: quote.outputAmount,
-                      },
-                    );
-                    setError(
-                      "Swap confirmed, but the output token did not reach the FeeCollector for distribution. The AI swap route needs to be rebuilt with the correct recipient.",
-                    );
-                  } else if (!isValidToken || !isValidAmount) {
+                  if (!isValidToken || !isValidAmount) {
                     console.error(
                       "❌ Invalid quote data - cannot submit fee:",
                       {

@@ -21,9 +21,6 @@ import "./interfaces/IFeeCollector.sol";
 contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
     using SafeERC20 for IERC20;
 
-    address public constant NATIVE_USDC = 0x3600000000000000000000000000000000000000;
-    uint256 public constant NATIVE_USDC_DECIMAL_SCALE = 1e12;
-
     address public treasury;
     
     // Track accumulated fees by token address
@@ -49,8 +46,6 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
         // Authorize owner as initial fee collector
         authorizedCollectors[_owner] = true;
     }
-
-    receive() external payable {}
 
     /**
      * @dev Collect platform fee in output token
@@ -172,71 +167,6 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
     }
 
     /**
-     * @dev Split native USDC already in this contract.
-     * Used by router unwrap flows that deliver Arc native USDC with a payable call.
-     */
-    function splitNativeFeesInPlace(
-        uint256 totalAmount,
-        uint256 feeBps,
-        address recipient
-    ) external nonReentrant {
-        _splitNativeFeesInPlace(totalAmount, feeBps, recipient);
-    }
-
-    /**
-     * @dev Split native USDC using the 6-decimal units returned by NATIVE_USDC.balanceOf().
-     * Arc native value transfers use 18 decimals, while the 0x3600... token interface reports
-     * 6-decimal balances. This helper prevents manual callers from sending dust by mistake.
-     */
-    function splitNativeTokenFeesInPlace(
-        uint256 totalAmountTokenUnits,
-        uint256 feeBps,
-        address recipient
-    ) external nonReentrant {
-        _splitNativeFeesInPlace(totalAmountTokenUnits * NATIVE_USDC_DECIMAL_SCALE, feeBps, recipient);
-    }
-
-    /**
-     * @dev Split all unallocated native USDC currently held by this contract.
-     * Excludes already-accounted accumulated fees so recovery calls do not re-split treasury fees.
-     */
-    function splitAvailableNativeFeesInPlace(
-        uint256 feeBps,
-        address recipient
-    ) external nonReentrant {
-        uint256 accountedFees = accumulatedFees[NATIVE_USDC];
-        require(address(this).balance > accountedFees, "No unallocated native balance");
-        _splitNativeFeesInPlace(address(this).balance - accountedFees, feeBps, recipient);
-    }
-
-    function _splitNativeFeesInPlace(
-        uint256 totalAmount,
-        uint256 feeBps,
-        address recipient
-    ) internal {
-        require(authorizedCollectors[msg.sender], "Not authorized to collect fees");
-        require(totalAmount > 0, "Invalid amount");
-        require(recipient != address(0), "Invalid recipient address");
-        require(feeBps <= 10000, "Invalid fee basis points");
-        require(address(this).balance >= totalAmount, "Insufficient native balance");
-
-        uint256 feeAmount = (totalAmount * feeBps) / 10000;
-        uint256 userAmount = totalAmount - feeAmount;
-
-        if (!isTrackedToken[NATIVE_USDC]) {
-            isTrackedToken[NATIVE_USDC] = true;
-            feeTokens.push(NATIVE_USDC);
-        }
-
-        accumulatedFees[NATIVE_USDC] += feeAmount;
-
-        (bool sent, ) = recipient.call{value: userAmount}("");
-        require(sent, "Native transfer failed");
-
-        emit FeeCollected(NATIVE_USDC, feeAmount, msg.sender);
-    }
-
-    /**
      * @dev Get accumulated fees for a specific token
      */
     function getAccumulatedFees(address token) external view returns (uint256) {
@@ -261,12 +191,7 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
         require(amount > 0, "No accumulated fees for this token");
 
         accumulatedFees[token] = 0;
-        if (token == NATIVE_USDC && address(this).balance >= amount) {
-            (bool sent, ) = treasury.call{value: amount}("");
-            require(sent, "Native transfer failed");
-        } else {
-            IERC20(token).safeTransfer(treasury, amount);
-        }
+        IERC20(token).safeTransfer(treasury, amount);
 
         emit FeeWithdrawn(token, amount, treasury);
     }
@@ -282,12 +207,7 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
             
             if (amount > 0) {
                 accumulatedFees[token] = 0;
-                if (token == NATIVE_USDC && address(this).balance >= amount) {
-                    (bool sent, ) = treasury.call{value: amount}("");
-                    require(sent, "Native transfer failed");
-                } else {
-                    IERC20(token).safeTransfer(treasury, amount);
-                }
+                IERC20(token).safeTransfer(treasury, amount);
                 emit FeeWithdrawn(token, amount, treasury);
             }
         }
@@ -304,12 +224,7 @@ contract FeeCollector is Ownable, ReentrancyGuard, IFeeCollector {
             
             if (amount > 0) {
                 accumulatedFees[token] = 0;
-                if (token == NATIVE_USDC && address(this).balance >= amount) {
-                    (bool sent, ) = treasury.call{value: amount}("");
-                    require(sent, "Native transfer failed");
-                } else {
-                    IERC20(token).safeTransfer(treasury, amount);
-                }
+                IERC20(token).safeTransfer(treasury, amount);
                 emit FeeWithdrawn(token, amount, treasury);
             }
         }

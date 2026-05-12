@@ -109,6 +109,34 @@
           "internalType": "address",
           "name": "token",
           "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeBps",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        }
+      ],
+      "name": "collectFeeAndDistribute",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
         }
       ],
       "name": "getAccumulatedFees",
@@ -188,23 +216,10 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "feeBps",
-          "type": "uint256"
-        },
-        {
           "internalType": "address",
-          "name": "recipient",
+          "name": "token",
           "type": "address"
-        }
-      ],
-      "name": "splitAvailableNativeFeesInPlace",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
+        },
         {
           "internalType": "uint256",
           "name": "totalAmount",
@@ -221,30 +236,7 @@
           "type": "address"
         }
       ],
-      "name": "splitNativeFeesInPlace",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "totalAmountTokenUnits",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "feeBps",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "recipient",
-          "type": "address"
-        }
-      ],
-      "name": "splitNativeTokenFeesInPlace",
+      "name": "splitFeesInPlace",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

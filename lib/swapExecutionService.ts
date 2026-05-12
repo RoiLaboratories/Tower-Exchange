@@ -48,7 +48,7 @@ interface RpcTransactionReceipt {
  */
 const ARC_RPC_URL = "/api/rpc/5042002";
 
-export const FEE_COLLECTOR_ADDRESS = "0xB75B3b4f75327276Fa8aD9975cdD2d3B4abf1945";
+export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 
 const encodeBalanceOfCall = (walletAddress: string) => {
   const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");

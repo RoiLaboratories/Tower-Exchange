@@ -1209,6 +1209,25 @@ const SwapCard = ({
       // Log successful swap activity
       logSwapActivity("Successful", txHash);
 
+      setSwapState("success");
+      setNotification("success");
+
+      // Auto-dismiss notification after 5 seconds
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+
+      // Reset amounts after success
+      setTimeout(() => {
+        setSellAmount("0.00");
+        setReceiveAmount("0.00");
+        setSwapState("idle");
+        setTransactionHash(null);
+        // Refresh wallet balances after successful swap (second pass as fallback)
+        // This ensures balance is updated even if fee distribution was not monitored
+        fetchUserBalances();
+      }, 3000);
+
       // Step 8: Submit platform fee with atomic distribution through FeeCollector
       // Swap output went to FeeCollector, now execute atomic fee split
       const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
@@ -1246,13 +1265,10 @@ const SwapCard = ({
 
           if (!feeResponse.ok) {
             const feeError = await feeResponse.text();
-            console.error("[SwapCard] Fee submission response not OK:", {
+            console.warn("[SwapCard] Fee submission response not OK:", {
               status: feeResponse.status,
               error: feeError,
             });
-            throw new Error(
-              `Fee distribution failed (${feeResponse.status}): ${feeError}`,
-            );
           } else {
             const feeResult = await feeResponse.json();
             const feeDistributionTxHash =
@@ -1382,36 +1398,12 @@ const SwapCard = ({
               totalAmount: feeCollectorOutput,
             },
           );
-          throw new Error(
-            `Fee distribution failed: ${
-              feeError instanceof Error ? feeError.message : String(feeError)
-            }`,
-          );
         }
       } else {
         console.warn(
           "[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0",
         );
       }
-
-      setSwapState("success");
-      setNotification("success");
-
-      // Auto-dismiss notification after 5 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
-
-      // Reset amounts after success
-      setTimeout(() => {
-        setSellAmount("0.00");
-        setReceiveAmount("0.00");
-        setSwapState("idle");
-        setTransactionHash(null);
-        // Refresh wallet balances after successful swap (second pass as fallback)
-        // This ensures balance is updated even if fee distribution was not monitored
-        fetchUserBalances();
-      }, 3000);
     } catch (error: unknown) {
       // Better error serialization for swap errors
       let errorDetails: Record<string, unknown> = {
