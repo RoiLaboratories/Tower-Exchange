@@ -110,6 +110,9 @@ const getArcFeeParams = async () => {
 const applyGasBuffer = (gasEstimate: string) =>
   `0x${((BigInt(gasEstimate) * 13n) / 10n).toString(16)}`;
 
+const getArcLatestNonce = (address: string) =>
+  callArcRpc<string>("eth_getTransactionCount", [address, "latest"]);
+
 const encodeBalanceOfCall = (walletAddress: string) => {
   const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");
 
@@ -296,6 +299,7 @@ export const signTransactionWithPrivy = async (
       );
       return null;
     });
+    const nonce = await getArcLatestNonce(walletAddress);
 
     // Prepare the transaction object for the connected wallet
     const txObject = {
@@ -303,6 +307,7 @@ export const signTransactionWithPrivy = async (
       from: walletAddress,
       data: transaction.data,
       value: transaction.value,
+      nonce,
       gas: applyGasBuffer(gasEstimate),
       ...(feeParams || {}),
     };

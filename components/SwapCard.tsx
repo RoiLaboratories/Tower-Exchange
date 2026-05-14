@@ -255,6 +255,14 @@ const getArcTransactionByHash = (txHash: string, label: string) =>
     label,
   );
 
+const getArcLatestNonce = (address: string, label: string) =>
+  callArcRpc<string>(
+    "eth_getTransactionCount",
+    [address, "latest"],
+    RECEIPT_REQUEST_TIMEOUT_MS,
+    label,
+  );
+
 const getArcFeeParams = async () => {
   const [latestBlock, priorityFee] = await Promise.all([
     callArcRpc<{ baseFeePerGas?: string }>(
@@ -1113,6 +1121,7 @@ const SwapCard = ({
           gas?: number | string;
           maxFeePerGas?: string;
           maxPriorityFeePerGas?: string;
+          nonce?: string;
         },
         txType: string = "transaction",
       ) => {
@@ -1126,6 +1135,7 @@ const SwapCard = ({
             gas: txData.gas,
             maxFeePerGas: txData.maxFeePerGas,
             maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+            nonce: txData.nonce,
           });
 
           // Get current chain ID to include in transaction
@@ -1153,6 +1163,11 @@ const SwapCard = ({
                     : toHexQuantity(txData.value || "0"),
                   data: txData.data,
                   // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
+                  ...(txData.nonce
+                    ? {
+                        nonce: txData.nonce,
+                      }
+                    : {}),
                   ...(txData.gas
                     ? {
                         gas:
@@ -1333,6 +1348,10 @@ const SwapCard = ({
                 return null;
               },
             );
+            const approvalNonce = await getArcLatestNonce(
+              userAddress,
+              `${approvalLabel} nonce lookup`,
+            );
 
             console.log(`Sending ${approvalLabel} transaction to MetaMask...`);
             const approveTxHash = await sendTransactionViaProvider(
@@ -1341,6 +1360,7 @@ const SwapCard = ({
                 data: approvalTx.data,
                 value: "0x0",
                 gas: approvalTx.gasLimit,
+                nonce: approvalNonce,
                 ...(approvalFeeParams || {}),
               },
               approvalLabel,
@@ -1560,6 +1580,7 @@ const SwapCard = ({
         );
         return null;
       });
+      const swapNonce = await getArcLatestNonce(userAddress, "Swap nonce lookup");
 
       const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
       const outputTokenForFee = tokenOutAddress || quote.outputToken;
@@ -1600,6 +1621,7 @@ const SwapCard = ({
           value: finalSwapValue,
           data: swapDataToSend.data,
           gas: bufferedSwapGas ?? swapDataToSend.gasLimit ?? undefined,
+          nonce: swapNonce,
           ...(swapFeeParams || {}),
         },
         "SWAP",
@@ -1644,12 +1666,39 @@ const SwapCard = ({
           setSwapState("pending");
           setNotification("pending");
 
-          receipt = await waitForArcTransactionReceipt(txHash, {
-            label: "Extended swap receipt lookup",
-            maxWaitMs: 900000,
-            pollIntervalMs: 5000,
-            walletReceiptLookup,
-          });
+          const extendedWaitStartedAt = Date.now();
+          let missingPendingLookups = 0;
+
+          while (!receipt && Date.now() - extendedWaitStartedAt < 900000) {
+            await sleep(5000);
+            receipt = await waitForArcTransactionReceipt(txHash, {
+              label: "Extended swap receipt lookup",
+              maxWaitMs: 15000,
+              pollIntervalMs: 3000,
+              walletReceiptLookup,
+            });
+
+            if (receipt) {
+              break;
+            }
+
+            const latestPendingTx = await getArcTransactionByHash(
+              txHash,
+              "Extended pending swap transaction lookup",
+            ).catch(() => null);
+
+            if (!latestPendingTx) {
+              missingPendingLookups += 1;
+            } else {
+              missingPendingLookups = 0;
+            }
+
+            if (missingPendingLookups >= 2) {
+              throw new Error(
+                "Swap transaction was dropped by Arc RPC before confirmation. Retrying will replace the dropped wallet nonce with the current Arc nonce.",
+              );
+            }
+          }
 
           if (!receipt) {
             console.warn(
