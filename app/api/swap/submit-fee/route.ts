@@ -145,6 +145,16 @@ const validateSwapSettlement = async (body: Record<string, unknown>) => {
   const inputToken = body.inputToken;
   const inputAmount = body.inputAmount;
 
+  console.log("[validateSwapSettlement] Received body parameters:", {
+    swapTransactionHashType: typeof swapTransactionHash,
+    swapTransactionHashValue: swapTransactionHash,
+    outputToken,
+    userAddress,
+    inputToken,
+    inputAmount,
+    bodyKeys: Object.keys(body),
+  });
+
   if (typeof swapTransactionHash !== "string" || !swapTransactionHash) {
     return {
       ok: false,
@@ -153,6 +163,7 @@ const validateSwapSettlement = async (body: Record<string, unknown>) => {
         error: "Missing swap transaction hash",
         details:
           "Fee distribution requires a confirmed swap transaction hash before the FeeCollector can be split.",
+        hint: "Ensure the swap transaction was submitted to the network and its hash is passed to /api/swap/submit-fee",
       },
     };
   }

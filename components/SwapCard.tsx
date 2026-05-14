@@ -1606,6 +1606,11 @@ const SwapCard = ({
       );
 
       console.log("Swap transaction executed with hash:", txHash);
+      console.log("[SwapCard] Transaction hash captured:", {
+        txHash,
+        isString: typeof txHash === 'string',
+        length: typeof txHash === 'string' ? txHash.length : 'N/A',
+      });
       submittedSwapTxHash = txHash;
       setTransactionHash(txHash);
       setRevertReason(null);
@@ -1790,6 +1795,14 @@ const SwapCard = ({
         });
 
         try {
+          console.log("[SwapCard] Submitting fee with transaction hash:", {
+            txHash,
+            txHashPresent: !!txHash,
+            outputToken: outputTokenForFee,
+            totalAmount: feeCollectorOutput,
+            userAddress,
+          });
+
           const feeResponse = await withTimeout(
             fetch(feeSubmitUrl, {
               method: "POST",
