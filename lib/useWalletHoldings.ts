@@ -12,19 +12,15 @@ export interface WalletHolding {
   rawBalance: number;
 }
 
-const COMMON_ERC20_TOKENS = {
-  WUSDC: "0xD40fCAa5d2cE963c5dABC2bf59E268489ad7BcE4",
-  QTM: "0xCD304d2A421BFEd31d45f0054AF8E8a6a4cF3EaE",
+const SUPPORTED_SWAP_ERC20_TOKENS = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-  SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
+  USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
 };
 
 const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 18,
-  WUSDC: 18,
-  QTM: 18,
   EURC: 6,
-  SWPRC: 6,
+  USDT: 18,
 };
 
 const RPC_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
@@ -78,7 +74,7 @@ export const useWalletHoldings = (walletAddress: string | null) => {
         );
 
         // Fetch token balances using eth_call to balanceOf function
-        const tokenPromises = Object.entries(COMMON_ERC20_TOKENS).map(
+        const tokenPromises = Object.entries(SUPPORTED_SWAP_ERC20_TOKENS).map(
           async ([tokenName, tokenAddress]) => {
             try {
               // Encode balanceOf function call
@@ -116,23 +112,19 @@ export const useWalletHoldings = (walletAddress: string | null) => {
         // Get token prices from CoinGecko
         let priceMap: Record<string, number> = {
           USDC: 1,
-          WUSDC: 1,
-          QTM: 0,
           EURC: 1,
-          SWPRC: 0,
+          USDT: 1,
         };
 
         try {
           const priceResponse = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,stasis-eur-coin&vs_currencies=usd"
+            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,stasis-eur-coin,tether&vs_currencies=usd"
           );
           const prices = await priceResponse.json();
           priceMap = {
             USDC: prices["usd-coin"]?.usd || 1,
-            WUSDC: prices["usd-coin"]?.usd || 1,
-            QTM: 0,
             EURC: prices["stasis-eur-coin"]?.usd || 1,
-            SWPRC: 0,
+            USDT: prices["tether"]?.usd || 1,
           };
         } catch (err) {
           console.warn("Failed to fetch prices from CoinGecko, using defaults", err);

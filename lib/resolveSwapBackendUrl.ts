@@ -6,9 +6,13 @@ export function resolveSwapBackendUrl() {
     return process.env.BACKEND_URL;
   }
 
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL;
+  }
+
   if (process.env.NODE_ENV !== "production") {
     return LOCAL_SWAP_BACKEND_URL;
   }
 
-  return process.env.NEXT_PUBLIC_BACKEND_URL || PRODUCTION_SWAP_BACKEND_URL;
+  return PRODUCTION_SWAP_BACKEND_URL;
 }

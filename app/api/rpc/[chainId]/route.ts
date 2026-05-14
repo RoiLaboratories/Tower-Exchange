@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const RPC_ENDPOINTS: Record<string, string[]> = {
-  "1": ["https://ethereum.publicnode.com"],
+  "1": [
+    "https://ethereum-rpc.publicnode.com",
+    "https://ethereum.publicnode.com",
+    "https://eth.llamarpc.com",
+    "https://cloudflare-eth.com",
+  ],
   "10": ["https://mainnet.optimism.io"],
   "1301": ["https://sepolia.unichain.org"],
   "137": ["https://polygon.drpc.org"],

@@ -669,6 +669,11 @@ export const AIChat = () => {
                         feeCollectorOutputAmount,
                         walletAddress,
                         25, // 0.25% platform fee in basis points
+                        {
+                          swapTransactionHash: confirmation.transactionHash,
+                          inputToken: quote.inputToken,
+                          inputAmount: quote.inputAmount,
+                        },
                       );
                       console.log("submitSwapFee returned:", feeResult);
                       if (feeResult) {

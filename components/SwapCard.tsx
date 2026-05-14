@@ -51,6 +51,352 @@ import {
 } from "@/lib/browser-wallet";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
+const ARC_RPC_PROXY_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
+const ARC_NATIVE_USDC_DECIMALS = 18;
+const RECEIPT_REQUEST_TIMEOUT_MS = 12000;
+const RECEIPT_POLL_INTERVAL_MS = 1000;
+const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+const BALANCE_OF_SELECTOR = "0x70a08231";
+const ERC20_TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+type JsonRpcResponse<T> = {
+  result?: T;
+  error?: {
+    code?: number;
+    message?: string;
+    data?: unknown;
+  };
+};
+
+type TransactionReceiptLog = {
+  address?: string;
+  topics?: string[];
+  data?: string;
+};
+
+type RpcTransaction = {
+  blockNumber?: string | null;
+  hash?: string;
+  nonce?: string;
+};
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const callArcRpc = async <T,>(
+  method: string,
+  params: unknown[],
+  timeoutMs: number,
+  label: string,
+): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(ARC_RPC_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method,
+        params,
+        id: Date.now(),
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(
+        `${label} failed (${response.status}): ${errorText.slice(0, 240)}`,
+      );
+    }
+
+    const data = (await response.json()) as JsonRpcResponse<T>;
+    if (data.error) {
+      throw new Error(data.error.message || `${label} returned an RPC error`);
+    }
+
+    return data.result as T;
+  } catch (error: unknown) {
+    const errorObj =
+      error instanceof Error ? error : new Error(String(error));
+    if (errorObj.name === "AbortError") {
+      throw new Error(
+        `${label} timed out after ${Math.round(timeoutMs / 1000)} seconds`,
+      );
+    }
+    throw errorObj;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const waitForArcTransactionReceipt = async (
+  txHash: string,
+  {
+    label,
+    maxWaitMs,
+    requestTimeoutMs = RECEIPT_REQUEST_TIMEOUT_MS,
+    pollIntervalMs = RECEIPT_POLL_INTERVAL_MS,
+    walletReceiptLookup,
+  }: {
+    label: string;
+    maxWaitMs: number;
+    requestTimeoutMs?: number;
+    pollIntervalMs?: number;
+    walletReceiptLookup?: (
+      txHash: string,
+      label: string,
+    ) => Promise<BrowserWalletTransactionReceipt | null>;
+  },
+): Promise<BrowserWalletTransactionReceipt | null> => {
+  const startedAt = Date.now();
+  let attempt = 0;
+  let lastErrorMessage: string | null = null;
+
+  while (Date.now() - startedAt < maxWaitMs) {
+    attempt += 1;
+
+    const lookups = [
+      callArcRpc<BrowserWalletTransactionReceipt | null>(
+        "eth_getTransactionReceipt",
+        [txHash],
+        requestTimeoutMs,
+        `${label} via Arc RPC`,
+      ).then((receipt) => ({ source: "Arc RPC", receipt })),
+    ];
+
+    if (walletReceiptLookup) {
+      lookups.push(
+        walletReceiptLookup(txHash, `${label} via wallet`).then((receipt) => ({
+          source: "wallet",
+          receipt,
+        })),
+      );
+    }
+
+    const receiptResult = await new Promise<{
+      source: string;
+      receipt: BrowserWalletTransactionReceipt;
+    } | null>((resolve) => {
+      let pending = lookups.length;
+      let settled = false;
+
+      lookups.forEach((lookup) => {
+        lookup
+          .then((result) => {
+            if (settled) {
+              return;
+            }
+
+            if (result.receipt) {
+              settled = true;
+              resolve({
+                source: result.source,
+                receipt: result.receipt,
+              });
+              return;
+            }
+
+            pending -= 1;
+            if (pending === 0) {
+              resolve(null);
+            }
+          })
+          .catch((error: unknown) => {
+            lastErrorMessage =
+              error instanceof Error ? error.message : String(error);
+            pending -= 1;
+            if (!settled && pending === 0) {
+              resolve(null);
+            }
+          });
+      });
+    });
+
+    if (receiptResult) {
+      console.log(`${label} found through ${receiptResult.source}`, {
+        txHash,
+        attempt,
+      });
+      return receiptResult.receipt;
+    }
+
+    if (lastErrorMessage && (attempt === 1 || attempt % 10 === 0)) {
+      console.warn(`${label} still pending`, {
+        txHash,
+        attempt,
+        message: lastErrorMessage,
+      });
+    }
+
+    if (Date.now() - startedAt + pollIntervalMs < maxWaitMs) {
+      await sleep(pollIntervalMs);
+    }
+  }
+
+  if (lastErrorMessage) {
+    console.warn(`${label} did not return a receipt before timeout`, {
+      txHash,
+      message: lastErrorMessage,
+    });
+  }
+
+  return null;
+};
+
+const getArcTransactionByHash = (txHash: string, label: string) =>
+  callArcRpc<RpcTransaction | null>(
+    "eth_getTransactionByHash",
+    [txHash],
+    RECEIPT_REQUEST_TIMEOUT_MS,
+    label,
+  );
+
+const getArcFeeParams = async () => {
+  const [latestBlock, priorityFee] = await Promise.all([
+    callArcRpc<{ baseFeePerGas?: string }>(
+      "eth_getBlockByNumber",
+      ["latest", false],
+      RECEIPT_REQUEST_TIMEOUT_MS,
+      "Arc latest block lookup",
+    ),
+    callArcRpc<string>(
+      "eth_maxPriorityFeePerGas",
+      [],
+      RECEIPT_REQUEST_TIMEOUT_MS,
+      "Arc priority fee lookup",
+    ).catch(() => "0x59682f00"),
+  ]);
+  const baseFee = BigInt(latestBlock?.baseFeePerGas || "0x0");
+  const priority = BigInt(priorityFee || "0x59682f00");
+  const minimumPriority = 1500000000n;
+  const maxPriorityFeePerGas =
+    priority > minimumPriority ? priority : minimumPriority;
+  const maxFeePerGas = baseFee * 2n + maxPriorityFeePerGas;
+
+  return {
+    maxFeePerGas: `0x${maxFeePerGas.toString(16)}`,
+    maxPriorityFeePerGas: `0x${maxPriorityFeePerGas.toString(16)}`,
+  };
+};
+
+const applyGasBuffer = (gasEstimate: unknown) => {
+  if (typeof gasEstimate !== "string") {
+    return null;
+  }
+
+  return `0x${((BigInt(gasEstimate) * 13n) / 10n).toString(16)}`;
+};
+
+const encodeErc20BalanceOf = (ownerAddress: string): string => {
+  const normalizedAddress = ownerAddress.replace(/^0x/i, "").toLowerCase();
+  if (normalizedAddress.length !== 40) {
+    throw new Error(`Invalid address for balance lookup: ${ownerAddress}`);
+  }
+
+  return `${BALANCE_OF_SELECTOR}${normalizedAddress.padStart(64, "0")}`;
+};
+
+const getTokenBalanceAtAddress = async (
+  tokenAddress: string,
+  ownerAddress: string,
+  label: string,
+): Promise<bigint> => {
+  const rawBalance = await callArcRpc<string>(
+    "eth_call",
+    [
+      {
+        to: tokenAddress,
+        data: encodeErc20BalanceOf(ownerAddress),
+      },
+      "latest",
+    ],
+    RECEIPT_REQUEST_TIMEOUT_MS,
+    label,
+  );
+
+  return BigInt(rawBalance || "0x0");
+};
+
+const waitForTokenBalanceIncrease = async (
+  tokenAddress: string,
+  ownerAddress: string,
+  previousBalance: bigint,
+  expectedIncrease: bigint,
+  label: string,
+): Promise<bigint | null> => {
+  const requiredBalance = previousBalance + expectedIncrease;
+
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const currentBalance = await getTokenBalanceAtAddress(
+      tokenAddress,
+      ownerAddress,
+      label,
+    );
+
+    if (currentBalance >= requiredBalance) {
+      return currentBalance;
+    }
+
+    if (attempt === 1 || attempt === 12) {
+      console.warn(`${label} has not reached the expected balance yet`, {
+        tokenAddress,
+        ownerAddress,
+        previousBalance: previousBalance.toString(),
+        expectedIncrease: expectedIncrease.toString(),
+        currentBalance: currentBalance.toString(),
+      });
+    }
+
+    await sleep(1000);
+  }
+
+  return null;
+};
+
+const addressToTopic = (address: string) =>
+  `0x${address.replace(/^0x/i, "").toLowerCase().padStart(64, "0")}`;
+
+const sumTransferAmountFromReceipt = (
+  receipt: BrowserWalletTransactionReceipt,
+  tokenAddress: string,
+  filters: {
+    from?: string;
+    to?: string;
+  },
+) => {
+  const logs = Array.isArray(receipt.logs)
+    ? (receipt.logs as TransactionReceiptLog[])
+    : [];
+  const token = tokenAddress.toLowerCase();
+  const fromTopic = filters.from ? addressToTopic(filters.from) : null;
+  const toTopic = filters.to ? addressToTopic(filters.to) : null;
+
+  return logs.reduce((total, log) => {
+    const [eventTopic, from, to] = log.topics || [];
+
+    if ((log.address || "").toLowerCase() !== token) {
+      return total;
+    }
+
+    if ((eventTopic || "").toLowerCase() !== ERC20_TRANSFER_TOPIC) {
+      return total;
+    }
+
+    if (fromTopic && (from || "").toLowerCase() !== fromTopic) {
+      return total;
+    }
+
+    if (toTopic && (to || "").toLowerCase() !== toTopic) {
+      return total;
+    }
+
+    return total + BigInt(log.data && log.data !== "0x" ? log.data : "0x0");
+  }, 0n);
+};
 
 interface TokenSelectorProps {
   selected: SwapToken | null;
@@ -113,11 +459,11 @@ const SwapCard = ({
   );
   const [routeOptions, setRouteOptions] = useState<SwapRouteOption[]>([]);
   const [swapState, setSwapState] = useState<
-    "idle" | "loading" | "success" | "failed"
+    "idle" | "loading" | "pending" | "success" | "failed"
   >("idle");
-  const [notification, setNotification] = useState<"success" | "failed" | null>(
-    null,
-  );
+  const [notification, setNotification] = useState<
+    "success" | "pending" | "failed" | null
+  >(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [revertReason, setRevertReason] = useState<string | null>(null);
   const [slippageTolerance, setSlippageTolerance] = useState(1); // 1% default to reduce "execution reverted" from slippage
@@ -215,6 +561,50 @@ const SwapCard = ({
     return "0x" + v.toString(16);
   };
 
+  const withTimeout = async <T,>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    label: string,
+  ): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            `${label} timed out after ${Math.round(timeoutMs / 1000)} seconds`,
+          ),
+        );
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  };
+
+  const extractTransactionHash = (result: unknown, txType: string) => {
+    const candidate =
+      typeof result === "string"
+        ? result
+        : result && typeof result === "object"
+          ? (result as Record<string, unknown>).hash ||
+            (result as Record<string, unknown>).transactionHash ||
+            (result as Record<string, unknown>).txHash
+          : null;
+
+    if (typeof candidate !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(candidate)) {
+      throw new Error(
+        `${txType} did not return a valid transaction hash. Please check your wallet activity.`,
+      );
+    }
+
+    return candidate;
+  };
+
   const getActiveWalletAddress = async (
     provider = getBrowserWalletProvider(),
   ) => {
@@ -292,26 +682,41 @@ const SwapCard = ({
         return 0;
       }
 
-      const response = await fetch("/api/wallet/balance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          address: user.wallet.address,
-          chainId: "arc-testnet",
-          rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
-          tokenAddress,
-        }),
-      });
+      if (tokenSymbol === "USDC") {
+        const nativeBalance = await callArcRpc<string>(
+          "eth_getBalance",
+          [user.wallet.address, "latest"],
+          12000,
+          `${tokenSymbol} balance lookup`,
+        );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error || `Failed to fetch ${tokenSymbol} balance`,
+        return Number.parseFloat(
+          formatUnits(BigInt(nativeBalance || "0x0"), ARC_NATIVE_USDC_DECIMALS),
         );
       }
 
-      return Number.parseFloat(data?.balance ?? "0") || 0;
+      const balanceOfCallData =
+        "0x70a08231" + user.wallet.address.slice(2).padStart(64, "0");
+      const rawBalance = await callArcRpc<string>(
+        "eth_call",
+        [
+          {
+            to: tokenAddress,
+            data: balanceOfCallData,
+          },
+          "latest",
+        ],
+        12000,
+        `${tokenSymbol} balance lookup`,
+      );
+
+      if (!rawBalance || rawBalance === "0x") {
+        return 0;
+      }
+
+      return Number.parseFloat(
+        formatUnits(BigInt(rawBalance), TOKEN_DECIMALS[tokenSymbol] ?? 18),
+      );
     },
     [user?.wallet?.address],
   );
@@ -608,6 +1013,9 @@ const SwapCard = ({
   const handleSwap = async () => {
     setSwapState("loading");
     setRevertReason(null);
+    let successNotificationTimeout: ReturnType<typeof setTimeout> | undefined;
+    let successResetTimeout: ReturnType<typeof setTimeout> | undefined;
+    let submittedSwapTxHash: string | null = null;
 
     try {
       if (!user?.wallet?.address) {
@@ -615,6 +1023,48 @@ const SwapCard = ({
       }
 
       const eip1193Provider = getBrowserWalletProvider();
+      const walletRequest = async <T,>(
+        args: Parameters<typeof eip1193Provider.request>[0],
+        timeoutMs: number,
+        label: string,
+      ) =>
+        withTimeout(
+          eip1193Provider.request(args) as Promise<T>,
+          timeoutMs,
+          label,
+        );
+      const walletReceiptLookup = (
+        hash: string,
+        label: string,
+      ): Promise<BrowserWalletTransactionReceipt | null> =>
+        walletRequest<BrowserWalletTransactionReceipt | null>(
+          {
+            method: "eth_getTransactionReceipt",
+            params: [hash],
+          },
+          RECEIPT_REQUEST_TIMEOUT_MS,
+          label,
+        );
+      const markSwapSuccess = (hash: string) => {
+        setTransactionHash(hash);
+        setRevertReason(null);
+        setSwapState("success");
+        setNotification("success");
+
+        // Auto-dismiss notification after 5 seconds
+        successNotificationTimeout = setTimeout(() => {
+          setNotification(null);
+        }, 5000);
+
+        // Reset amounts after success
+        successResetTimeout = setTimeout(() => {
+          setSellAmount("0.00");
+          setReceiveAmount("0.00");
+          setSwapState("idle");
+          setTransactionHash(null);
+          fetchUserBalances();
+        }, 3000);
+      };
 
       if (!receiveToken) {
         throw new Error("Please select a receive token");
@@ -631,7 +1081,11 @@ const SwapCard = ({
           // Wait a moment for chain switch to complete
           await new Promise((resolve) => setTimeout(resolve, 1000));
           // Re-check chain ID
-          const currentChainId = await getBrowserWalletChainId(eip1193Provider);
+          const currentChainId = await walletRequest<string>(
+            { method: "eth_chainId" },
+            15000,
+            "Arc network check",
+          );
           if (currentChainId !== ARC_CHAIN_HEX) {
             throw new Error("Please switch to Arc Testnet to continue");
           }
@@ -657,6 +1111,8 @@ const SwapCard = ({
           value: string;
           data: string;
           gas?: number | string;
+          maxFeePerGas?: string;
+          maxPriorityFeePerGas?: string;
         },
         txType: string = "transaction",
       ) => {
@@ -668,12 +1124,16 @@ const SwapCard = ({
             dataLength: txData.data?.length || 0,
             data: txData.data?.substring(0, 100) + "...",
             gas: txData.gas,
+            maxFeePerGas: txData.maxFeePerGas,
+            maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
           });
 
           // Get current chain ID to include in transaction
-          const currentChainId = await eip1193Provider.request({
-            method: "eth_chainId",
-          });
+          const currentChainId = await walletRequest<string>(
+            { method: "eth_chainId" },
+            15000,
+            `${txType} network check`,
+          );
 
           if (currentChainId !== ARC_CHAIN_HEX) {
             throw new Error(
@@ -681,31 +1141,42 @@ const SwapCard = ({
             );
           }
 
-          const result = await eip1193Provider.request({
-            method: "eth_sendTransaction",
-            params: [
-              {
-                from: userAddress, // Use the validated address
-                to: txData.to,
-                value: txData.value?.startsWith("0x")
-                  ? txData.value
-                  : toHexQuantity(txData.value || "0"),
-                data: txData.data,
-                // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
-                ...(txData.gas
-                  ? {
-                      gas:
-                        typeof txData.gas === "string"
-                          ? txData.gas
-                          : toHexQuantity(txData.gas),
-                    }
-                  : {}),
-              },
-            ],
-          });
+          const result = await walletRequest<unknown>(
+            {
+              method: "eth_sendTransaction",
+              params: [
+                {
+                  from: userAddress, // Use the validated address
+                  to: txData.to,
+                  value: txData.value?.startsWith("0x")
+                    ? txData.value
+                    : toHexQuantity(txData.value || "0"),
+                  data: txData.data,
+                  // NOTE: Do NOT pass chainId here; wallets derive it from the connected network.
+                  ...(txData.gas
+                    ? {
+                        gas:
+                          typeof txData.gas === "string"
+                            ? txData.gas
+                            : toHexQuantity(txData.gas),
+                      }
+                    : {}),
+                  ...(txData.maxFeePerGas && txData.maxPriorityFeePerGas
+                    ? {
+                        maxFeePerGas: txData.maxFeePerGas,
+                        maxPriorityFeePerGas: txData.maxPriorityFeePerGas,
+                      }
+                    : {}),
+                },
+              ],
+            },
+            300000,
+            `${txType} wallet signing`,
+          );
+          const txHash = extractTransactionHash(result, txType);
 
-          console.log(`[${txType}] Successfully sent, hash:`, result);
-          return result as string;
+          console.log(`[${txType}] Successfully sent, hash:`, txHash);
+          return txHash;
         } catch (error: unknown) {
           // Better error serialization
           let errorDetails: Record<string, unknown> = {
@@ -853,6 +1324,15 @@ const SwapCard = ({
               approvalTxs.length > 1
                 ? `APPROVAL ${approvalIndex + 1}/${approvalTxs.length}`
                 : "APPROVAL";
+            const approvalFeeParams = await getArcFeeParams().catch(
+              (feeError: unknown) => {
+                console.warn(
+                  `[${approvalLabel}] Could not load Arc EIP-1559 fee params; wallet will choose fees`,
+                  feeError,
+                );
+                return null;
+              },
+            );
 
             console.log(`Sending ${approvalLabel} transaction to MetaMask...`);
             const approveTxHash = await sendTransactionViaProvider(
@@ -861,56 +1341,38 @@ const SwapCard = ({
                 data: approvalTx.data,
                 value: "0x0",
                 gas: approvalTx.gasLimit,
+                ...(approvalFeeParams || {}),
               },
               approvalLabel,
             );
 
             console.log(`${approvalLabel} transaction sent:`, approveTxHash);
 
-            // Wait for approval confirmation - poll until receipt is found
-            let approvalReceipt: BrowserWalletTransactionReceipt | null = null;
-            let approvalRetries = 0;
-            const maxApprovalRetries = 30; // Wait up to 30 seconds
-
-            while (
-              approvalReceipt === null &&
-              approvalRetries < maxApprovalRetries
-            ) {
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-
-              try {
-                approvalReceipt = (await eip1193Provider.request({
-                  method: "eth_getTransactionReceipt",
-                  params: [approveTxHash],
-                })) as BrowserWalletTransactionReceipt | null;
-
-                if (approvalReceipt) {
-                  if (approvalReceipt.status === "0x0") {
-                    throw new Error(
-                      `${approvalLabel} transaction failed on-chain`,
-                    );
-                  }
-                  console.log(
-                    `${approvalLabel} transaction confirmed:`,
-                    approvalReceipt,
-                  );
-                  break;
-                }
-              } catch {
-                // Continue polling
-              }
-
-              approvalRetries++;
-            }
+            const approvalReceipt = await waitForArcTransactionReceipt(
+              approveTxHash,
+              {
+                label: `${approvalLabel} receipt lookup`,
+                maxWaitMs: 60000,
+                walletReceiptLookup,
+              },
+            );
 
             if (!approvalReceipt) {
               throw new Error(
-                `${approvalLabel} transaction not confirmed after 30 seconds`,
+                `${approvalLabel} transaction not confirmed after 60 seconds`,
               );
             }
 
+            if (approvalReceipt.status === "0x0") {
+              throw new Error(
+                `${approvalLabel} transaction failed on-chain`,
+              );
+            }
+
+            console.log(`${approvalLabel} transaction confirmed:`, approvalReceipt);
+
             // Additional wait to ensure block is finalized
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await sleep(2000);
           }
 
           console.log("Approval transaction(s) confirmed successfully!");
@@ -1009,22 +1471,28 @@ const SwapCard = ({
         slippage: slippageTolerance,
       });
 
-      // Try to estimate gas, but don't block if it fails
-      // (some RPC endpoints have issues with gas estimation on complex transactions)
+      // Preflight the swap before signing. If this fails, the transaction is
+      // likely to be dropped or reverted, so do not broadcast it.
+      let bufferedSwapGas: string | null = null;
       try {
         console.log("Estimating gas...");
-        const gasEstimate = await eip1193Provider.request({
-          method: "eth_estimateGas",
-          params: [
-            {
-              from: userAddress,
-              to: swapDataToSend.to,
-              value: swapDataToSend.value,
-              data: swapDataToSend.data,
-            },
-          ],
-        });
+        const gasEstimate = await walletRequest<unknown>(
+          {
+            method: "eth_estimateGas",
+            params: [
+              {
+                from: userAddress,
+                to: swapDataToSend.to,
+                value: swapDataToSend.value,
+                data: swapDataToSend.data,
+              },
+            ],
+          },
+          15000,
+          "Swap gas estimation",
+        );
         console.log("Gas estimate successful:", gasEstimate);
+        bufferedSwapGas = applyGasBuffer(gasEstimate);
       } catch (estimateError: unknown) {
         // Log the error but continue - the wallet will provide its own gas estimation
         let estimateErrorDetails: Record<string, unknown> = {
@@ -1054,7 +1522,11 @@ const SwapCard = ({
         }
 
         console.error("Gas estimation error details:", estimateErrorDetails);
-        console.warn("Gas estimation failed (wallet will estimate)");
+        throw new Error(
+          `Swap preflight failed: ${
+            estimateErrorDetails.message || "gas estimation failed"
+          }`,
+        );
       }
 
       // Ensure value is properly formatted (should be hex string)
@@ -1081,6 +1553,40 @@ const SwapCard = ({
         });
       }
 
+      const swapFeeParams = await getArcFeeParams().catch((feeError: unknown) => {
+        console.warn(
+          "[SWAP] Could not load Arc EIP-1559 fee params; wallet will choose fees",
+          feeError,
+        );
+        return null;
+      });
+
+      const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
+      const outputTokenForFee = tokenOutAddress || quote.outputToken;
+      const inputAmountForFeeValidation = parseUnits(
+        sellAmount,
+        TOKEN_DECIMALS[sellToken.symbol] || 18,
+      ).toString();
+      let feeCollectorBalanceBefore: bigint | null = null;
+
+      if (feeCollectorOutput && feeCollectorOutput !== "0") {
+        if (!outputTokenForFee) {
+          throw new Error("Missing output token for fee distribution");
+        }
+
+        feeCollectorBalanceBefore = await getTokenBalanceAtAddress(
+          outputTokenForFee,
+          FEE_COLLECTOR_ADDRESS,
+          "FeeCollector pre-swap output balance lookup",
+        );
+
+        console.log("[SwapCard] FeeCollector balance before swap:", {
+          outputToken: outputTokenForFee,
+          balanceBefore: feeCollectorBalanceBefore.toString(),
+          expectedSwapOutput: feeCollectorOutput,
+        });
+      }
+
       console.log("Final swap transaction parameters:", {
         to: swapDataToSend.to,
         value: finalSwapValue,
@@ -1093,144 +1599,136 @@ const SwapCard = ({
           to: swapDataToSend.to,
           value: finalSwapValue,
           data: swapDataToSend.data,
-          // Per Tower Router convention, use the provided gasLimit when available
-          gas: swapDataToSend.gasLimit ?? undefined,
+          gas: bufferedSwapGas ?? swapDataToSend.gasLimit ?? undefined,
+          ...(swapFeeParams || {}),
         },
         "SWAP",
       );
 
       console.log("Swap transaction executed with hash:", txHash);
-
-      // Wait for transaction receipt to verify success
-      let receipt: BrowserWalletTransactionReceipt | null = null;
-      let retries = 0;
-      const maxRetries = 30; // Try for up to 30 seconds (1 second intervals)
-
-      while (receipt === null && retries < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        try {
-          receipt = (await eip1193Provider.request({
-            method: "eth_getTransactionReceipt",
-            params: [txHash],
-          })) as BrowserWalletTransactionReceipt | null;
-
-          if (receipt) {
-            console.log("Transaction receipt received:", receipt);
-
-            // Check if transaction was successful (status === '0x1')
-            if (receipt.status === "0x0") {
-              console.error("Transaction failed! Getting revert reason...");
-              let decodedReason: string | null = null;
-
-              try {
-                const tx = (await eip1193Provider.request({
-                  method: "eth_getTransactionByHash",
-                  params: [txHash],
-                })) as {
-                  from?: string;
-                  to?: string;
-                  value?: string;
-                  input?: string;
-                } | null;
-
-                if (tx?.from && tx?.to && tx?.input) {
-                  console.log(
-                    "Failed transaction data:",
-                    JSON.stringify(
-                      {
-                        from: tx.from,
-                        to: tx.to,
-                        value: tx.value,
-                        inputLength: tx.input?.length,
-                      },
-                      null,
-                      2,
-                    ),
-                  );
-                  // Use public RPC for eth_call so we get revert data instead of "Internal JSON-RPC error"
-                  decodedReason = await getRevertReasonViaPublicRpc({
-                    from: tx.from,
-                    to: tx.to,
-                    value: tx.value ?? "0x0",
-                    data: tx.input,
-                  });
-                  if (decodedReason) {
-                    setRevertReason(decodedReason);
-                    console.error("Revert reason (decoded):", decodedReason);
-                  }
-                }
-              } catch (callError: unknown) {
-                const callErrorObj =
-                  callError instanceof Error
-                    ? callError
-                    : new Error(String(callError));
-                console.error("Revert reason extraction error:", {
-                  message: callErrorObj.message,
-                  error: callError,
-                });
-              }
-
-              throw new Error(
-                decodedReason
-                  ? `Transaction failed: ${decodedReason}`
-                  : "Transaction failed on-chain (status: 0x0)",
-              );
-            }
-            break;
-          }
-        } catch (receiptError: unknown) {
-          const receiptErrorObj =
-            receiptError instanceof Error
-              ? receiptError
-              : new Error(String(receiptError));
-          // Rethrow our "Transaction failed" errors so the outer catch can show the decoded reason
-          if (receiptErrorObj.message.startsWith("Transaction failed")) {
-            throw receiptError;
-          }
-          console.error("Error fetching receipt:", receiptError);
-        }
-
-        retries++;
-      }
-
-      if (receipt === null) {
-        console.warn(
-          "Transaction receipt not received after 30 seconds, but hash was confirmed",
-        );
-      } else if (receipt.status === "0x0") {
-        throw new Error("Transaction failed on-chain");
-      }
-
-      // Store the transaction hash
+      submittedSwapTxHash = txHash;
       setTransactionHash(txHash);
       setRevertReason(null);
 
-      // Log successful swap activity
-      logSwapActivity("Successful", txHash);
+      let receipt = await waitForArcTransactionReceipt(txHash, {
+        label: "Swap receipt lookup",
+        maxWaitMs: 120000,
+        walletReceiptLookup,
+      });
 
-      setSwapState("success");
-      setNotification("success");
+      if (!receipt) {
+        const pendingTx = await getArcTransactionByHash(
+          txHash,
+          "Pending swap transaction lookup",
+        ).catch((error: unknown) => {
+          console.warn("[SwapCard] Could not look up pending swap transaction", {
+            txHash,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        });
 
-      // Auto-dismiss notification after 5 seconds
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
+        if (pendingTx && !pendingTx.blockNumber) {
+          console.warn(
+            "[SwapCard] Swap transaction is still pending after initial receipt timeout",
+            {
+              txHash,
+              nonce: pendingTx.nonce,
+            },
+          );
+          setSwapState("pending");
+          setNotification("pending");
 
-      // Reset amounts after success
-      setTimeout(() => {
-        setSellAmount("0.00");
-        setReceiveAmount("0.00");
-        setSwapState("idle");
-        setTransactionHash(null);
-        // Refresh wallet balances after successful swap (second pass as fallback)
-        // This ensures balance is updated even if fee distribution was not monitored
-        fetchUserBalances();
-      }, 3000);
+          receipt = await waitForArcTransactionReceipt(txHash, {
+            label: "Extended swap receipt lookup",
+            maxWaitMs: 900000,
+            pollIntervalMs: 5000,
+            walletReceiptLookup,
+          });
+
+          if (!receipt) {
+            console.warn(
+              "[SwapCard] Swap transaction is still pending after extended receipt wait",
+              { txHash },
+            );
+            setSwapState("idle");
+            return;
+          }
+        } else {
+          throw new Error(
+            "Swap transaction was submitted, but confirmation was not received within 120 seconds and the transaction is not visible as pending on Arc RPC. Please check Arcscan before trying again.",
+          );
+        }
+      }
+
+      console.log("Transaction receipt received:", receipt);
+
+      // Check if transaction was successful (status === '0x1')
+      if (receipt.status === "0x0") {
+        console.error("Transaction failed! Getting revert reason...");
+        let decodedReason: string | null = null;
+
+        try {
+          const tx = await walletRequest<{
+            from?: string;
+            to?: string;
+            value?: string;
+            input?: string;
+          } | null>(
+            {
+              method: "eth_getTransactionByHash",
+              params: [txHash],
+            },
+            10000,
+            "Failed swap transaction lookup",
+          );
+
+          if (tx?.from && tx?.to && tx?.input) {
+            console.log(
+              "Failed transaction data:",
+              JSON.stringify(
+                {
+                  from: tx.from,
+                  to: tx.to,
+                  value: tx.value,
+                  inputLength: tx.input?.length,
+                },
+                null,
+                2,
+              ),
+            );
+            // Use public RPC for eth_call so we get revert data instead of "Internal JSON-RPC error"
+            decodedReason = await getRevertReasonViaPublicRpc({
+              from: tx.from,
+              to: tx.to,
+              value: tx.value ?? "0x0",
+              data: tx.input,
+            });
+            if (decodedReason) {
+              setRevertReason(decodedReason);
+              console.error("Revert reason (decoded):", decodedReason);
+            }
+          }
+        } catch (callError: unknown) {
+          const callErrorObj =
+            callError instanceof Error
+              ? callError
+              : new Error(String(callError));
+          console.error("Revert reason extraction error:", {
+            message: callErrorObj.message,
+            error: callError,
+          });
+        }
+
+        throw new Error(
+          decodedReason
+            ? `Transaction failed: ${decodedReason}`
+            : "Transaction failed on-chain (status: 0x0)",
+        );
+      }
 
       // Step 8: Submit platform fee with atomic distribution through FeeCollector
       // Swap output went to FeeCollector, now execute atomic fee split
-      const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
       console.log("[SwapCard] Fee collection check:", {
         hasExpectedFeeCollectorOutput: !!feeCollectorOutput,
         feeCollectorOutput: feeCollectorOutput,
@@ -1240,8 +1738,41 @@ const SwapCard = ({
       });
 
       if (feeCollectorOutput && feeCollectorOutput !== "0") {
-        const outputTokenForFee = tokenOutAddress || quote.outputToken;
         const feeSubmitUrl = "/api/swap/submit-fee";
+        const expectedFeeCollectorOutput = BigInt(feeCollectorOutput);
+
+        if (!outputTokenForFee) {
+          throw new Error("Missing output token for fee distribution");
+        }
+
+        if (feeCollectorBalanceBefore === null) {
+          throw new Error(
+            "Missing FeeCollector balance snapshot. Fee distribution was stopped to protect existing funds.",
+          );
+        }
+
+        const feeCollectorOutputFromReceipt = sumTransferAmountFromReceipt(
+          receipt,
+          outputTokenForFee,
+          { to: FEE_COLLECTOR_ADDRESS },
+        );
+        const receiptShowsFeeCollectorOutput =
+          feeCollectorOutputFromReceipt >= expectedFeeCollectorOutput;
+        const feeCollectorBalanceAfter = receiptShowsFeeCollectorOutput
+          ? null
+          : await waitForTokenBalanceIncrease(
+              outputTokenForFee,
+              FEE_COLLECTOR_ADDRESS,
+              feeCollectorBalanceBefore,
+              expectedFeeCollectorOutput,
+              "FeeCollector post-swap output balance lookup",
+            );
+
+        if (!receiptShowsFeeCollectorOutput && feeCollectorBalanceAfter === null) {
+          throw new Error(
+            "Swap confirmed, but the FeeCollector did not receive the expected output from this swap. Fee distribution was stopped so existing FeeCollector funds are not sent out.",
+          );
+        }
 
         console.log("[SwapCard] Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
@@ -1249,28 +1780,54 @@ const SwapCard = ({
           userAddress: userAddress,
           feeSubmitUrl,
           sellToken: sellToken.symbol,
+          feeCollectorBalanceBefore: feeCollectorBalanceBefore.toString(),
+          feeCollectorBalanceAfter: feeCollectorBalanceAfter?.toString(),
+          feeCollectorOutputFromReceipt:
+            feeCollectorOutputFromReceipt.toString(),
+          proofSource: receiptShowsFeeCollectorOutput
+            ? "swap receipt transfer logs"
+            : "FeeCollector balance increase",
         });
 
         try {
-          const feeResponse = await fetch(feeSubmitUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              outputToken: outputTokenForFee,
-              totalAmount: feeCollectorOutput, // Full amount that FeeCollector received
-              userAddress: userAddress, // User address to receive (amount - fee)
-              feeBps: 25, // 0.25% = 25 basis points
+          const feeResponse = await withTimeout(
+            fetch(feeSubmitUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                outputToken: outputTokenForFee,
+                totalAmount: feeCollectorOutput, // Full amount that FeeCollector received
+                userAddress: userAddress, // User address to receive (amount - fee)
+                feeBps: 25, // 0.25% = 25 basis points
+                swapTransactionHash: txHash,
+                feeCollectorBalanceBefore: feeCollectorBalanceBefore.toString(),
+                inputToken: tokenInAddress,
+                inputAmount: inputAmountForFeeValidation,
+              }),
             }),
-          });
+            180000,
+            "Fee distribution",
+          );
 
           if (!feeResponse.ok) {
-            const feeError = await feeResponse.text();
+            const feeError = await withTimeout(
+              feeResponse.text(),
+              10000,
+              "Fee error response",
+            );
             console.warn("[SwapCard] Fee submission response not OK:", {
               status: feeResponse.status,
               error: feeError,
             });
+            throw new Error(
+              `Fee distribution failed (${feeResponse.status}): ${feeError}`,
+            );
           } else {
-            const feeResult = await feeResponse.json();
+            const feeResult = await withTimeout(
+              feeResponse.json(),
+              10000,
+              "Fee distribution response",
+            );
             const feeDistributionTxHash =
               feeResult.data?.transactionHash || feeResult.transactionHash;
             if (!feeDistributionTxHash) {
@@ -1329,63 +1886,72 @@ const SwapCard = ({
             // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
             // This ensures the user receives their tokens before we query the balance
             if (feeDistributionTxHash) {
-              console.log(
-                "[SwapCard] Waiting for fee distribution transaction to finalize:",
-                feeDistributionTxHash,
-              );
+              const backendBlockNumber = feeResult.data?.blockNumber
+                ? Number(feeResult.data.blockNumber)
+                : null;
+              let confirmedBlockNumber =
+                backendBlockNumber !== null && Number.isFinite(backendBlockNumber)
+                  ? backendBlockNumber
+                  : null;
 
-              // Poll for fee distribution confirmation (up to 30 seconds)
-              let feeDistributionConfirmed = false;
-              for (let attempt = 0; attempt < 30; attempt++) {
-                try {
-                  const feeReceipt = (await eip1193Provider.request({
-                    method: "eth_getTransactionReceipt",
-                    params: [feeDistributionTxHash],
-                  })) as { status: string; blockNumber: string } | null;
-
-                  if (feeReceipt && feeReceipt.status === "0x1") {
-                    console.log(
-                      "[SwapCard] Fee distribution transaction confirmed!",
-                    );
-                    feeDistributionConfirmed = true;
-
-                    // Update fee confirmation status with block number
-                    if (
-                      registerResult &&
-                      registerResult.success &&
-                      registerResult.id
-                    ) {
-                      const blockNumber = parseInt(feeReceipt.blockNumber, 16);
-                      await updateSwapFeeConfirmation(
-                        registerResult.id,
-                        feeDistributionTxHash,
-                        blockNumber,
-                      ).catch((err) => {
-                        console.warn(
-                          "[SwapCard] Failed to update fee confirmation:",
-                          err,
-                        );
-                      });
-                    }
-                    break;
-                  }
-                } catch {
-                  // Continue polling
-                }
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-              }
-
-              if (feeDistributionConfirmed) {
+              if (confirmedBlockNumber === null) {
                 console.log(
-                  "[SwapCard] Refreshing balance after fee distribution confirmed",
+                  "[SwapCard] Waiting for fee distribution transaction to finalize:",
+                  feeDistributionTxHash,
                 );
-                // Immediate balance refresh after fee distribution is confirmed
-                await fetchUserBalances();
-              } else {
+
+                const feeReceipt = await waitForArcTransactionReceipt(
+                  feeDistributionTxHash,
+                  {
+                    label: "Fee distribution receipt lookup",
+                    maxWaitMs: 45000,
+                    walletReceiptLookup,
+                  },
+                );
+
+                if (feeReceipt?.status === "0x0") {
+                  throw new Error(
+                    "Fee distribution transaction failed on-chain",
+                  );
+                }
+
+                if (feeReceipt?.status === "0x1" && feeReceipt.blockNumber) {
+                  console.log(
+                    "[SwapCard] Fee distribution transaction confirmed!",
+                  );
+                  confirmedBlockNumber = parseInt(feeReceipt.blockNumber, 16);
+                }
+              }
+
+              if (confirmedBlockNumber === null) {
                 console.warn(
-                  "[SwapCard] Fee distribution transaction not confirmed within timeout - will refresh anyway",
+                  "Fee distribution transaction was submitted, but confirmation was not received within 45 seconds. Continuing because backend accepted the split transaction.",
+                  { feeDistributionTxHash },
                 );
               }
+
+              if (
+                confirmedBlockNumber !== null &&
+                registerResult &&
+                registerResult.success &&
+                registerResult.id
+              ) {
+                await updateSwapFeeConfirmation(
+                  registerResult.id,
+                  feeDistributionTxHash,
+                  confirmedBlockNumber,
+                ).catch((err) => {
+                  console.warn(
+                    "[SwapCard] Failed to update fee confirmation:",
+                    err,
+                  );
+                });
+              }
+
+              console.log(
+                "[SwapCard] Refreshing balance after fee distribution confirmed",
+              );
+              await fetchUserBalances();
             }
           }
         } catch (feeError: unknown) {
@@ -1398,12 +1964,20 @@ const SwapCard = ({
               totalAmount: feeCollectorOutput,
             },
           );
+          throw new Error(
+            `Fee distribution failed: ${
+              feeError instanceof Error ? feeError.message : String(feeError)
+            }`,
+          );
         }
       } else {
         console.warn(
           "[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0",
         );
       }
+
+      await logSwapActivity("Successful", txHash);
+      markSwapSuccess(txHash);
     } catch (error: unknown) {
       // Better error serialization for swap errors
       let errorDetails: Record<string, unknown> = {
@@ -1412,6 +1986,7 @@ const SwapCard = ({
         sellToken: sellToken.symbol,
         receiveToken: receiveToken?.symbol || "Not Selected",
         sellAmount,
+        transactionHash: submittedSwapTxHash ?? undefined,
         revertReason: revertReason ?? undefined,
       };
 
@@ -1434,6 +2009,13 @@ const SwapCard = ({
         };
       } else {
         errorDetails.message = String(error);
+      }
+
+      if (successNotificationTimeout) {
+        clearTimeout(successNotificationTimeout);
+      }
+      if (successResetTimeout) {
+        clearTimeout(successResetTimeout);
       }
 
       // Ensure UI shows decoded revert reason (state may not have updated yet)
@@ -1461,7 +2043,9 @@ const SwapCard = ({
 
       setSwapState("failed");
       setNotification("failed");
-      setTransactionHash(null);
+      if (!submittedSwapTxHash) {
+        setTransactionHash(null);
+      }
 
       // Auto-dismiss notification after 5 seconds
       setTimeout(() => {
@@ -1490,6 +2074,10 @@ const SwapCard = ({
       );
     }
 
+    if (swapState === "pending") {
+      return "Pending";
+    }
+
     if (isSwapBalanceInsufficient) {
       return "Insufficient Balance";
     }
@@ -1506,7 +2094,7 @@ const SwapCard = ({
     const baseStyles =
       "w-full rounded-xl h-14 text-base font-semibold text-black transition-all";
 
-    if (swapState === "loading") {
+    if (swapState === "loading" || swapState === "pending") {
       return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
     }
 
@@ -1680,6 +2268,7 @@ const SwapCard = ({
               onClick={isWalletConnected ? handleSwap : handleConnectWallet}
               disabled={
                 swapState === "loading" ||
+                swapState === "pending" ||
                 (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient))
               }
               className={getButtonStyles()}

@@ -50,6 +50,66 @@ const ARC_RPC_URL = "/api/rpc/5042002";
 
 export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 
+type JsonRpcResponse<T> = {
+  result?: T;
+  error?: {
+    message?: string;
+  };
+};
+
+const callArcRpc = async <T,>(
+  method: string,
+  params: unknown[],
+): Promise<T> => {
+  const response = await fetch(ARC_RPC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method,
+      params,
+      id: Date.now(),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Arc RPC ${method} failed with status ${response.status}`);
+  }
+
+  const data = (await response.json()) as JsonRpcResponse<T>;
+  if (data.error) {
+    throw new Error(data.error.message || `Arc RPC ${method} failed`);
+  }
+
+  return data.result as T;
+};
+
+const getArcFeeParams = async () => {
+  const [latestBlock, priorityFee] = await Promise.all([
+    callArcRpc<{ baseFeePerGas?: string }>("eth_getBlockByNumber", [
+      "latest",
+      false,
+    ]),
+    callArcRpc<string>("eth_maxPriorityFeePerGas", []).catch(
+      () => "0x59682f00",
+    ),
+  ]);
+  const baseFee = BigInt(latestBlock?.baseFeePerGas || "0x0");
+  const priority = BigInt(priorityFee || "0x59682f00");
+  const minimumPriority = 1500000000n;
+  const maxPriorityFeePerGas =
+    priority > minimumPriority ? priority : minimumPriority;
+  const maxFeePerGas = baseFee * 2n + maxPriorityFeePerGas;
+
+  return {
+    maxFeePerGas: `0x${maxFeePerGas.toString(16)}`,
+    maxPriorityFeePerGas: `0x${maxPriorityFeePerGas.toString(16)}`,
+  };
+};
+
+const applyGasBuffer = (gasEstimate: string) =>
+  `0x${((BigInt(gasEstimate) * 13n) / 10n).toString(16)}`;
+
 const encodeBalanceOfCall = (walletAddress: string) => {
   const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");
 
@@ -220,13 +280,31 @@ export const signTransactionWithPrivy = async (
       gasLimit: transaction.gasLimit,
     });
 
+    const preflightTx = {
+      from: walletAddress,
+      to: transaction.to,
+      data: transaction.data,
+      value: transaction.value,
+    };
+    const gasEstimate = await callArcRpc<string>("eth_estimateGas", [
+      preflightTx,
+    ]);
+    const feeParams = await getArcFeeParams().catch((feeError) => {
+      console.warn(
+        "Could not load Arc EIP-1559 fee params; wallet will choose fees",
+        feeError,
+      );
+      return null;
+    });
+
     // Prepare the transaction object for the connected wallet
     const txObject = {
       to: transaction.to,
       from: walletAddress,
       data: transaction.data,
       value: transaction.value,
-      gasLimit: transaction.gasLimit,
+      gas: applyGasBuffer(gasEstimate),
+      ...(feeParams || {}),
     };
 
     // Sign the transaction via eth_sendTransaction
@@ -510,11 +588,19 @@ export const notifyBackendConfirmation = async (
  * CRITICAL: Must be called AFTER swap transaction is confirmed on-chain
  * This triggers FeeCollector to atomically deduct fee and send remainder to user wallet
  */
+export interface SwapFeeSettlementValidation {
+  swapTransactionHash?: string;
+  feeCollectorBalanceBefore?: string;
+  inputToken?: string;
+  inputAmount?: string;
+}
+
 export const submitSwapFee = async (
   outputToken: string,
   outputAmount: string,
   userAddress: string,
-  feeBps: number = 25
+  feeBps: number = 25,
+  settlementValidation: SwapFeeSettlementValidation = {}
 ): Promise<boolean> => {
   try {
     console.log("=== FEE SUBMISSION START ===");
@@ -523,6 +609,7 @@ export const submitSwapFee = async (
       outputAmount,
       userAddress,
       feeBps,
+      settlementValidation,
     });
 
     // Ensure we have all required parameters
@@ -569,6 +656,7 @@ export const submitSwapFee = async (
       totalAmount: outputAmount,
       userAddress,
       feeBps,
+      ...settlementValidation,
     };
 
     console.log("FEE SUBMISSION PAYLOAD:", JSON.stringify(payload, null, 2));

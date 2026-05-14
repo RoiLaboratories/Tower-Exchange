@@ -23,12 +23,7 @@ import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
 const BACKEND_URL = resolveSwapBackendUrl();
-const FEE_COLLECTOR_ADDRESS =
-  process.env.NEXT_PUBLIC_FEE_COLLECTOR_ADDRESS ||
-  "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
-const FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT =
-  process.env.FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT === "true" ||
-  process.env.NEXT_PUBLIC_FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT === "true";
+const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 const PLATFORM_FEE_BPS = 25n;
 const BPS_DENOMINATOR = 10000n;
 
@@ -50,6 +45,24 @@ type SwapQuote = {
       path: string[];
     }>;
   };
+};
+
+const normalizeDexId = (dexId?: string) => {
+  const normalized = String(dexId || "").toLowerCase();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "synthra-v3" || normalized.includes("synthra")) {
+    return "synthra";
+  }
+
+  if (normalized === "unitflow-v3" || normalized.includes("unitflow")) {
+    return "unitflow";
+  }
+
+  return normalized;
 };
 
 const ERC20_ALLOWANCE_ABI = [
@@ -86,22 +99,20 @@ const PERMIT2_ALLOWANCE_ABI = [
 
 const isSynthraQuote = (quote?: SwapQuote) => {
   const hop = quote?.route?.hops?.[0];
+  const dexId = normalizeDexId(hop?.dexId || hop?.dex || hop?.dexName);
 
   return (
-    hop?.dexId === "synthra" ||
-    hop?.dex === "synthra" ||
-    hop?.dexName?.toLowerCase().includes("synthra") ||
+    dexId === "synthra" ||
     hop?.dexRouter?.toLowerCase() === SYNTHRA_ADDRESSES.universalRouter.toLowerCase()
   );
 };
 
 const isUnitFlowQuote = (quote?: SwapQuote) => {
   const hop = quote?.route?.hops?.[0];
+  const dexId = normalizeDexId(hop?.dexId || hop?.dex || hop?.dexName);
 
   return (
-    hop?.dexId === "unitflow" ||
-    hop?.dex === "unitflow" ||
-    hop?.dexName?.toLowerCase().includes("unitflow") ||
+    dexId === "unitflow" ||
     hop?.dexRouter?.toLowerCase() === UNITFLOW_ADDRESSES.universalRouter.toLowerCase()
   );
 };
@@ -265,9 +276,7 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
   const routeInputToken = unitflowTxQuote.route.tokens[0];
   const wrapNativeInput = isUnitFlowNativeUsdc(quote.inputToken);
   const unwrapNativeOutput = isUnitFlowNativeUsdc(quote.outputToken);
-  const routeNativeOutputToUser =
-    unwrapNativeOutput && !FEE_COLLECTOR_ACCEPTS_NATIVE_OUTPUT;
-  const recipient = routeNativeOutputToUser ? userAddress : FEE_COLLECTOR_ADDRESS;
+  const recipient = FEE_COLLECTOR_ADDRESS;
   const spender = UNITFLOW_ADDRESSES.universalRouter;
   const expectedFeeCollectorOutput = unitflowTxQuote.amountOut;
   const platformFeeAmount =
@@ -331,15 +340,11 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
       }),
       from: userAddress,
       gasLimit: "0x7a120",
-      ...(!routeNativeOutputToUser
-        ? {
-            expectedFeeCollectorOutput: expectedFeeCollectorOutput.toString(),
-            platformFeeAmount: platformFeeAmount.toString(),
-            expectedUserOutput: expectedUserOutput.toString(),
-            feeRecipient: FEE_COLLECTOR_ADDRESS,
-            feeBps: Number(PLATFORM_FEE_BPS),
-          }
-        : {}),
+      expectedFeeCollectorOutput: expectedFeeCollectorOutput.toString(),
+      platformFeeAmount: platformFeeAmount.toString(),
+      expectedUserOutput: expectedUserOutput.toString(),
+      feeRecipient: FEE_COLLECTOR_ADDRESS,
+      feeBps: Number(PLATFORM_FEE_BPS),
     },
   };
 };

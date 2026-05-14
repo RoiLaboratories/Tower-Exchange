@@ -1,9 +1,9 @@
 "use client";
-import { X, Check, XCircle, ExternalLink } from "lucide-react";
+import { X, Check, XCircle, Clock, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SwapNotificationProps {
-  type: "success" | "failed";
+  type: "success" | "pending" | "failed";
   sellAmount: string;
   sellToken: string;
   receiveAmount: string;
@@ -25,6 +25,7 @@ const SwapNotification = ({
   revertReason,
 }: SwapNotificationProps) => {
   const isSuccess = type === "success";
+  const isPending = type === "pending";
 
   const handleViewTransaction = () => {
     if (transactionHash) {
@@ -128,6 +129,53 @@ const SwapNotification = ({
           </div>
         </motion.div>
       </>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -50 }}
+        transition={{ duration: 0.3 }}
+        className="fixed left-1/2 top-8 z-50 w-[min(92vw,22rem)] -translate-x-1/2"
+      >
+        <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#1a1d1f] px-5 py-4 shadow-2xl backdrop-blur-md">
+          <div className="pt-0.5">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400">
+              <Clock className="h-3 w-3 text-black" strokeWidth={3} />
+            </div>
+          </div>
+
+          <div className="flex-1">
+            <h3 className="mb-1 text-base font-semibold text-white">
+              Swap Pending
+            </h3>
+            <p className="text-sm text-gray-300">
+              Transaction submitted and waiting for Arc confirmation.
+            </p>
+            <button
+              type="button"
+              onClick={handleViewTransaction}
+              disabled={!transactionHash}
+              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-white transition-colors hover:text-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              View Transaction
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 transition-colors hover:text-white"
+            aria-label="Close swap notification"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </motion.div>
     );
   }
 

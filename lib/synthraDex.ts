@@ -471,7 +471,7 @@ export function buildSynthraExactInputTransaction(params: {
   const recipient = normalizeSynthraAddress(params.recipient);
   const deadline =
     params.deadline == null
-      ? BigInt(Math.floor(Date.now() / 1000) + 20 * 60)
+      ? BigInt(Math.floor(Date.now() / 1000) + 60 * 60)
       : BigInt(params.deadline);
   const amountOutMinimum = calculateSynthraAmountOutMinimum(
     params.quote.amountOut,
