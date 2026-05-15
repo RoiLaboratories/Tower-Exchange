@@ -29,6 +29,7 @@ export interface BridgeState {
   transactionHash?: string;
   status?: string; // "pending" or "completed"
   message?: string; // Additional info message for pending status
+  forwarded?: boolean;
 }
 
 export function useBridge() {
@@ -154,6 +155,7 @@ export function useBridge() {
             transactionHash: result.transactionHash,
             status: result.status,
             message: result.message,
+            forwarded: result.forwarded,
             error: null,
           }));
         } else {
@@ -198,6 +200,7 @@ export function useBridge() {
       estimatedTime: "2-5 minutes",
       status: undefined,
       message: undefined,
+      forwarded: undefined,
     });
   }, []);
 

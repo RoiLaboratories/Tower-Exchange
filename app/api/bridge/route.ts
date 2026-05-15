@@ -86,6 +86,7 @@ export interface BridgeRequestBody {
   token: string;
   recipientAddress: string;
   senderAddress?: string;
+  useForwarder?: boolean;
 }
 
 export interface BridgeResponseBody {
@@ -258,9 +259,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         address: senderAddress,
       },
       to: {
-        adapter,
         chain: toChainObj,
-        address: body.recipientAddress,
+        recipientAddress: body.recipientAddress,
+        useForwarder: body.useForwarder ?? true,
       },
       amount: body.amount,
       token: body.token, // Use token symbol (e.g., "USDC"), not contract address

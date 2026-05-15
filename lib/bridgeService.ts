@@ -211,6 +211,7 @@ const SUPPORTED_EVM_CIRCLE_CHAINS = [
 
 const BRIDGE_STEP_RECEIPT_TIMEOUT_MS = 5 * 60 * 1000;
 const BRIDGE_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_USE_CIRCLE_FORWARDER = true;
 const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
   "burn",
   "depositForBurn",
@@ -386,6 +387,7 @@ export interface BridgeRequest {
   publicClient?: any; // PublicClient from usePublicClient();
   walletClient?: any; // WalletClient from useWalletClient();
   chain?: any; // Chain object from useAccount() or useChainId();
+  useForwarder?: boolean; // Let Circle submit the destination mint transaction.
 }
 
 // Bridge response
@@ -396,6 +398,7 @@ export interface BridgeResponse {
   error?: string;
   estimatedTime?: string;
   message?: string; // Additional info message (e.g., pending settlement status)
+  forwarded?: boolean;
 }
 
 // Token configuration
@@ -682,6 +685,7 @@ export async function bridgeTokens(
       sourceChainId: fromChainConfig.chainId,
       destChainId: toChainConfig.chainId,
       hasCustomClients: !!request.publicClient,
+      useForwarder: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
     });
 
     // Use Circle's recommended client-side bridge with browser wallet
@@ -725,6 +729,8 @@ export async function bridgeTokens(
         error: `Chain objects not found for ${request.fromChain} or ${request.toChain}`,
       };
     }
+
+    const useForwarder = request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
 
     // Determine adapters based on chain types
     let fromAdapter = evmAdapter;
@@ -800,6 +806,7 @@ export async function bridgeTokens(
       toChain: (toChainObj as any).name,
       amount: request.amount,
       token: request.token,
+      useForwarder,
     });
 
     // Circle's AppKit only supports USDC bridging
@@ -871,12 +878,18 @@ export async function bridgeTokens(
 
     try {
       const bridgeDestination: Record<string, unknown> = {
-        adapter: toAdapter,
         chain: toChainObj,
       };
 
       if (request.toAddress) {
         bridgeDestination.recipientAddress = request.toAddress;
+      }
+
+      if (useForwarder && request.toAddress) {
+        bridgeDestination.useForwarder = true;
+      } else {
+        bridgeDestination.adapter = toAdapter;
+        bridgeDestination.useForwarder = useForwarder;
       }
 
       // Add a longer execution timeout so slow attestations do not fail too early.
@@ -925,6 +938,7 @@ export async function bridgeTokens(
           state: step.state,
         };
         if (step.txHash) stepDetails.txHash = step.txHash;
+        if (step.forwarded !== undefined) stepDetails.forwarded = step.forwarded;
         if (step.error) stepDetails.error = String(step.error);
         console.log(`Step ${index} (${step.name}):`, stepDetails);
       });
@@ -939,6 +953,7 @@ export async function bridgeTokens(
     let errorMessage: string | undefined;
     let pendingMessage: string | undefined;
     let shouldTreatAsPending = false;
+    let wasForwarded = false;
 
     if (typeof result === "string") {
       // If result is just a string, it's the transaction hash
@@ -983,6 +998,10 @@ export async function bridgeTokens(
 
       // Check steps array for any errors or stuck pending steps
       if (Array.isArray(resultObj.steps)) {
+        wasForwarded = resultObj.steps.some(
+          (step: any) => step?.forwarded === true
+        );
+
         // First check for explicit errors
         const failedStep = resultObj.steps.find((step: any) => step.state === "error");
         if (failedStep?.error) {
@@ -1060,6 +1079,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        forwarded: wasForwarded,
         message:
           pendingMessage ||
           "Bridge transaction was submitted and is still settling on-chain.",
@@ -1076,14 +1096,19 @@ export async function bridgeTokens(
         status: "completed",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        forwarded: wasForwarded,
       };
     } else if (isSuccess) {
       // State is success but no tx hash - still pending attestation
       return {
         success: true,
-        status: "pending",
+        status: wasForwarded ? "completed" : "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        forwarded: wasForwarded,
+        message: wasForwarded
+          ? "Circle Forwarder confirmed the destination mint."
+          : undefined,
       };
     } else if (isPending) {
       // Bridge is in pending state - it's processing but not yet complete
@@ -1098,6 +1123,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        forwarded: wasForwarded,
         message: `Bridge is in progress. Waiting for ${pendingSteps} to complete on-chain. This typically takes 2-5 minutes.`,
       };
     } else {
@@ -1131,6 +1157,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: bridgeProgress.lastTxHash,
+        forwarded: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
         message: createPendingBridgeMessage(bridgeProgress),
       };
     }
