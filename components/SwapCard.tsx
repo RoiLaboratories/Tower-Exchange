@@ -81,6 +81,11 @@ type RpcTransaction = {
   nonce?: string;
 };
 
+type BalanceIncreaseResult = {
+  currentBalance: bigint;
+  increase: bigint;
+};
+
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -333,10 +338,10 @@ const waitForTokenBalanceIncrease = async (
   tokenAddress: string,
   ownerAddress: string,
   previousBalance: bigint,
-  expectedIncrease: bigint,
+  minimumIncrease: bigint,
   label: string,
-): Promise<bigint | null> => {
-  const requiredBalance = previousBalance + expectedIncrease;
+): Promise<BalanceIncreaseResult | null> => {
+  const requiredBalance = previousBalance + minimumIncrease;
 
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     const currentBalance = await getTokenBalanceAtAddress(
@@ -344,9 +349,14 @@ const waitForTokenBalanceIncrease = async (
       ownerAddress,
       label,
     );
+    const increase =
+      currentBalance > previousBalance ? currentBalance - previousBalance : 0n;
 
     if (currentBalance >= requiredBalance) {
-      return currentBalance;
+      return {
+        currentBalance,
+        increase,
+      };
     }
 
     if (attempt === 1 || attempt === 12) {
@@ -354,8 +364,9 @@ const waitForTokenBalanceIncrease = async (
         tokenAddress,
         ownerAddress,
         previousBalance: previousBalance.toString(),
-        expectedIncrease: expectedIncrease.toString(),
+        minimumIncrease: minimumIncrease.toString(),
         currentBalance: currentBalance.toString(),
+        increase: increase.toString(),
       });
     }
 
@@ -404,6 +415,26 @@ const sumTransferAmountFromReceipt = (
 
     return total + BigInt(log.data && log.data !== "0x" ? log.data : "0x0");
   }, 0n);
+};
+
+const amountFrom18Decimals = (amount: string | undefined, decimals: number) => {
+  if (!amount) {
+    return null;
+  }
+
+  try {
+    const amountBn = BigInt(amount);
+
+    if (decimals === 18) {
+      return amountBn;
+    }
+
+    return decimals < 18
+      ? amountBn / 10n ** BigInt(18 - decimals)
+      : amountBn * 10n ** BigInt(decimals - 18);
+  } catch {
+    return null;
+  }
 };
 
 interface TokenSelectorProps {
@@ -461,7 +492,7 @@ const SwapCard = ({
 
   // Wallet and transaction states
   const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [chainId, setChainId] = useState<string | null>(null);
+  const [, setChainId] = useState<string | null>(null);
   const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(
     undefined,
   );
@@ -519,12 +550,13 @@ const SwapCard = ({
     }
   }, [authenticated, user?.wallet?.address]);
 
-  // Check if on Arc Testnet
-  const isOnArcTestnet = chainId === ARC_CHAIN_HEX;
-
   // Function to switch/add Arc Testnet network
   const switchToArcTestnet = async () => {
     const ethereum = getBrowserWalletProvider();
+    const getWalletErrorCode = (error: unknown) =>
+      error && typeof error === "object" && "code" in error
+        ? (error as { code?: number }).code
+        : undefined;
 
     try {
       try {
@@ -533,6 +565,12 @@ const SwapCard = ({
           params: ARC_ADD_NETWORK_PARAMS,
         });
       } catch (addOrUpdateError) {
+        if (getWalletErrorCode(addOrUpdateError) === 4001) {
+          throw new Error(
+            "Please approve the Arc Testnet RPC update in your wallet before swapping.",
+          );
+        }
+
         console.warn(
           "Unable to refresh Arc Testnet RPC config:",
           addOrUpdateError,
@@ -544,10 +582,7 @@ const SwapCard = ({
         params: [{ chainId: ARC_CHAIN_HEX }],
       });
     } catch (switchError: unknown) {
-      const switchErrorCode =
-        switchError && typeof switchError === "object" && "code" in switchError
-          ? (switchError as { code?: number }).code
-          : undefined;
+      const switchErrorCode = getWalletErrorCode(switchError);
       // This error code indicates that the chain has not been added to MetaMask
       if (switchErrorCode === 4902) {
         try {
@@ -848,6 +883,22 @@ const SwapCard = ({
     const tempAmount = sellAmount;
     setSellAmount(receiveAmount);
     setReceiveAmount(tempAmount);
+    setRouteOptions([]);
+    setSelectedRouterId(undefined);
+  };
+
+  const handleSellTokenSelect = (token: SwapToken) => {
+    setSellToken(token);
+    setReceiveAmount("0.00");
+    setRouteOptions([]);
+    setSelectedRouterId(undefined);
+  };
+
+  const handleReceiveTokenSelect = (token: SwapToken) => {
+    setReceiveToken(token);
+    setReceiveAmount("0.00");
+    setRouteOptions([]);
+    setSelectedRouterId(undefined);
   };
 
   // Get swap quote from Tower Exchange backend
@@ -908,13 +959,14 @@ const SwapCard = ({
 
         console.log("Quote received from Tower Exchange:", quoteData);
 
-        if (!routerId && quoteData.route?.hops?.[0]?.dexId) {
-          setSelectedRouterId(quoteData.route.hops[0].dexId);
+        const selectedDexId = quoteData.route?.hops?.[0]?.dexId;
+        if (selectedDexId) {
+          setSelectedRouterId(selectedDexId);
           console.log(
-            "Auto-selected router from backend:",
+            routerId ? "Selected router from quote:" : "Auto-selected router from backend:",
             quoteData.route.hops[0].dexName,
             "ID:",
-            quoteData.route.hops[0].dexId,
+            selectedDexId,
           );
         }
 
@@ -977,6 +1029,8 @@ const SwapCard = ({
       getQuoteForSwap(value);
     } else {
       setReceiveAmount("0.00");
+      setRouteOptions([]);
+      setSelectedRouterId(undefined);
     }
   };
 
@@ -1082,29 +1136,26 @@ const SwapCard = ({
         throw new Error("This token pair is not currently supported on Tower Swap.");
       }
 
-      // Check if on correct network
-      if (!isOnArcTestnet) {
-        try {
-          await switchToArcTestnet();
-          // Wait a moment for chain switch to complete
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          // Re-check chain ID
-          const currentChainId = await walletRequest<string>(
-            { method: "eth_chainId" },
-            15000,
-            "Arc network check",
-          );
-          if (currentChainId !== ARC_CHAIN_HEX) {
-            throw new Error("Please switch to Arc Testnet to continue");
-          }
-        } catch (networkError: unknown) {
-          const networkErrorMessage =
-            networkError instanceof Error ? networkError.message : null;
-          throw new Error(
-            networkErrorMessage ||
-              "Please switch to Arc Testnet network to perform swaps",
-          );
+      // Refresh the Arc wallet RPC config before swaps. A stale wallet RPC can
+      // return a hash for a tx that never propagates to Arc's public RPCs.
+      try {
+        await switchToArcTestnet();
+        await sleep(1000);
+        const currentChainId = await walletRequest<string>(
+          { method: "eth_chainId" },
+          15000,
+          "Arc network check",
+        );
+        if (currentChainId !== ARC_CHAIN_HEX) {
+          throw new Error("Please switch to Arc Testnet to continue");
         }
+      } catch (networkError: unknown) {
+        const networkErrorMessage =
+          networkError instanceof Error ? networkError.message : null;
+        throw new Error(
+          networkErrorMessage ||
+            "Please switch to Arc Testnet network to perform swaps",
+        );
       }
 
       // Use the EIP1193 provider directly to send transactions
@@ -1286,7 +1337,7 @@ const SwapCard = ({
       });
 
       // Step 3: Get swap quote from Tower Exchange backend
-      const quote = await getQuote(
+      let quote = await getQuote(
         tokenInAddress,
         tokenOutAddress,
         amountInWei,
@@ -1428,6 +1479,7 @@ const SwapCard = ({
 
           // Update swapTx to the fresh one with new deadline
           Object.assign(swapTx, freshTransaction.swap);
+          quote = freshQuote;
 
           console.log("Fresh swap transaction ready:", {
             to: swapTx.to,
@@ -1793,7 +1845,16 @@ const SwapCard = ({
 
       if (feeCollectorOutput && feeCollectorOutput !== "0") {
         const feeSubmitUrl = "/api/swap/submit-fee";
-        const expectedFeeCollectorOutput = BigInt(feeCollectorOutput);
+        const quotedFeeCollectorOutput = BigInt(feeCollectorOutput);
+        const outputTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
+        const minFeeCollectorOutputFromQuote = amountFrom18Decimals(
+          quote.minOut,
+          outputTokenDecimals,
+        );
+        const minimumFeeCollectorOutput =
+          minFeeCollectorOutputFromQuote && minFeeCollectorOutputFromQuote > 0n
+            ? minFeeCollectorOutputFromQuote
+            : 1n;
 
         if (!outputTokenForFee) {
           throw new Error("Missing output token for fee distribution");
@@ -1811,31 +1872,39 @@ const SwapCard = ({
           { to: FEE_COLLECTOR_ADDRESS },
         );
         const receiptShowsFeeCollectorOutput =
-          feeCollectorOutputFromReceipt >= expectedFeeCollectorOutput;
-        const feeCollectorBalanceAfter = receiptShowsFeeCollectorOutput
+          feeCollectorOutputFromReceipt >= minimumFeeCollectorOutput;
+        const feeCollectorBalanceIncrease = receiptShowsFeeCollectorOutput
           ? null
           : await waitForTokenBalanceIncrease(
               outputTokenForFee,
               FEE_COLLECTOR_ADDRESS,
               feeCollectorBalanceBefore,
-              expectedFeeCollectorOutput,
+              minimumFeeCollectorOutput,
               "FeeCollector post-swap output balance lookup",
             );
+        const settledFeeCollectorOutput = receiptShowsFeeCollectorOutput
+          ? feeCollectorOutputFromReceipt
+          : feeCollectorBalanceIncrease?.increase ?? 0n;
 
-        if (!receiptShowsFeeCollectorOutput && feeCollectorBalanceAfter === null) {
+        if (settledFeeCollectorOutput < minimumFeeCollectorOutput) {
           throw new Error(
-            "Swap confirmed, but the FeeCollector did not receive the expected output from this swap. Fee distribution was stopped so existing FeeCollector funds are not sent out.",
+            "Swap confirmed, but the FeeCollector did not receive the minimum output from this swap. Fee distribution was stopped so existing FeeCollector funds are not sent out.",
           );
         }
 
         console.log("[SwapCard] Submitting fee with atomic distribution:", {
           outputToken: outputTokenForFee,
-          totalAmount: feeCollectorOutput,
+          totalAmount: settledFeeCollectorOutput.toString(),
+          quotedFeeCollectorOutput: quotedFeeCollectorOutput.toString(),
+          minimumFeeCollectorOutput: minimumFeeCollectorOutput.toString(),
           userAddress: userAddress,
           feeSubmitUrl,
           sellToken: sellToken.symbol,
           feeCollectorBalanceBefore: feeCollectorBalanceBefore.toString(),
-          feeCollectorBalanceAfter: feeCollectorBalanceAfter?.toString(),
+          feeCollectorBalanceAfter:
+            feeCollectorBalanceIncrease?.currentBalance.toString(),
+          feeCollectorBalanceIncrease:
+            feeCollectorBalanceIncrease?.increase.toString(),
           feeCollectorOutputFromReceipt:
             feeCollectorOutputFromReceipt.toString(),
           proofSource: receiptShowsFeeCollectorOutput
@@ -1848,7 +1917,7 @@ const SwapCard = ({
             txHash,
             txHashPresent: !!txHash,
             outputToken: outputTokenForFee,
-            totalAmount: feeCollectorOutput,
+            totalAmount: settledFeeCollectorOutput.toString(),
             userAddress,
           });
 
@@ -1858,7 +1927,7 @@ const SwapCard = ({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 outputToken: outputTokenForFee,
-                totalAmount: feeCollectorOutput, // Full amount that FeeCollector received
+                totalAmount: settledFeeCollectorOutput.toString(), // Actual amount the FeeCollector received
                 userAddress: userAddress, // User address to receive (amount - fee)
                 feeBps: 25, // 0.25% = 25 basis points
                 swapTransactionHash: txHash,
@@ -1925,7 +1994,7 @@ const SwapCard = ({
                 feeAmount: feeAmount,
                 feeAmountUsd: feeUsdValue.toString(),
                 feeBasisPoints: 25,
-                totalAmount: feeCollectorOutput,
+                totalAmount: settledFeeCollectorOutput.toString(),
                 transactionHash: feeDistributionTxHash,
                 status: "Recorded",
               });
@@ -2023,7 +2092,7 @@ const SwapCard = ({
               message:
                 feeError instanceof Error ? feeError.message : String(feeError),
               outputToken: outputTokenForFee,
-              totalAmount: feeCollectorOutput,
+              totalAmount: settledFeeCollectorOutput.toString(),
             },
           );
           throw new Error(
@@ -2405,7 +2474,7 @@ const SwapCard = ({
           isOpen={isSellTokenModalOpen}
           onClose={() => setIsSellTokenModalOpen(false)}
           selected={sellToken}
-          onSelect={setSellToken}
+          onSelect={handleSellTokenSelect}
           excludeSymbol={receiveToken?.symbol || ""}
           availableTokens={availableSellTokens}
           tokenBalances={tokenBalances}
@@ -2415,7 +2484,7 @@ const SwapCard = ({
           isOpen={isReceiveTokenModalOpen}
           onClose={() => setIsReceiveTokenModalOpen(false)}
           selected={receiveToken || availableReceiveTokens[0] || sellToken}
-          onSelect={setReceiveToken}
+          onSelect={handleReceiveTokenSelect}
           excludeSymbol={sellToken.symbol}
           availableTokens={availableReceiveTokens}
           tokenBalances={tokenBalances}

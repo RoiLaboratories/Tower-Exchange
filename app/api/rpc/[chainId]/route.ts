@@ -21,13 +21,36 @@ const RPC_ENDPOINTS: Record<string, string[]> = {
   "84532": ["https://sepolia.base.org"],
   "421614": ["https://sepolia-rollup.arbitrum.io/rpc"],
   "5042002": [
-    "https://rpc.testnet.arc.network",
     "https://rpc.drpc.testnet.arc.network",
     "https://rpc.quicknode.testnet.arc.network",
     "https://rpc.blockdaemon.testnet.arc.network",
+    "https://rpc.testnet.arc.network",
   ],
   "11155111": ["https://sepolia.drpc.org"],
   "11155420": ["https://sepolia.optimism.io"],
+};
+
+const NULL_RESULT_FALLBACK_METHODS = new Set([
+  "eth_getTransactionByHash",
+  "eth_getTransactionReceipt",
+]);
+
+const shouldTryNextRpcForNullResult = (
+  requestBody: string,
+  responseBody: string,
+) => {
+  try {
+    const requestJson = JSON.parse(requestBody) as { method?: string };
+    const responseJson = JSON.parse(responseBody) as { result?: unknown };
+
+    return (
+      typeof requestJson.method === "string" &&
+      NULL_RESULT_FALLBACK_METHODS.has(requestJson.method) &&
+      responseJson.result === null
+    );
+  } catch {
+    return false;
+  }
 };
 
 type RouteContext = {
@@ -71,6 +94,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         }
 
         const responseBody = await upstreamResponse.text();
+
+        if (
+          rpcUrls.length > 1 &&
+          shouldTryNextRpcForNullResult(body, responseBody) &&
+          rpcUrl !== rpcUrls[rpcUrls.length - 1]
+        ) {
+          lastError = new Error(
+            `RPC ${rpcUrl} returned null transaction result`
+          );
+          continue;
+        }
 
         return new NextResponse(responseBody, {
           status: upstreamResponse.status,

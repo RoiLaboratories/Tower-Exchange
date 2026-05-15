@@ -51,6 +51,7 @@ type RouteOption = {
 
 const BACKEND_URL = resolveSwapBackendUrl();
 const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
+const XYLONET_NATIVE_USDC_DECIMALS = 6;
 
 const normalizeDexId = (dexId?: string) => {
   const normalized = String(dexId || "").toLowerCase();
@@ -105,6 +106,45 @@ const convertAmountByTokenDecimals = (
   return fromDecimals < toDecimals
     ? amount * 10n ** BigInt(toDecimals - fromDecimals)
     : amount / 10n ** BigInt(fromDecimals - toDecimals);
+};
+
+const convertAmountByDecimals = (
+  amount: bigint,
+  fromDecimals: number,
+  toDecimals: number,
+) => {
+  if (fromDecimals === toDecimals) {
+    return amount;
+  }
+
+  return fromDecimals < toDecimals
+    ? amount * 10n ** BigInt(toDecimals - fromDecimals)
+    : amount / 10n ** BigInt(fromDecimals - toDecimals);
+};
+
+const buildBackendQuoteBody = (body: Record<string, unknown>) => {
+  const dexId = normalizeDexId(String(body.dexId || ""));
+  const inputToken =
+    typeof body.inputToken === "string" ? body.inputToken : undefined;
+  const inputAmount =
+    typeof body.inputAmount === "string" ? body.inputAmount : undefined;
+
+  if (
+    dexId === "xylonet-adapter" &&
+    inputToken?.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase() &&
+    inputAmount
+  ) {
+    return {
+      ...body,
+      inputAmount: convertAmountByDecimals(
+        BigInt(inputAmount),
+        TOKEN_DECIMALS.USDC,
+        XYLONET_NATIVE_USDC_DECIMALS,
+      ).toString(),
+    };
+  }
+
+  return body;
 };
 
 const toMinOut = (amountOut: bigint, slippageTolerance: number) => {
@@ -211,7 +251,7 @@ async function fetchBackendQuote(body: Record<string, unknown>) {
     const response = await fetch(`${BACKEND_URL}/api/swap/quote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(buildBackendQuoteBody(body)),
       cache: "no-store",
     });
 
@@ -282,19 +322,15 @@ export async function POST(request: NextRequest) {
     }
 
     const synthraExclusivePair = isSynthraExclusivePair(inputToken, outputToken);
-    const backendQuotes = synthraExclusivePair || normalizedRequestedDexId === "synthra"
+    const backendQuotes = synthraExclusivePair
       ? []
       : await fetchBackendQuotes({
           inputToken,
           outputToken,
           inputAmount,
           slippageTolerance,
-          dexId: normalizedRequestedDexId,
         });
-    const shouldFetchLocalSynthraQuote =
-      synthraExclusivePair ||
-      !normalizedRequestedDexId ||
-      normalizedRequestedDexId === "synthra";
+    const shouldFetchLocalSynthraQuote = true;
     const synthraQuote = shouldFetchLocalSynthraQuote
       ? await getBestSynthraQuote(
           createSynthraPublicClient(),
@@ -307,8 +343,7 @@ export async function POST(request: NextRequest) {
         })
       : null;
     const shouldFetchLocalUnitFlowQuote =
-      !synthraExclusivePair &&
-      (!normalizedRequestedDexId || normalizedRequestedDexId === "unitflow");
+      !synthraExclusivePair;
     const unitflowQuote = shouldFetchLocalUnitFlowQuote
       ? await (async () => {
           const routeInputToken = toUnitFlowPoolToken(inputToken);

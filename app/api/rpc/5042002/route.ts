@@ -3,11 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const ARC_RPC_ENDPOINTS = [
-  "https://rpc.testnet.arc.network",
   "https://rpc.drpc.testnet.arc.network",
   "https://rpc.quicknode.testnet.arc.network",
   "https://rpc.blockdaemon.testnet.arc.network",
+  "https://rpc.testnet.arc.network",
 ];
+
+const NULL_RESULT_FALLBACK_METHODS = new Set([
+  "eth_getTransactionByHash",
+  "eth_getTransactionReceipt",
+]);
+
+const shouldTryNextRpcForNullResult = (
+  requestBody: string,
+  responseBody: string,
+) => {
+  try {
+    const requestJson = JSON.parse(requestBody) as { method?: string };
+    const responseJson = JSON.parse(responseBody) as { result?: unknown };
+
+    return (
+      typeof requestJson.method === "string" &&
+      NULL_RESULT_FALLBACK_METHODS.has(requestJson.method) &&
+      responseJson.result === null
+    );
+  } catch {
+    return false;
+  }
+};
 
 export async function GET() {
   return NextResponse.json({
@@ -42,6 +65,17 @@ export async function POST(request: NextRequest) {
         }
 
         const responseBody = await upstreamResponse.text();
+
+        if (
+          ARC_RPC_ENDPOINTS.length > 1 &&
+          shouldTryNextRpcForNullResult(body, responseBody) &&
+          rpcUrl !== ARC_RPC_ENDPOINTS[ARC_RPC_ENDPOINTS.length - 1]
+        ) {
+          lastError = new Error(
+            `Arc RPC ${rpcUrl} returned null transaction result`,
+          );
+          continue;
+        }
 
         return new NextResponse(responseBody, {
           status: upstreamResponse.status,

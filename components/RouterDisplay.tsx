@@ -100,33 +100,48 @@ export default function RouterDisplay({
     return optionsByDexId;
   }, new Map<string, RouteOption>());
 
-  const bestOutputAmount = SUPPORTED_ROUTERS.reduce((bestAmount, router) => {
+  const displayedRoutes = SUPPORTED_ROUTERS.map((router) => {
     const option = routeOptionByDexId.get(router.id);
     const outputAmount = outputAmountToBigInt(option?.outputAmount);
 
-    return outputAmount > bestAmount ? outputAmount : bestAmount;
-  }, 0n);
-  const sortedRouters = [...SUPPORTED_ROUTERS].sort(
-    (leftRouter, rightRouter) => {
-      const leftOutputAmount = outputAmountToBigInt(
-        routeOptionByDexId.get(leftRouter.id)?.outputAmount,
-      );
-      const rightOutputAmount = outputAmountToBigInt(
-        routeOptionByDexId.get(rightRouter.id)?.outputAmount,
-      );
+    if (!option || outputAmount <= 0n) {
+      return null;
+    }
+
+    return { router, option, outputAmount };
+  })
+    .filter(
+      (
+        route,
+      ): route is {
+        router: SupportedRouter;
+        option: RouteOption;
+        outputAmount: bigint;
+      } => route !== null,
+    )
+    .sort((leftRoute, rightRoute) => {
+      const leftOutputAmount = leftRoute.outputAmount;
+      const rightOutputAmount = rightRoute.outputAmount;
 
       if (leftOutputAmount === rightOutputAmount) {
         return 0;
       }
 
       return leftOutputAmount > rightOutputAmount ? -1 : 1;
-    },
-  );
+    });
+
+  if (displayedRoutes.length === 0) {
+    return null;
+  }
+
+  const bestOutputAmount = displayedRoutes[0]?.outputAmount ?? 0n;
   const normalizedSelectedRouterId = selectedRouterId
     ? normalizeRouterId(selectedRouterId)
     : undefined;
-  const dexCount = SUPPORTED_ROUTERS.length;
-  const dexNamesLabel = SUPPORTED_ROUTERS.map((router) => router.name).join(", ");
+  const dexCount = displayedRoutes.length;
+  const dexNamesLabel = displayedRoutes
+    .map(({ router }) => router.name)
+    .join(", ");
 
   return (
     <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
@@ -177,15 +192,12 @@ export default function RouterDisplay({
       </div>
 
       <div className="space-y-1 p-1.5">
-        {sortedRouters.map((router) => {
-          const option = routeOptionByDexId.get(router.id);
-          const outputAmount = outputAmountToBigInt(option?.outputAmount);
+        {displayedRoutes.map(({ router, option, outputAmount }) => {
           const isBestPrice =
             outputAmount > 0n && outputAmount === bestOutputAmount;
           const isSelected =
             normalizedSelectedRouterId === router.id ||
             (!normalizedSelectedRouterId && isBestPrice);
-          const isAvailable = Boolean(option);
 
           return (
             <motion.div
@@ -195,7 +207,7 @@ export default function RouterDisplay({
                 isSelected
                   ? "border border-[#35404a] bg-[#161a20]"
                   : "border border-transparent"
-              } ${isAvailable ? "" : "opacity-45"}`}
+              }`}
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 <Image
@@ -215,9 +227,7 @@ export default function RouterDisplay({
                 )}
               </span>
               <span className="shrink-0 text-sm tabular-nums text-white/90">
-                {isAvailable
-                  ? formatQuoteAmount(option?.outputAmount)
-                  : "Unavailable"}
+                {formatQuoteAmount(option.outputAmount)}
               </span>
             </motion.div>
           );
