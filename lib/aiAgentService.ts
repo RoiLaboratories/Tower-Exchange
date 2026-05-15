@@ -15,6 +15,17 @@ export interface AIAgentRequest {
   enable_portfolio_analysis?: boolean;
 }
 
+export type AIAgentSwapRoute = Record<string, unknown>;
+
+export interface AIAgentApprovalTransaction {
+  to: string;
+  data: string;
+  value?: string;
+  from?: string;
+  gasLimit?: string;
+  chainId?: number;
+}
+
 export interface AIAgentResponse {
   reply: string;
   userid: string;
@@ -50,7 +61,7 @@ export interface AIAgentResponse {
       outputAmount: string;
       priceImpact: number;
       minOut: string;
-      route: any;
+      route: AIAgentSwapRoute;
     };
     swap_execution?: {
       quote: {
@@ -60,7 +71,7 @@ export interface AIAgentResponse {
         outputAmount: string;
         priceImpact: number;
         minOut: string;
-        route: any;
+        route: AIAgentSwapRoute;
       };
       transaction: {
         to: string;
@@ -69,9 +80,12 @@ export interface AIAgentResponse {
         from: string;
         gasLimit: string;
         chainId: number;
+        approval?: AIAgentApprovalTransaction | AIAgentApprovalTransaction[] | null;
         platformFeeAmount?: string;
         expectedUserOutput?: string;
         expectedFeeCollectorOutput?: string;
+        feeRecipient?: string;
+        feeBps?: number;
       };
     };
   };
@@ -227,6 +241,7 @@ export const saveChatMessageToHistory = async (
 export const createAIAgentSession = async (
   walletAddress: string
 ): Promise<{ sessionId: string }> => {
+  void walletAddress;
   // Generate a local session ID using UUID
   // The backend doesn't need a separate session creation call
   const sessionId = crypto.randomUUID ? crypto.randomUUID() : generateUUID();

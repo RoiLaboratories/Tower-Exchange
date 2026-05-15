@@ -18,6 +18,7 @@ import { useSwapExecution } from "@/lib/useSwapExecution";
 import {
   submitSwapFee,
 } from "@/lib/swapExecutionService";
+import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -70,6 +71,47 @@ const getFeeCollectorOutputAmount = (
   }
 
   return quote?.outputAmount ?? null;
+};
+
+const getTokenDecimalsByAddress = (tokenAddress?: string) => {
+  if (!tokenAddress) {
+    return 18;
+  }
+
+  const tokenSymbol = Object.entries(TOKEN_CONTRACTS).find(
+    ([, address]) => address.toLowerCase() === tokenAddress.toLowerCase(),
+  )?.[0];
+
+  return tokenSymbol ? TOKEN_DECIMALS[tokenSymbol] ?? 18 : 18;
+};
+
+const normalizeAiQuoteAmountToTokenDecimals = (
+  amount: string | null | undefined,
+  tokenAddress?: string,
+) => {
+  if (!amount) {
+    return null;
+  }
+
+  const decimals = getTokenDecimalsByAddress(tokenAddress);
+
+  try {
+    const amountBn = BigInt(amount);
+
+    if (decimals >= 18) {
+      return amountBn.toString();
+    }
+
+    const conversionFactor = 10n ** BigInt(18 - decimals);
+
+    if (amountBn >= conversionFactor && amountBn % conversionFactor === 0n) {
+      return (amountBn / conversionFactor).toString();
+    }
+
+    return amountBn.toString();
+  } catch {
+    return amount;
+  }
 };
 
 const getHistorySessionMetadata = (
@@ -554,6 +596,11 @@ export const AIChat = () => {
             value: txData.value || "MISSING",
             from: txData.from || "MISSING",
             gasLimit: txData.gasLimit || "MISSING",
+            approvalCount: Array.isArray(txData.approval)
+              ? txData.approval.length
+              : txData.approval
+                ? 1
+                : 0,
           });
         } else {
           console.error(
@@ -573,7 +620,11 @@ export const AIChat = () => {
             }
 
             await swapExecution.executeSwap(
-              txData,
+              {
+                ...txData,
+                inputToken: quote?.inputToken,
+                outputToken: quote?.outputToken,
+              },
               walletAddress,
               sessionId,
               async (confirmation) => {
@@ -626,9 +677,19 @@ export const AIChat = () => {
                     quote.outputToken?.startsWith("0x");
                   const feeCollectorOutputAmount =
                     getFeeCollectorOutputAmount(txData, quote);
+                  const feeCollectorOutputAmountNative =
+                    normalizeAiQuoteAmountToTokenDecimals(
+                      feeCollectorOutputAmount,
+                      quote.outputToken,
+                    );
+                  const inputAmountNative =
+                    normalizeAiQuoteAmountToTokenDecimals(
+                      quote.inputAmount,
+                      quote.inputToken,
+                    );
                   const isValidAmount =
-                    feeCollectorOutputAmount &&
-                    Number(feeCollectorOutputAmount) > 0;
+                    feeCollectorOutputAmountNative &&
+                    BigInt(feeCollectorOutputAmountNative) > 0n;
 
                   console.log("Pre-submission validation:", {
                     tokenValid: isValidToken,
@@ -637,9 +698,12 @@ export const AIChat = () => {
                       walletAddress?.length === 42 &&
                       walletAddress?.startsWith("0x"),
                     feeCollectorOutputAmount,
+                    feeCollectorOutputAmountNative,
                     expectedFeeCollectorOutput:
                       txData?.expectedFeeCollectorOutput,
                     quoteOutputAmount: quote.outputAmount,
+                    inputAmount: quote.inputAmount,
+                    inputAmountNative,
                   });
 
                   if (!isValidToken || !isValidAmount) {
@@ -648,6 +712,7 @@ export const AIChat = () => {
                       {
                         outputToken: quote.outputToken,
                         feeCollectorOutputAmount,
+                        feeCollectorOutputAmountNative,
                       },
                     );
                     setError(
@@ -658,7 +723,7 @@ export const AIChat = () => {
                       "Submitting platform fee after swap confirmation...",
                       {
                         outputToken: quote.outputToken,
-                        totalAmount: feeCollectorOutputAmount,
+                        totalAmount: feeCollectorOutputAmountNative,
                         userAddress: walletAddress,
                         feeBps: 25,
                       },
@@ -666,13 +731,13 @@ export const AIChat = () => {
                     try {
                       const feeResult = await submitSwapFee(
                         quote.outputToken,
-                        feeCollectorOutputAmount,
+                        feeCollectorOutputAmountNative,
                         walletAddress,
                         25, // 0.25% platform fee in basis points
                         {
                           swapTransactionHash: confirmation.transactionHash,
                           inputToken: quote.inputToken,
-                          inputAmount: quote.inputAmount,
+                          inputAmount: inputAmountNative ?? quote.inputAmount,
                         },
                       );
                       console.log("submitSwapFee returned:", feeResult);

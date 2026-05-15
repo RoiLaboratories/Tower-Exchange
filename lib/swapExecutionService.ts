@@ -3,6 +3,22 @@
  */
 
 import { getBrowserWalletProvider } from "@/lib/browser-wallet";
+import {
+  ARC_ADD_NETWORK_PARAMS,
+  ARC_CHAIN_HEX,
+  TOKEN_CONTRACTS,
+} from "@/lib/arcNetwork";
+
+export interface ApprovalTransactionData {
+  to: string;
+  data: string;
+  value?: string;
+  from?: string;
+  gasLimit?: string;
+  chainId?: number;
+  inputToken?: string;
+  outputToken?: string;
+}
 
 export interface TransactionData {
   to: string;
@@ -11,6 +27,14 @@ export interface TransactionData {
   from: string;
   gasLimit: string;
   chainId: number;
+  inputToken?: string;
+  outputToken?: string;
+  approval?: ApprovalTransactionData | ApprovalTransactionData[] | null;
+  platformFeeAmount?: string;
+  expectedUserOutput?: string;
+  expectedFeeCollectorOutput?: string;
+  feeRecipient?: string;
+  feeBps?: number;
 }
 
 export interface SignTransactionResult {
@@ -112,6 +136,117 @@ const applyGasBuffer = (gasEstimate: string) =>
 
 const getArcLatestNonce = (address: string) =>
   callArcRpc<string>("eth_getTransactionCount", [address, "latest"]);
+
+const getWalletErrorCode = (error: unknown) =>
+  error && typeof error === "object" && "code" in error
+    ? (error as { code?: number }).code
+    : undefined;
+
+const ensureArcTestnet = async (
+  provider: ReturnType<typeof getBrowserWalletProvider>,
+) => {
+  try {
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: ARC_ADD_NETWORK_PARAMS,
+      });
+    } catch (addOrUpdateError) {
+      if (getWalletErrorCode(addOrUpdateError) === 4001) {
+        throw new Error(
+          "Please approve the Arc Testnet RPC update in your wallet before swapping.",
+        );
+      }
+
+      console.warn("Unable to refresh Arc Testnet RPC config:", addOrUpdateError);
+    }
+
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ARC_CHAIN_HEX }],
+    });
+  } catch (switchError) {
+    if (getWalletErrorCode(switchError) === 4902) {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: ARC_ADD_NETWORK_PARAMS,
+      });
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: ARC_CHAIN_HEX }],
+      });
+    } else {
+      throw switchError;
+    }
+  }
+
+  const currentChainId = await provider.request({ method: "eth_chainId" });
+  if (currentChainId !== ARC_CHAIN_HEX) {
+    throw new Error("Please switch to Arc Testnet to continue");
+  }
+};
+
+const toHexQuantity = (value: string | number | bigint | undefined) => {
+  if (typeof value === "string" && value.startsWith("0x")) {
+    BigInt(value);
+    return `0x${BigInt(value).toString(16)}`;
+  }
+
+  const amount =
+    value === undefined || value === "" ? 0n : BigInt(value.toString());
+  return `0x${amount.toString(16)}`;
+};
+
+const isNativeUsdcAddress = (tokenAddress?: string) =>
+  Boolean(
+    tokenAddress &&
+      tokenAddress.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase(),
+  );
+
+const getWalletTransactionValue = (transaction: TransactionData) => {
+  const value = toHexQuantity(transaction.value || "0");
+  const hasTokenContext = Boolean(transaction.inputToken || transaction.outputToken);
+  const isNativeInput = isNativeUsdcAddress(transaction.inputToken);
+  const isNativeOutput = isNativeUsdcAddress(transaction.outputToken);
+
+  if (hasTokenContext && !isNativeInput && !isNativeOutput && BigInt(value) > 0n) {
+    console.warn("Corrected AI swap value to 0x0 for pure ERC-20 token swap", {
+      originalValue: transaction.value,
+      inputToken: transaction.inputToken,
+      outputToken: transaction.outputToken,
+    });
+    return "0x0";
+  }
+
+  return value;
+};
+
+const normalizeApprovalTransactions = (
+  approval: TransactionData["approval"],
+) => {
+  if (!approval) {
+    return [];
+  }
+
+  return (Array.isArray(approval) ? approval : [approval]).filter(
+    (tx) => tx?.to && tx?.data,
+  );
+};
+
+const withTransactionDefaults = (
+  tx: ApprovalTransactionData,
+  walletAddress: string,
+  parentTransaction: TransactionData,
+): TransactionData => ({
+  to: tx.to,
+  data: tx.data,
+  value: tx.value ?? "0",
+  from: tx.from ?? walletAddress,
+  gasLimit: tx.gasLimit ?? "500000",
+  chainId: tx.chainId ?? parentTransaction.chainId ?? 5042002,
+  inputToken: tx.inputToken ?? parentTransaction.inputToken,
+  outputToken: tx.outputToken ?? parentTransaction.outputToken,
+});
 
 const encodeBalanceOfCall = (walletAddress: string) => {
   const normalizedAddress = walletAddress.toLowerCase().replace(/^0x/, "");
@@ -274,20 +409,25 @@ export const signTransactionWithPrivy = async (
 
     // Get the active injected wallet provider from the browser
     const provider = getBrowserWalletProvider();
+    await ensureArcTestnet(provider);
+    const walletTxValue = getWalletTransactionValue(transaction);
 
     console.log("Validated transaction. Attempting to sign with browser wallet:", {
       to: transaction.to,
       from: walletAddress,
       data: `${transaction.data.substring(0, 66)}...`,
       value: transaction.value,
+      walletTxValue,
       gasLimit: transaction.gasLimit,
+      inputToken: transaction.inputToken,
+      outputToken: transaction.outputToken,
     });
 
     const preflightTx = {
       from: walletAddress,
       to: transaction.to,
       data: transaction.data,
-      value: transaction.value,
+      value: walletTxValue,
     };
     const gasEstimate = await callArcRpc<string>("eth_estimateGas", [
       preflightTx,
@@ -306,7 +446,7 @@ export const signTransactionWithPrivy = async (
       to: transaction.to,
       from: walletAddress,
       data: transaction.data,
-      value: transaction.value,
+      value: walletTxValue,
       nonce,
       gas: applyGasBuffer(gasEstimate),
       ...(feeParams || {}),
@@ -514,6 +654,53 @@ export const executeSwapFlow = async (
   onError: (error: string) => void
 ): Promise<ConfirmationResult | null> => {
   try {
+    const approvalTransactions = normalizeApprovalTransactions(transaction.approval);
+
+    for (let index = 0; index < approvalTransactions.length; index += 1) {
+      const approvalTransaction = withTransactionDefaults(
+        approvalTransactions[index],
+        walletAddress,
+        transaction,
+      );
+      const approvalLabel =
+        approvalTransactions.length > 1
+          ? `${index + 1}/${approvalTransactions.length}`
+          : "";
+
+      onStatusChange("signing", {
+        message: approvalLabel
+          ? `Requesting token approval ${approvalLabel}...`
+          : "Requesting token approval...",
+      });
+      const approvalSignResult = await signTransactionWithPrivy(
+        approvalTransaction,
+        walletAddress,
+      );
+
+      onStatusChange("broadcasting", {
+        message: approvalLabel
+          ? `Broadcasting token approval ${approvalLabel}...`
+          : "Broadcasting token approval...",
+      });
+      const approvalBroadcastResult = await broadcastTransaction(
+        approvalSignResult.signedTx,
+      );
+
+      onStatusChange("confirming", {
+        message: approvalLabel
+          ? `Waiting for token approval ${approvalLabel} confirmation...`
+          : "Waiting for token approval confirmation...",
+        transactionHash: approvalBroadcastResult.transactionHash,
+      });
+      const approvalConfirmation = await pollTransactionConfirmation(
+        approvalBroadcastResult.transactionHash,
+      );
+
+      if (approvalConfirmation.status !== "success") {
+        throw new Error("Token approval transaction failed");
+      }
+    }
+
     // Step 1: Sign transaction
     onStatusChange("signing", { message: "Requesting wallet signature..." });
     const signResult = await signTransactionWithPrivy(transaction, walletAddress);
