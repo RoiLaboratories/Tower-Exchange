@@ -125,6 +125,14 @@ const getTokenDecimalsByAddress = (tokenAddress: string) => {
   return tokenSymbol ? TOKEN_DECIMALS[tokenSymbol] ?? 18 : 18;
 };
 
+const isEurcToUsdcSwap = (inputToken?: string, outputToken?: string) =>
+  Boolean(
+    inputToken &&
+      outputToken &&
+      inputToken.toLowerCase() === TOKEN_CONTRACTS.EURC.toLowerCase() &&
+      outputToken.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase(),
+  );
+
 const toNativeAmount = (amount: string, tokenAddress: string) => {
   const decimals = getTokenDecimalsByAddress(tokenAddress);
   const amountBn = BigInt(amount);
@@ -365,6 +373,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (quote && userAddress && isUnitFlowQuote(quote)) {
+      if (isEurcToUsdcSwap(quote.inputToken, quote.outputToken)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "UnitFlow is unavailable for EURC to USDC swaps",
+          },
+          { status: 400 },
+        );
+      }
+
       return NextResponse.json({
         success: true,
         data: await buildUnitFlowFallback(quote, userAddress),

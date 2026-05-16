@@ -51,6 +51,7 @@ type RouteOption = {
 
 const BACKEND_URL = resolveSwapBackendUrl();
 const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
+type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
@@ -97,6 +98,10 @@ const getTokenDecimalsByAddress = (tokenAddress: string) => {
 
   return tokenSymbol ? TOKEN_DECIMALS[tokenSymbol] ?? 18 : 18;
 };
+
+const isEurcToUsdcSwap = (inputToken: string, outputToken: string) =>
+  inputToken.toLowerCase() === TOKEN_CONTRACTS.EURC.toLowerCase() &&
+  outputToken.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase();
 
 const normalizeAmountTo18 = (amount: bigint, tokenAddress: string) => {
   const decimals = getTokenDecimalsByAddress(tokenAddress);
@@ -292,19 +297,28 @@ async function fetchBackendQuotes(params: {
   inputAmount: string;
   slippageTolerance: number;
   dexId?: string;
+  backendDexIds?: readonly BackendDexId[];
 }) {
-  const { dexId, ...baseBody } = params;
+  const { dexId, backendDexIds = BACKEND_DEX_IDS, ...baseBody } = params;
 
   if (dexId) {
+    const normalizedDexId = normalizeDexId(dexId);
+    if (
+      !normalizedDexId ||
+      !backendDexIds.includes(normalizedDexId as BackendDexId)
+    ) {
+      return [];
+    }
+
     const quote = await fetchBackendQuote({
       ...baseBody,
-      dexId,
+      dexId: normalizedDexId,
     });
     return quote ? [quote] : [];
   }
 
   const quotes = await Promise.all(
-    BACKEND_DEX_IDS.map((backendDexId) =>
+    backendDexIds.map((backendDexId) =>
       fetchBackendQuote({
         ...baseBody,
         dexId: backendDexId,
@@ -357,6 +371,13 @@ export async function POST(request: NextRequest) {
       resolvedInputToken,
       resolvedOutputToken,
     );
+    const unitflowUnavailableForPair = isEurcToUsdcSwap(
+      resolvedInputToken,
+      resolvedOutputToken,
+    );
+    const backendDexIds: readonly BackendDexId[] = unitflowUnavailableForPair
+      ? BACKEND_DEX_IDS.filter((backendDexId) => backendDexId !== "unitflow")
+      : BACKEND_DEX_IDS;
     const backendQuotes = synthraExclusivePair
       ? []
       : await fetchBackendQuotes({
@@ -364,6 +385,7 @@ export async function POST(request: NextRequest) {
           outputToken: resolvedOutputToken,
           inputAmount,
           slippageTolerance,
+          backendDexIds,
         });
     const shouldFetchLocalSynthraQuote = true;
     const synthraQuote = shouldFetchLocalSynthraQuote
@@ -378,7 +400,7 @@ export async function POST(request: NextRequest) {
         })
       : null;
     const shouldFetchLocalUnitFlowQuote =
-      !synthraExclusivePair;
+      !synthraExclusivePair && !unitflowUnavailableForPair;
     const unitflowQuote = shouldFetchLocalUnitFlowQuote
       ? await (async () => {
           const routeInputToken = toUnitFlowPoolToken(resolvedInputToken);
