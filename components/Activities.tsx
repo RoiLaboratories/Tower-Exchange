@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { ExternalLink } from "lucide-react";
 import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
@@ -27,11 +28,60 @@ interface DisplayActivity {
     icon: StaticImageData | null;
     network: string;
   };
-  status: "Successful" | "Failed";
+  status: "Successful" | "Failed" | "Pending";
   date: string;
   time: string;
+  transactionHash: string | null;
+  transactionUrl: string | null;
   isCancellation?: boolean;
 }
+
+const EXPLORER_URL_BY_NETWORK_NAME: Record<string, string> = {
+  Arc: "https://testnet.arcscan.app/tx/",
+  "Arc Testnet": "https://testnet.arcscan.app/tx/",
+  "Base Sepolia": "https://sepolia.basescan.org/tx/",
+  "Optimism Sepolia": "https://sepolia-optimism.etherscan.io/tx/",
+  "Avalanche Fuji": "https://testnet.snowtrace.io/tx/",
+  "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/",
+  "Ethereum Sepolia": "https://sepolia.etherscan.io/tx/",
+  "Linea Sepolia": "https://sepolia.lineascan.build/tx/",
+  "Polygon Amoy": "https://amoy.polygonscan.com/tx/",
+  "Sonic Testnet": "https://testnet.sonicscan.org/tx/",
+  "Unichain Sepolia": "https://unichain-sepolia.blockscout.com/tx/",
+};
+
+const canShowTransactionAction = (type: string, transactionHash: string | null) =>
+  Boolean(transactionHash && /swap|bridge/i.test(type));
+
+const getActivityExplorerUrl = (row: ActivityRow) => {
+  if (!canShowTransactionAction(row.type, row.transaction_hash)) {
+    return null;
+  }
+
+  if (row.type.toLowerCase().includes("swap")) {
+    return `https://testnet.arcscan.app/tx/${row.transaction_hash}`;
+  }
+
+  const preferredNetwork =
+    row.type.toLowerCase().includes("bridge")
+      ? row.destination_network_name || row.source_network_name
+      : row.source_network_name;
+  const explorerBaseUrl =
+    EXPLORER_URL_BY_NETWORK_NAME[preferredNetwork] ||
+    EXPLORER_URL_BY_NETWORK_NAME[row.source_network_name];
+
+  return explorerBaseUrl && row.transaction_hash
+    ? `${explorerBaseUrl}${row.transaction_hash}`
+    : null;
+};
+
+const getDisplayStatus = (status: ActivityRow["status"]) => {
+  if (status === "Successful" || status === "Pending") {
+    return status;
+  }
+
+  return "Failed";
+};
 
 // Format timestamp to date and time
 const formatTimestamp = (timestamp: string): { date: string; time: string } => {
@@ -102,9 +152,11 @@ const Activities = ({
                   : null,
                 network: row.destination_network_name || "",
               },
-              status: row.status === "Successful" ? "Successful" : "Failed",
+              status: getDisplayStatus(row.status),
               date,
               time,
+              transactionHash: row.transaction_hash,
+              transactionUrl: getActivityExplorerUrl(row),
               isCancellation,
             };
           },
@@ -185,12 +237,15 @@ const Activities = ({
                   <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
                     Date
                   </th>
+                  <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {activities.map((activity, index) => (
                   <motion.tr
-                    key={`${activity.type}-${index}-${activity.date}`}
+                    key={`${activity.type}-${activity.transactionHash || index}-${activity.date}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05, duration: 0.3 }}
@@ -314,6 +369,8 @@ const Activities = ({
                         className={`px-3 py-1.5 rounded-full text-sm font-medium border inline-block ${
                           activity.status === "Successful"
                             ? "text-green-400 border-green-400/30 bg-green-400/10"
+                            : activity.status === "Pending"
+                              ? "text-amber-400 border-amber-400/30 bg-amber-400/10"
                             : "text-red-400 border-red-400/30 bg-red-400/10"
                         }`}
                       >
@@ -325,6 +382,21 @@ const Activities = ({
                       <div className="text-xs text-gray-400">
                         {activity.time}
                       </div>
+                    </td>
+                    <td className="py-5 px-6 text-right">
+                      {activity.transactionUrl ? (
+                        <a
+                          href={activity.transactionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white px-4 text-xs font-semibold text-black transition-colors hover:bg-gray-100"
+                        >
+                          <span>View Transaction</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-500">-</span>
+                      )}
                     </td>
                   </motion.tr>
                 ))}

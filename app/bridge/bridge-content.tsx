@@ -54,6 +54,10 @@ type BridgeChain = {
 type SupportedChainConfig =
   (typeof SUPPORTED_CHAINS)[keyof typeof SUPPORTED_CHAINS];
 
+const BRIDGE_SUCCESS_MODAL_DELAY_MS = 1000;
+const BRIDGE_SUCCESS_MODAL_DURATION_MS = 12000;
+const BRIDGE_PENDING_MODAL_DURATION_MS = 9000;
+
 const getBridgeTokenAddress = (
   chainConfig: SupportedChainConfig,
   tokenSymbol?: string,
@@ -414,7 +418,7 @@ export default function BridgePageContent({
       });
       setTimeout(() => {
         setShowSuccessModal(true);
-      }, 1000);
+      }, BRIDGE_SUCCESS_MODAL_DELAY_MS);
       if (!isPending) {
         setTimeout(() => {
           bridgeHook.resetBridgeState();
@@ -423,11 +427,11 @@ export default function BridgePageContent({
           setShowSuccessModal(false);
           fetchWalletBalance();
           fetchToChainBalance();
-        }, 8500);
+        }, BRIDGE_SUCCESS_MODAL_DURATION_MS);
       } else {
         setTimeout(() => {
           setShowSuccessModal(false);
-        }, 5000);
+        }, BRIDGE_PENDING_MODAL_DURATION_MS);
       }
     }
   }, [

@@ -51,6 +51,8 @@ import {
 } from "@/lib/browser-wallet";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
+const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;
+const SWAP_SUCCESS_RESET_DELAY_MS = SWAP_SUCCESS_NOTIFICATION_DURATION_MS + 500;
 const ARC_RPC_PROXY_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
 const ARC_NATIVE_USDC_DECIMALS = 18;
 const RECEIPT_REQUEST_TIMEOUT_MS = 12000;
@@ -1113,19 +1115,19 @@ const SwapCard = ({
         setSwapState("success");
         setNotification("success");
 
-        // Auto-dismiss notification after 5 seconds
+        // Auto-dismiss after a longer confirmation window so users can review/open the transaction.
         successNotificationTimeout = setTimeout(() => {
           setNotification(null);
-        }, 5000);
+        }, SWAP_SUCCESS_NOTIFICATION_DURATION_MS);
 
-        // Reset amounts after success
+        // Reset after the success modal has had time to remain visible.
         successResetTimeout = setTimeout(() => {
           setSellAmount("0.00");
           setReceiveAmount("0.00");
           setSwapState("idle");
           setTransactionHash(null);
           fetchUserBalances();
-        }, 3000);
+        }, SWAP_SUCCESS_RESET_DELAY_MS);
       };
 
       if (!receiveToken) {

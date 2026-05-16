@@ -52,6 +52,25 @@ type RouteOption = {
 const BACKEND_URL = resolveSwapBackendUrl();
 const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+
+const resolveTokenAddress = (token?: string) => {
+  const normalizedToken = token?.trim();
+
+  if (!normalizedToken) {
+    return undefined;
+  }
+
+  const symbolAddress = TOKEN_CONTRACTS[normalizedToken.toUpperCase()];
+
+  if (symbolAddress) {
+    return symbolAddress;
+  }
+
+  return EVM_ADDRESS_PATTERN.test(normalizedToken)
+    ? normalizedToken
+    : undefined;
+};
 
 const normalizeDexId = (dexId?: string) => {
   const normalized = String(dexId || "").toLowerCase();
@@ -321,12 +340,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const synthraExclusivePair = isSynthraExclusivePair(inputToken, outputToken);
+    const resolvedInputToken = resolveTokenAddress(inputToken);
+    const resolvedOutputToken = resolveTokenAddress(outputToken);
+
+    if (!resolvedInputToken || !resolvedOutputToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unsupported or invalid inputToken/outputToken",
+        },
+        { status: 400 },
+      );
+    }
+
+    const synthraExclusivePair = isSynthraExclusivePair(
+      resolvedInputToken,
+      resolvedOutputToken,
+    );
     const backendQuotes = synthraExclusivePair
       ? []
       : await fetchBackendQuotes({
-          inputToken,
-          outputToken,
+          inputToken: resolvedInputToken,
+          outputToken: resolvedOutputToken,
           inputAmount,
           slippageTolerance,
         });
@@ -334,8 +369,8 @@ export async function POST(request: NextRequest) {
     const synthraQuote = shouldFetchLocalSynthraQuote
       ? await getBestSynthraQuote(
           createSynthraPublicClient(),
-          inputToken,
-          outputToken,
+          resolvedInputToken,
+          resolvedOutputToken,
           inputAmount,
         ).catch((error) => {
           console.warn("[swap/quote] Synthra quote unavailable:", error);
@@ -346,17 +381,17 @@ export async function POST(request: NextRequest) {
       !synthraExclusivePair;
     const unitflowQuote = shouldFetchLocalUnitFlowQuote
       ? await (async () => {
-          const routeInputToken = toUnitFlowPoolToken(inputToken);
+          const routeInputToken = toUnitFlowPoolToken(resolvedInputToken);
           const unitflowInputAmount = convertAmountByTokenDecimals(
             BigInt(inputAmount),
-            inputToken,
+            resolvedInputToken,
             routeInputToken,
           );
 
           return getBestUnitFlowQuote(
             createUnitFlowPublicClient(),
-            inputToken,
-            outputToken,
+            resolvedInputToken,
+            resolvedOutputToken,
             unitflowInputAmount,
           );
         })().catch((error) => {

@@ -12,6 +12,7 @@ import {
   type AIAgentResponse,
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
+import { supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
@@ -47,6 +48,16 @@ const quickPrompts = [
 
 const GENERIC_CHAT_TITLES = new Set(["New Chat", "Chat"]);
 const HIDDEN_BALANCE_TOKENS = new Set(["QTM", "SWPRC"]);
+const ACTIVITY_TOKEN_SYMBOL_ALIASES: Record<string, string> = {
+  WUSDC: "USDC",
+  WUSDC_SYNTHRA: "USDC",
+};
+
+type AiSwapActivityQuote = {
+  inputToken?: string;
+  outputToken?: string;
+  inputAmount?: string;
+};
 
 const formatSessionTitle = (text: string) => {
   const summary = text.trim().replace(/\s+/g, " ");
@@ -85,6 +96,22 @@ const getTokenDecimalsByAddress = (tokenAddress?: string) => {
   return tokenSymbol ? TOKEN_DECIMALS[tokenSymbol] ?? 18 : 18;
 };
 
+const getTokenSymbolByAddress = (tokenAddress?: string) => {
+  if (!tokenAddress) {
+    return null;
+  }
+
+  const tokenSymbol = Object.entries(TOKEN_CONTRACTS).find(
+    ([, address]) => address.toLowerCase() === tokenAddress.toLowerCase(),
+  )?.[0];
+
+  if (!tokenSymbol) {
+    return null;
+  }
+
+  return ACTIVITY_TOKEN_SYMBOL_ALIASES[tokenSymbol] ?? tokenSymbol;
+};
+
 const normalizeAiQuoteAmountToTokenDecimals = (
   amount: string | null | undefined,
   tokenAddress?: string,
@@ -111,6 +138,84 @@ const normalizeAiQuoteAmountToTokenDecimals = (
     return amountBn.toString();
   } catch {
     return amount;
+  }
+};
+
+const formatTokenAmountForActivity = (
+  amount: string | null | undefined,
+  tokenAddress?: string,
+) => {
+  const nativeAmount = normalizeAiQuoteAmountToTokenDecimals(
+    amount,
+    tokenAddress,
+  );
+
+  if (!nativeAmount) {
+    return null;
+  }
+
+  try {
+    const amountBn = BigInt(nativeAmount);
+    const decimals = BigInt(getTokenDecimalsByAddress(tokenAddress));
+    const scale = 10n ** decimals;
+    const whole = amountBn / scale;
+    const fraction = amountBn % scale;
+    const fractionText = fraction
+      .toString()
+      .padStart(Number(decimals), "0")
+      .replace(/0+$/, "");
+    const formatted = fractionText
+      ? `${whole.toString()}.${fractionText}`
+      : whole.toString();
+    const parsedAmount = Number(formatted);
+
+    return Number.isFinite(parsedAmount) ? parsedAmount : null;
+  } catch {
+    const parsedAmount = Number(nativeAmount);
+    return Number.isFinite(parsedAmount) ? parsedAmount : null;
+  }
+};
+
+const logAiSwapActivity = async ({
+  walletAddress,
+  quote,
+  transactionHash,
+}: {
+  walletAddress: string;
+  quote?: AiSwapActivityQuote;
+  transactionHash?: string;
+}) => {
+  try {
+    if (!walletAddress || !quote?.inputToken || !quote.outputToken) {
+      return;
+    }
+
+    const sourceSymbol = getTokenSymbolByAddress(quote.inputToken);
+    const destinationSymbol = getTokenSymbolByAddress(quote.outputToken);
+    const amount = formatTokenAmountForActivity(
+      quote.inputAmount,
+      quote.inputToken,
+    );
+
+    const { error } = await supabase.from("activities").insert({
+      wallet_address: walletAddress.toLowerCase(),
+      type: "Swap",
+      source_currency_ticker: sourceSymbol ?? "Token",
+      destination_currency_ticker: destinationSymbol ?? "Token",
+      source_network_name: "Arc",
+      destination_network_name: "Arc",
+      status: "Successful",
+      amount,
+      amount_usd: amount,
+      transaction_hash: transactionHash || null,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error("Error logging AI swap activity:", error);
+    }
+  } catch (activityError) {
+    console.error("Error logging AI swap activity:", activityError);
   }
 };
 
@@ -670,6 +775,12 @@ export const AIChat = () => {
                 }
 
                 if (quote && confirmation.status === "success") {
+                  await logAiSwapActivity({
+                    walletAddress,
+                    quote,
+                    transactionHash: confirmation.transactionHash,
+                  });
+
                   console.log("─── Initiating Fee Submission ───");
 
                   const isValidToken =
