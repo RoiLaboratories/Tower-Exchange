@@ -21,6 +21,7 @@ interface TransactionConfirmationProps {
   onClose?: () => void;
   title?: string;
   errorLayout?: "inline" | "stacked";
+  explorerUrl?: string;
 }
 
 export const TransactionConfirmation: React.FC<
@@ -34,6 +35,7 @@ export const TransactionConfirmation: React.FC<
   onClose,
   title,
   errorLayout = "inline",
+  explorerUrl,
 }) => {
   const [copied, setCopied] = useState(false);
   const showInlineError =
@@ -176,7 +178,10 @@ export const TransactionConfirmation: React.FC<
                     <Copy size={14} />
                   </button>
                   <a
-                    href={`https://testnet.arcscan.app/tx/${transactionHash}`}
+                    href={
+                      explorerUrl ||
+                      `https://testnet.arcscan.app/tx/${transactionHash}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1 hover:bg-white/10 rounded transition-colors"

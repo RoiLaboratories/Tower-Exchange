@@ -10,9 +10,10 @@ import {
   getConversationHistory,
   type ChatHistoryItem,
   type AIAgentResponse,
+  type AIAgentBridgeRequest,
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
-import { supabase } from "@/lib/supabase";
+import { registerBridgeActivity, supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
@@ -20,6 +21,8 @@ import {
   submitSwapFee,
 } from "@/lib/swapExecutionService";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
+import useBridge from "@/lib/hooks/useBridge";
+import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -219,6 +222,30 @@ const logAiSwapActivity = async ({
   }
 };
 
+const BRIDGE_EXPLORER_URLS: Record<string, string> = {
+  "arc-testnet": "https://testnet.arcscan.app/tx/",
+  "base-sepolia": "https://sepolia.basescan.org/tx/",
+  "optimism-sepolia": "https://sepolia-optimism.etherscan.io/tx/",
+  "avalanche-fuji": "https://testnet.snowtrace.io/tx/",
+  "arbitrum-sepolia": "https://sepolia.arbiscan.io/tx/",
+  "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
+  "linea-sepolia": "https://sepolia.lineascan.build/tx/",
+  "polygon-amoy": "https://amoy.polygonscan.com/tx/",
+  "sonic-testnet": "https://testnet.sonicscan.org/tx/",
+  "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
+};
+
+const getBridgeChainName = (chainId?: string) => {
+  if (!chainId) {
+    return "";
+  }
+
+  return (
+    SUPPORTED_CHAINS[chainId as keyof typeof SUPPORTED_CHAINS]?.name ||
+    chainId
+  );
+};
+
 const getHistorySessionMetadata = (
   history: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[],
 ) => {
@@ -283,6 +310,7 @@ const normalizeSession = (session: ChatSession): ChatSession => ({
 export const AIChat = () => {
   const { user } = useRainbowKitAuth();
   const swapExecution = useSwapExecution();
+  const bridgeHook = useBridge();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -296,6 +324,9 @@ export const AIChat = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
+  const [showBridgeConfirmation, setShowBridgeConfirmation] = useState(false);
+  const [activeBridgeRequest, setActiveBridgeRequest] =
+    useState<AIAgentBridgeRequest | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
@@ -429,7 +460,10 @@ export const AIChat = () => {
       setMessage("");
       setError(null);
       setShowSwapConfirmation(false);
+      setShowBridgeConfirmation(false);
+      setActiveBridgeRequest(null);
       swapExecution.resetState();
+      bridgeHook.resetBridgeState();
       setProfileImageError(false);
       setSidebarOpen(false); // Close sidebar after selecting a session
 
@@ -486,7 +520,10 @@ export const AIChat = () => {
           setMessage("");
           setError(null);
           setShowSwapConfirmation(false);
+          setShowBridgeConfirmation(false);
+          setActiveBridgeRequest(null);
           swapExecution.resetState();
+          bridgeHook.resetBridgeState();
           setSessionId("");
           setSidebarOpen(false);
         }
@@ -645,6 +682,11 @@ export const AIChat = () => {
           lowerMessage,
         );
       const enableSwap = /swap|exchange|trade/.test(lowerMessage);
+      const enableBridge =
+        /bridge|bridging|cross-chain|cross chain/.test(lowerMessage) ||
+        /\b(send|transfer|move)\b.+\b(from|to|into|onto)\b.+\b(usdc|arc|base|optimism|avalanche|arbitrum|ethereum|linea|polygon|sonic|unichain)\b/.test(
+          lowerMessage,
+        );
 
       const rawResponse = await sendMessageToAIAgent({
         message: text,
@@ -654,6 +696,7 @@ export const AIChat = () => {
         chain_id: 5042002, // Arc testnet
         enable_wallet_access: enableWalletAccess,
         enable_swap_execution: enableSwap,
+        enable_bridge_execution: enableBridge,
         enable_portfolio_analysis: enablePortfolioAnalysis,
       });
       const response = sanitizeBalanceResponse(rawResponse);
@@ -892,6 +935,59 @@ export const AIChat = () => {
         }
       }
 
+      if (response.data?.bridge_execution?.request) {
+        const bridgeRequest = response.data.bridge_execution.request;
+        const sourceAddress = bridgeRequest.sourceAddress || walletAddress;
+        const toAddress = bridgeRequest.toAddress || walletAddress;
+
+        console.log("Bridge execution data detected:", bridgeRequest);
+        setActiveBridgeRequest({
+          ...bridgeRequest,
+          sourceAddress,
+          toAddress,
+        });
+        setShowBridgeConfirmation(true);
+
+        if (sourceAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+          setError(
+            "Bridge source address must match your connected wallet before signing.",
+          );
+        } else {
+          try {
+            const result = await bridgeHook.executeBridge({
+              fromChain: bridgeRequest.fromChain,
+              toChain: bridgeRequest.toChain,
+              amount: bridgeRequest.amount,
+              token: bridgeRequest.token || "USDC",
+              sourceAddress: walletAddress,
+              toAddress,
+            });
+
+            if (result.success) {
+              await registerBridgeActivity({
+                walletAddress,
+                fromChain: getBridgeChainName(bridgeRequest.fromChain),
+                toChain: getBridgeChainName(bridgeRequest.toChain),
+                amount: bridgeRequest.amount,
+                token: bridgeRequest.token || "USDC",
+                transactionHash: result.transactionHash,
+                fee: response.data.bridge_execution.estimatedFee,
+                status: result.status === "pending" ? "Pending" : "Successful",
+              });
+            } else {
+              setError(result.error || "Bridge transaction failed.");
+            }
+          } catch (bridgeError) {
+            console.error("Bridge execution error:", bridgeError);
+            setError(
+              bridgeError instanceof Error
+                ? bridgeError.message
+                : "Bridge transaction failed.",
+            );
+          }
+        }
+      }
+
       // Save chat to Supabase
       const savedChatMessage = await saveChatMessageToHistory(
         walletAddress,
@@ -962,7 +1058,10 @@ export const AIChat = () => {
     setIsLoading(false);
     setError(null);
     setShowSwapConfirmation(false);
+    setShowBridgeConfirmation(false);
+    setActiveBridgeRequest(null);
     swapExecution.resetState();
+    bridgeHook.resetBridgeState();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -998,11 +1097,39 @@ export const AIChat = () => {
   };
 
   const hasMessages = messages.length > 0;
+  const bridgeConfirmationStatus = bridgeHook.error
+    ? "error"
+    : bridgeHook.isBridging
+      ? "signing"
+      : bridgeHook.success
+        ? "confirmed"
+        : "idle";
+  const bridgeExplorerUrl =
+    bridgeHook.transactionHash &&
+    activeBridgeRequest?.toChain &&
+    BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]
+      ? `${BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]}${bridgeHook.transactionHash}`
+      : undefined;
+  const bridgeStatusMessage = bridgeHook.isBridging
+    ? "Follow the wallet prompts to submit the bridge transaction."
+    : bridgeHook.message ||
+      (bridgeHook.status === "pending"
+        ? "Bridge submitted and still settling across chains."
+        : "Bridge transaction submitted.");
+  const bridgeConfirmationTitle = bridgeHook.error
+    ? "Bridge Failed"
+    : bridgeHook.isBridging
+      ? "Bridge In Progress"
+      : bridgeHook.status === "pending"
+        ? "Bridge Submitted"
+        : bridgeHook.success
+          ? "Bridge Confirmed"
+          : "Preparing Bridge";
 
   useEffect(() => {
     if (
       !messagesContainerRef.current ||
-      (!hasMessages && !showSwapConfirmation)
+      (!hasMessages && !showSwapConfirmation && !showBridgeConfirmation)
     ) {
       return;
     }
@@ -1014,7 +1141,12 @@ export const AIChat = () => {
     hasMessages,
     isLoading,
     messages.length,
+    showBridgeConfirmation,
     showSwapConfirmation,
+    bridgeHook.error,
+    bridgeHook.isBridging,
+    bridgeHook.status,
+    bridgeHook.transactionHash,
     swapExecution.status,
     swapExecution.statusMessage,
   ]);
@@ -1294,6 +1426,35 @@ export const AIChat = () => {
                         onClose={() => {
                           setShowSwapConfirmation(false);
                           swapExecution.resetState();
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {showBridgeConfirmation && (
+                  <div className="flex justify-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+                      <Image
+                        src={chatLogo}
+                        alt="Tower logo"
+                        width={28}
+                        height={28}
+                        className="object-contain"
+                      />
+                    </div>
+                    <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
+                      <TransactionConfirmation
+                        status={bridgeConfirmationStatus}
+                        statusMessage={bridgeStatusMessage}
+                        transactionHash={bridgeHook.transactionHash}
+                        error={bridgeHook.error}
+                        title={bridgeConfirmationTitle}
+                        explorerUrl={bridgeExplorerUrl}
+                        onClose={() => {
+                          setShowBridgeConfirmation(false);
+                          setActiveBridgeRequest(null);
+                          bridgeHook.resetBridgeState();
                         }}
                       />
                     </div>

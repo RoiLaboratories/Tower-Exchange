@@ -12,10 +12,21 @@ export interface AIAgentRequest {
   chain_id?: number;
   enable_wallet_access?: boolean;
   enable_swap_execution?: boolean;
+  enable_bridge_execution?: boolean;
   enable_portfolio_analysis?: boolean;
 }
 
 export type AIAgentSwapRoute = Record<string, unknown>;
+
+export interface AIAgentBridgeRequest {
+  fromChain: string;
+  toChain: string;
+  amount: string;
+  token: string;
+  sourceAddress: string;
+  toAddress: string;
+  slippageTolerance?: number;
+}
 
 export interface AIAgentApprovalTransaction {
   to: string;
@@ -88,6 +99,12 @@ export interface AIAgentResponse {
         feeBps?: number;
       };
     };
+    bridge_execution?: {
+      request: AIAgentBridgeRequest;
+      estimatedFee?: string;
+      estimatedTime?: string;
+      message?: string;
+    };
   };
 }
 
@@ -124,6 +141,7 @@ export const sendMessageToAIAgent = async (
       chain_id: request.chain_id || 5042002, // Arc testnet
       enable_wallet_access: request.enable_wallet_access === true,
       enable_swap_execution: request.enable_swap_execution === true,
+      enable_bridge_execution: request.enable_bridge_execution === true,
       enable_portfolio_analysis: request.enable_portfolio_analysis === true,
     };
 

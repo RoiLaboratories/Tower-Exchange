@@ -6,6 +6,7 @@ const BACKEND_URL =
   "https://tower-exchange-ai-production-5811.up.railway.app";
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
 const AI_QUOTE_SYMBOLS = ["USDT", "USDC", "EURC"] as const;
 const AI_QUOTE_SYMBOL_SET = new Set<string>(AI_QUOTE_SYMBOLS);
 
@@ -34,6 +35,7 @@ type AiQuote = {
 type AiChatPayload = Record<string, unknown> & {
   message?: string;
   enable_swap_execution?: boolean;
+  enable_bridge_execution?: boolean;
 };
 
 type AiChatResponsePayload = Record<string, unknown> & {
@@ -47,6 +49,16 @@ type SwapQuoteIntent = {
   inputAmount: string;
 };
 
+type BridgeExecutionRequest = {
+  fromChain: string;
+  toChain: string;
+  amount: string;
+  token: "USDC";
+  sourceAddress: string;
+  toAddress: string;
+  slippageTolerance?: number;
+};
+
 type LocalSwapTransactionBundle = {
   approval?: unknown;
   swap: Record<string, unknown>;
@@ -55,6 +67,65 @@ type LocalSwapTransactionBundle = {
 type LocalExecutableSwapRoute = {
   quote: AiQuote;
   transactionBundle: LocalSwapTransactionBundle;
+};
+
+const SUPPORTED_BRIDGE_CHAINS = [
+  "arc-testnet",
+  "base-sepolia",
+  "optimism-sepolia",
+  "avalanche-fuji",
+  "arbitrum-sepolia",
+  "ethereum-sepolia",
+  "linea-sepolia",
+  "polygon-amoy",
+  "sonic-testnet",
+  "unichain-sepolia",
+] as const;
+
+type SupportedBridgeChain = (typeof SUPPORTED_BRIDGE_CHAINS)[number];
+
+const BRIDGE_CHAIN_NAMES: Record<SupportedBridgeChain, string> = {
+  "arc-testnet": "Arc Testnet",
+  "base-sepolia": "Base Sepolia",
+  "optimism-sepolia": "Optimism Sepolia",
+  "avalanche-fuji": "Avalanche Fuji",
+  "arbitrum-sepolia": "Arbitrum Sepolia",
+  "ethereum-sepolia": "Ethereum Sepolia",
+  "linea-sepolia": "Linea Sepolia",
+  "polygon-amoy": "Polygon Amoy",
+  "sonic-testnet": "Sonic Testnet",
+  "unichain-sepolia": "Unichain Sepolia",
+};
+
+const BRIDGE_CHAIN_ALIASES: Record<SupportedBridgeChain, string[]> = {
+  "arc-testnet": ["arc-testnet", "arc testnet", "arc"],
+  "base-sepolia": ["base-sepolia", "base sepolia", "base"],
+  "optimism-sepolia": [
+    "optimism-sepolia",
+    "optimism sepolia",
+    "optimism",
+    "op sepolia",
+  ],
+  "avalanche-fuji": ["avalanche-fuji", "avalanche fuji", "fuji", "avalanche"],
+  "arbitrum-sepolia": [
+    "arbitrum-sepolia",
+    "arbitrum sepolia",
+    "arbitrum",
+  ],
+  "ethereum-sepolia": [
+    "ethereum-sepolia",
+    "ethereum sepolia",
+    "eth sepolia",
+    "sepolia",
+  ],
+  "linea-sepolia": ["linea-sepolia", "linea sepolia", "linea"],
+  "polygon-amoy": ["polygon-amoy", "polygon amoy", "amoy", "polygon"],
+  "sonic-testnet": ["sonic-testnet", "sonic testnet", "sonic"],
+  "unichain-sepolia": [
+    "unichain-sepolia",
+    "unichain sepolia",
+    "unichain",
+  ],
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -79,6 +150,177 @@ const getStringField = (
   }
 
   return undefined;
+};
+
+const getNumberField = (
+  record: Record<string, unknown> | null,
+  fields: string[],
+) => {
+  if (!record) {
+    return undefined;
+  }
+
+  for (const field of fields) {
+    const value = record[field];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim() && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+
+  return undefined;
+};
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeBridgeChain = (chain?: string | null): SupportedBridgeChain | null => {
+  const normalizedChain = chain?.trim().toLowerCase();
+
+  if (!normalizedChain) {
+    return null;
+  }
+
+  for (const chainId of SUPPORTED_BRIDGE_CHAINS) {
+    if (chainId === normalizedChain) {
+      return chainId;
+    }
+
+    const aliases = BRIDGE_CHAIN_ALIASES[chainId];
+    if (aliases.some((alias) => alias.toLowerCase() === normalizedChain)) {
+      return chainId;
+    }
+  }
+
+  return null;
+};
+
+const findBridgeChainMentions = (message: string) => {
+  const mentions: Array<{ chain: SupportedBridgeChain; index: number }> = [];
+
+  for (const chainId of SUPPORTED_BRIDGE_CHAINS) {
+    for (const alias of BRIDGE_CHAIN_ALIASES[chainId]) {
+      const pattern = new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i");
+      const match = message.match(pattern);
+
+      if (match?.index != null) {
+        mentions.push({ chain: chainId, index: match.index });
+        break;
+      }
+    }
+  }
+
+  return mentions.sort((left, right) => left.index - right.index);
+};
+
+const extractBridgeChainAfterKeyword = (
+  message: string,
+  keyword: "from" | "to",
+) => {
+  const keywordPattern =
+    keyword === "from"
+      ? /\bfrom\s+(.+?)(?=\s+\b(?:to|into|onto|for)\b|$)/i
+      : /\b(?:to|into|onto)\s+(.+?)(?=$|\s+\b(?:using|with|for|address|wallet)\b)/i;
+  const match = message.match(keywordPattern);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const segmentMentions = findBridgeChainMentions(match[1]);
+  return segmentMentions[0]?.chain ?? normalizeBridgeChain(match[1]);
+};
+
+const extractBridgeIntent = (
+  payload: AiChatPayload,
+): BridgeExecutionRequest | null => {
+  const message = typeof payload.message === "string" ? payload.message : "";
+  const directIntent =
+    asRecord(payload.bridge_intent) ||
+    asRecord(payload.bridgeIntent) ||
+    asRecord(payload.parameters);
+  const walletAddress = getWalletAddress(payload);
+
+  if (!walletAddress) {
+    return null;
+  }
+
+  const messageLooksLikeBridge =
+    /\b(bridge|bridging|cross-chain|cross chain)\b/i.test(message) ||
+    /\b(?:send|transfer|move)\b.+\b(?:from|to|into|onto)\b/i.test(message);
+
+  if (!directIntent && (!message || !messageLooksLikeBridge)) {
+    return null;
+  }
+
+  const amountFromIntent = getStringField(directIntent, ["amount", "inputAmount"]);
+  const amountFromMessage = message.match(
+    /\b(\d[\d,]*(?:\.\d+)?)\s*(USDC)\b/i,
+  )?.[1];
+  const amount = (amountFromIntent || amountFromMessage || "")
+    .replace(/,/g, "")
+    .trim();
+  const token = (
+    getStringField(directIntent, ["token", "tokenSymbol"]) ||
+    message.match(/\b(USDC)\b/i)?.[1] ||
+    ""
+  ).toUpperCase();
+
+  if (!amount || !/^\d+(\.\d+)?$/.test(amount) || token !== "USDC") {
+    return null;
+  }
+
+  const fromChain =
+    normalizeBridgeChain(getStringField(directIntent, ["fromChain", "sourceChain"])) ||
+    extractBridgeChainAfterKeyword(message, "from");
+  const toChain =
+    normalizeBridgeChain(getStringField(directIntent, ["toChain", "destinationChain"])) ||
+    extractBridgeChainAfterKeyword(message, "to");
+  const orderedMentions = findBridgeChainMentions(message);
+  const fallbackFromChain = orderedMentions[0]?.chain ?? null;
+  const fallbackToChain =
+    orderedMentions.find((mention) => mention.chain !== fallbackFromChain)?.chain ??
+    null;
+  const resolvedFromChain = fromChain || fallbackFromChain;
+  const resolvedToChain = toChain || fallbackToChain;
+  const explicitToAddress = getStringField(directIntent, [
+    "toAddress",
+    "recipientAddress",
+    "destinationAddress",
+  ]);
+  const messageAddresses = Array.from(
+    message.matchAll(EVM_ADDRESS_IN_TEXT_PATTERN),
+    (match) => match[0],
+  );
+  const toAddress =
+    explicitToAddress ||
+    messageAddresses.find(
+      (address) => address.toLowerCase() !== walletAddress.toLowerCase(),
+    ) ||
+    walletAddress;
+
+  if (!resolvedFromChain || !resolvedToChain || resolvedFromChain === resolvedToChain) {
+    return null;
+  }
+
+  if (!EVM_ADDRESS_PATTERN.test(toAddress)) {
+    return null;
+  }
+
+  return {
+    fromChain: resolvedFromChain,
+    toChain: resolvedToChain,
+    amount,
+    token: "USDC",
+    sourceAddress: walletAddress,
+    toAddress,
+    slippageTolerance:
+      getNumberField(directIntent, ["slippageTolerance", "slippage"]) ?? 0.5,
+  };
 };
 
 const resolveTokenAddress = (token?: string | null) => {
@@ -644,6 +886,70 @@ const enrichStableSwapQuote = async (
   );
 };
 
+const estimateBridgeTime = (toChain: string) => {
+  const timeMap: Record<string, string> = {
+    "arc-testnet": "1-2 minutes",
+    "base-sepolia": "2-5 minutes",
+    "optimism-sepolia": "3-7 minutes",
+    "avalanche-fuji": "2-5 minutes",
+    "arbitrum-sepolia": "2-5 minutes",
+  };
+
+  return timeMap[toChain] || "2-5 minutes";
+};
+
+const buildBridgeReadyReply = (bridgeRequest: BridgeExecutionRequest) => {
+  const fromName =
+    BRIDGE_CHAIN_NAMES[bridgeRequest.fromChain as SupportedBridgeChain] ||
+    bridgeRequest.fromChain;
+  const toName =
+    BRIDGE_CHAIN_NAMES[bridgeRequest.toChain as SupportedBridgeChain] ||
+    bridgeRequest.toChain;
+
+  return [
+    `The bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName} is ready.`,
+    "Please sign the wallet prompts to submit the bridge transaction.",
+    `Estimated completion time: ${estimateBridgeTime(bridgeRequest.toChain)}.`,
+  ].join("\n");
+};
+
+const enrichBridgeExecution = (
+  payload: AiChatPayload,
+  response: AiChatResponsePayload,
+): AiChatResponsePayload => {
+  if (payload.enable_bridge_execution !== true) {
+    return response;
+  }
+
+  const dataRecord = asRecord(response.data);
+  const existingBridgeExecution = asRecord(dataRecord?.bridge_execution);
+
+  if (existingBridgeExecution) {
+    return response;
+  }
+
+  const bridgeRequest = extractBridgeIntent(payload);
+
+  if (!bridgeRequest) {
+    return response;
+  }
+
+  return {
+    ...response,
+    reply: buildBridgeReadyReply(bridgeRequest),
+    data: {
+      ...(dataRecord ?? {}),
+      action: "bridge",
+      bridge_execution: {
+        request: bridgeRequest,
+        estimatedFee: "0.000130",
+        estimatedTime: estimateBridgeTime(bridgeRequest.toChain),
+        message: "Bridge request prepared for wallet signing.",
+      },
+    },
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as AiChatPayload;
@@ -682,7 +988,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data, { status: response.status });
     }
 
-    const enrichedData = await enrichStableSwapQuote(request, body, data);
+    const enrichedSwapData = await enrichStableSwapQuote(request, body, data);
+    const enrichedData = enrichBridgeExecution(body, enrichedSwapData);
 
     return NextResponse.json(enrichedData);
   } catch (error) {
