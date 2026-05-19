@@ -257,9 +257,9 @@ export const RecurringOrdersDashboard = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-max">
                 <thead>
-                  <tr className="border-b border-zinc-800/30 bg-zinc-800/20">
+                  <tr className="border-b border-zinc-800/30 bg-zinc-800/20 [&>th]:whitespace-nowrap">
                     <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
                       Type
                     </th>
@@ -293,7 +293,7 @@ export const RecurringOrdersDashboard = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.05 }}
-                      className={`border-b border-zinc-800/20 hover:bg-zinc-800/30 transition-colors cursor-pointer ${
+                      className={`border-b border-zinc-800/20 hover:bg-zinc-800/30 transition-colors cursor-pointer [&>td]:whitespace-nowrap ${
                         selectedOrder?.id === order.id ? "bg-zinc-800/50" : ""
                       }`}
                       onClick={() => setSelectedOrder(order)}
@@ -425,9 +425,11 @@ export const RecurringOrdersDashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Next Execution (UTC)</span>
-                    <span className="font-semibold text-white">
+                  <div className="flex justify-between items-center gap-4 pb-4 border-b border-zinc-800/30">
+                    <span className="text-zinc-400 shrink-0 whitespace-nowrap">
+                      Next Execution (UTC)
+                    </span>
+                    <span className="font-semibold text-white text-right whitespace-nowrap">
                       {formatDateTimeShort(selectedOrder.next_execution_date)}{" "}
                       UTC
                     </span>
@@ -446,9 +448,11 @@ export const RecurringOrdersDashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">First Execution (UTC)</span>
-                    <span className="font-semibold text-white">
+                  <div className="flex justify-between items-center gap-4 pb-4 border-b border-zinc-800/30">
+                    <span className="text-zinc-400 shrink-0 whitespace-nowrap">
+                      First Execution (UTC)
+                    </span>
+                    <span className="font-semibold text-white text-right whitespace-nowrap">
                       {formatDateTime(selectedOrder.start_date)} UTC
                     </span>
                   </div>
@@ -496,7 +500,7 @@ export const RecurringOrdersDashboard = () => {
                   Execution History
                 </h3>
 
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
                   {executionHistory.length === 0 ? (
                     <p className="text-zinc-400 text-center py-8">
                       No executions yet

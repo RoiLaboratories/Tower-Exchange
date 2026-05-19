@@ -1309,7 +1309,7 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
         "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
       },
-      logo: "/assets/USDC-fotor-bg-remover-2025111075935.png",
+      logo: "/assets/usdc.svg",
     },
   ];
 

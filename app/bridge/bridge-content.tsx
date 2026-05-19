@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Image, { type StaticImageData } from "next/image";
@@ -23,7 +23,7 @@ import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import usdcLogo from "@/public/assets/usdc.svg";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
@@ -136,6 +136,7 @@ export default function BridgePageContent({
   const [sourceGasBalance, setSourceGasBalance] = useState("0.00");
   const [destinationGasBalance, setDestinationGasBalance] = useState("0.00");
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
+  const swapNavigationStartedRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -508,6 +509,21 @@ export default function BridgePageContent({
     }
   };
 
+  const handleNavigateToSwap = useCallback(() => {
+    if (swapNavigationStartedRef.current) {
+      return;
+    }
+
+    swapNavigationStartedRef.current = true;
+
+    if (onNavigateToSwap) {
+      onNavigateToSwap();
+      return;
+    }
+
+    router.push("/");
+  }, [onNavigateToSwap, router]);
+
   const getBridgeButtonContent = () => {
     if (!user) {
       return "Connect Wallet";
@@ -560,25 +576,24 @@ export default function BridgePageContent({
             whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1 relative">
-                <motion.span
-                  layoutId="activeTab"
-                  className="absolute inset-y-1 rounded-full bg-[#1f2125]"
-                  style={{ width: "calc(50% - 2px)", left: "calc(50% + 2px)" }}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
+              <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
                 <button
                   type="button"
-                  onClick={() =>
-                    onNavigateToSwap ? onNavigateToSwap() : router.push("/")
-                  }
-                  className="relative px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground transition-colors z-10"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    handleNavigateToSwap();
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    handleNavigateToSwap();
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground"
                 >
                   Swap
                 </button>
                 <button
                   type="button"
-                  className="relative px-3 py-1.5 text-xs font-medium rounded-full text-foreground z-10"
+                  className="px-3 py-1.5 text-xs font-medium rounded-full bg-[#1f2125] text-foreground"
                 >
                   Bridge
                 </button>
@@ -668,7 +683,7 @@ export default function BridgePageContent({
                           alt={`${fromChain.name} logo`}
                           width={12}
                           height={12}
-                          className="object-contain"
+                          className="h-full w-full rounded-full object-cover"
                         />
                       </span>
                     )}
@@ -749,7 +764,7 @@ export default function BridgePageContent({
                           alt={`${toChain.name} logo`}
                           width={12}
                           height={12}
-                          className="object-contain"
+                          className="h-full w-full rounded-full object-cover"
                         />
                       </span>
                     )}

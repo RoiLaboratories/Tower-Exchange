@@ -20,6 +20,7 @@ interface RouterDisplayProps {
   selectedRouterId?: string;
   routeOptions?: RouteOption[];
   isAutoSelected?: boolean;
+  quoteUsdValueLabel?: string;
 }
 
 type SupportedRouter = {
@@ -84,6 +85,7 @@ const formatQuoteAmount = (amount?: string) => {
 export default function RouterDisplay({
   selectedRouterId,
   routeOptions = [],
+  quoteUsdValueLabel,
 }: RouterDisplayProps) {
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
     const dexId = normalizeRouterId(option.dexId);
@@ -227,7 +229,7 @@ export default function RouterDisplay({
                 )}
               </span>
               <span className="shrink-0 text-sm tabular-nums text-white/90">
-                {formatQuoteAmount(option.outputAmount)}
+                {quoteUsdValueLabel || formatQuoteAmount(option.outputAmount)}
               </span>
             </motion.div>
           );

@@ -1,6 +1,6 @@
 // config/portfolioData.ts
 import { StaticImageData } from "next/image";
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
+import usdcLogo from "@/public/assets/usdc.svg";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 import hypeLogo from "@/public/assets/hype.png";
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { StaticImageData } from "next/image";
 import { getTokenIcon } from "./tokenIcons";
 import { ARC_TESTNET_CONFIG } from "./arcNetwork";
+import { DEFAULT_TOKEN_USD_PRICES } from "./tokenUsdPrices";
 
 export interface WalletHolding {
   token: string;
@@ -111,20 +112,18 @@ export const useWalletHoldings = (walletAddress: string | null) => {
 
         // Get token prices from CoinGecko
         let priceMap: Record<string, number> = {
-          USDC: 1,
-          EURC: 1,
-          USDT: 1,
+          ...DEFAULT_TOKEN_USD_PRICES,
         };
 
         try {
           const priceResponse = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,stasis-eur-coin,tether&vs_currencies=usd"
+            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,eurc,tether&vs_currencies=usd"
           );
           const prices = await priceResponse.json();
           priceMap = {
-            USDC: prices["usd-coin"]?.usd || 1,
-            EURC: prices["stasis-eur-coin"]?.usd || 1,
-            USDT: prices["tether"]?.usd || 1,
+            USDC: prices["usd-coin"]?.usd || DEFAULT_TOKEN_USD_PRICES.USDC,
+            EURC: prices.eurc?.usd || DEFAULT_TOKEN_USD_PRICES.EURC,
+            USDT: prices.tether?.usd || DEFAULT_TOKEN_USD_PRICES.USDT,
           };
         } catch (err) {
           console.warn("Failed to fetch prices from CoinGecko, using defaults", err);

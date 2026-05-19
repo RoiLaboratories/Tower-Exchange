@@ -1,6 +1,7 @@
 import { StaticImageData } from "next/image";
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import eurcLogo from "@/public/assets/Euro_Coin logo.png";
+import usdcLogo from "@/public/assets/usdc.svg";
+import eurcLogo from "@/public/assets/eurc.svg";
+import usdtLogo from "@/public/assets/usdt.svg";
 
 export interface Token {
   symbol: string;
@@ -14,7 +15,6 @@ export interface Token {
   chartData?: number[];
 }
 
-// Currently only USDC and EURC are swappable via XyloNet
 export const tokens: Token[] = [
   {
     symbol: "USDC",
@@ -36,17 +36,16 @@ export const tokens: Token[] = [
     marketCap: "$500M",
     chartData: [1.152, 1.151, 1.15, 1.149, 1.148, 1.147, 1.15, 1.149, 1.15],
   },
-  // TODO: Uncomment when DEX routes are integrated
-  // {
-  //   symbol: "USDT",
-  //   price: "$0.98",
-  //   change: "-2.1%",
-  //   icon: usdtLogo,
-  //   color: "text-destructive",
-  //   change24h: "-2.1%",
-  //   marketCap: "$95.5B",
-  //   chartData: [1.0, 0.99, 1.01, 0.985, 0.995, 0.98, 0.99, 0.982, 0.98],
-  // },
+  {
+    symbol: "USDT",
+    price: "$1",
+    change: "+0.0%",
+    icon: usdtLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$95.5B",
+    chartData: [1.0, 1.0, 1.001, 1.0, 0.999, 1.0, 1.0, 1.001, 1.0],
+  },
   // {
   //   symbol: "SWPRC",
   //   price: "$0.85",

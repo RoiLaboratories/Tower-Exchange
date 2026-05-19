@@ -1,15 +1,18 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useCallback, useState } from "react";
+import { flushSync } from "react-dom";
+import BridgeCardContent from "@/app/bridge/bridge-content";
 import SwapCard from "@/components/SwapCard";
 import TokenTicker from "@/components/TokenTicker";
-import dynamic from "next/dynamic";
-
-const BridgeCardContent = dynamic(() => import("@/app/bridge/bridge-content"), {
-  ssr: false,
-});
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<"swap" | "bridge">("swap");
+  const showSwap = useCallback(() => {
+    flushSync(() => setCurrentView("swap"));
+  }, []);
+  const showBridge = useCallback(() => {
+    flushSync(() => setCurrentView("bridge"));
+  }, []);
 
   return (
     <>
@@ -17,13 +20,15 @@ export default function Home() {
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         {currentView === "swap" ? (
           <div className="w-full max-w-[62rem]">
-            <SwapCard onNavigateToBridge={() => setCurrentView("bridge")} />
+            <SwapCard onNavigateToBridge={showBridge} />
           </div>
         ) : (
           <div className="w-full max-w-md">
-            <BridgeCardContent
-              onNavigateToSwap={() => setCurrentView("swap")}
-            />
+            <Suspense fallback={null}>
+              <BridgeCardContent
+                onNavigateToSwap={showSwap}
+              />
+            </Suspense>
           </div>
         )}
       </main>

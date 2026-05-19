@@ -1,8 +1,9 @@
 import type { StaticImageData } from "next/image";
 
-import eurcLogo from "@/public/assets/Euro_Coin logo.png";
-import usdcLogo from "@/public/assets/USDC-fotor-bg-remover-2025111075935.png";
-import usdtLogo from "@/public/assets/USDT logo.png";
+import eurcLogo from "@/public/assets/eurc.svg";
+import usdcLogo from "@/public/assets/usdc.svg";
+import usdtLogo from "@/public/assets/usdt.svg";
+import { DEFAULT_TOKEN_USD_PRICES } from "@/lib/tokenUsdPrices";
 
 export interface SwapToken {
   symbol: "USDC" | "EURC" | "USDT";
@@ -15,9 +16,27 @@ export interface SwapToken {
 export type SwapTokenSymbol = SwapToken["symbol"];
 
 export const SWAP_TOKENS: readonly SwapToken[] = [
-  { symbol: "USDC", icon: usdcLogo, name: "USD Coin", balance: 1000, usdPrice: 1 },
-  { symbol: "EURC", icon: eurcLogo, name: "Euro Coin", balance: 750, usdPrice: 1 },
-  { symbol: "USDT", icon: usdtLogo, name: "Tether USD", balance: 500, usdPrice: 1 },
+  {
+    symbol: "USDC",
+    icon: usdcLogo,
+    name: "USD Coin",
+    balance: 1000,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.USDC,
+  },
+  {
+    symbol: "EURC",
+    icon: eurcLogo,
+    name: "Euro Coin",
+    balance: 750,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.EURC,
+  },
+  {
+    symbol: "USDT",
+    icon: usdtLogo,
+    name: "Tether USD",
+    balance: 500,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.USDT,
+  },
 ] as const;
 
 const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([

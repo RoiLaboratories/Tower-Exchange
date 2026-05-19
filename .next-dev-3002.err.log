@@ -1,2 +1,0 @@
-⚠ `images.domains` is deprecated in favor of `images.remotePatterns`. Please update next.config.ts to protect your application from malicious users.
-⨯ Unable to acquire lock at C:\Users\Chidozie Collins\Documents\GitHub\Tower-Finance\.next\dev\lock, is another instance of next dev running?

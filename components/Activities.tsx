@@ -296,15 +296,15 @@ const Activities = ({
                               alt={activity.source.network}
                               width={16}
                               height={16}
-                              className="w-full h-full object-contain"
+                              className="h-full w-full rounded-full object-cover"
                             />
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-max">
                           <div className="font-medium">
                             {activity.source.token}
                           </div>
-                          <div className="text-xs text-gray-400">
+                          <div className="whitespace-nowrap text-xs text-gray-400">
                             {activity.source.network}
                           </div>
                         </div>
@@ -341,15 +341,15 @@ const Activities = ({
                                 alt={activity.destination.network}
                                 width={16}
                                 height={16}
-                                className="w-full h-full object-contain"
+                                className="h-full w-full rounded-full object-cover"
                               />
                             </div>
                           </div>
-                          <div>
+                          <div className="min-w-max">
                             <div className="font-medium">
                               {activity.destination.token}
                             </div>
-                            <div className="text-xs text-gray-400">
+                            <div className="whitespace-nowrap text-xs text-gray-400">
                               {activity.destination.network}
                             </div>
                           </div>
@@ -378,8 +378,8 @@ const Activities = ({
                       </motion.span>
                     </td>
                     <td className="py-5 px-6 text-right">
-                      <div className="font-medium">{activity.date}</div>
-                      <div className="text-xs text-gray-400">
+                      <div className="whitespace-nowrap font-medium">{activity.date}</div>
+                      <div className="whitespace-nowrap text-xs text-gray-400">
                         {activity.time}
                       </div>
                     </td>
@@ -389,10 +389,10 @@ const Activities = ({
                           href={activity.transactionUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white px-4 text-xs font-semibold text-black transition-colors hover:bg-gray-100"
+                          className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white px-4 text-xs font-semibold text-black transition-colors hover:bg-gray-100"
                         >
                           <span>View Transaction</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                         </a>
                       ) : (
                         <span className="text-xs text-gray-500">-</span>

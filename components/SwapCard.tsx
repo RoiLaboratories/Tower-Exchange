@@ -7,7 +7,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -488,12 +488,15 @@ const SwapCard = ({
 }) => {
   const router = useRouter();
   const { user, login, authenticated } = useRainbowKitAuth();
+  const bridgeNavigationStartedRef = useRef(false);
 
   // Tower Exchange DEX Aggregator hook
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [isWalletConnected, setIsWalletConnected] = useState(
+    Boolean(authenticated && user),
+  );
   const [, setChainId] = useState<string | null>(null);
   const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(
     undefined,
@@ -715,10 +718,17 @@ const SwapCard = ({
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
   const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
+  const shouldUseInputUsdValueForReceive =
+    receiveToken?.symbol === "EURC" &&
+    Number.parseFloat(sellAmount) > 0 &&
+    Number.parseFloat(receiveAmount) > 0;
   const receiveUsdValueLabel = formatUsdAmount(
     receiveAmount,
     receiveToken?.usdPrice ?? 0,
   );
+  const effectiveReceiveUsdValueLabel = shouldUseInputUsdValueForReceive
+    ? sellUsdValueLabel
+    : receiveUsdValueLabel;
 
   const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
@@ -1072,6 +1082,21 @@ const SwapCard = ({
       setSwapState("idle");
     }
   };
+
+  const handleNavigateToBridge = useCallback(() => {
+    if (bridgeNavigationStartedRef.current) {
+      return;
+    }
+
+    bridgeNavigationStartedRef.current = true;
+
+    if (onNavigateToBridge) {
+      onNavigateToBridge();
+      return;
+    }
+
+    router.push("/bridge");
+  }, [onNavigateToBridge, router]);
 
   // Handle swap transaction
   const handleSwap = async () => {
@@ -2281,12 +2306,15 @@ const SwapCard = ({
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  onNavigateToBridge
-                    ? onNavigateToBridge()
-                    : router.push("/bridge")
-                }
-                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground hover:text-foreground hover:bg-[#1b1d21] transition-colors"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  handleNavigateToBridge();
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  handleNavigateToBridge();
+                }}
+                className="px-3 py-1.5 text-xs font-medium rounded-full text-muted-foreground"
               >
                 Bridge
               </button>
@@ -2390,7 +2418,7 @@ const SwapCard = ({
                 value={receiveAmount}
                 onChange={setReceiveAmount}
                 onClear={() => setReceiveAmount("0.00")}
-                usdValueLabel={receiveUsdValueLabel}
+                usdValueLabel={effectiveReceiveUsdValueLabel}
               />
             </div>
           </div>
@@ -2416,6 +2444,9 @@ const SwapCard = ({
                 selectedRouterId={selectedRouterId}
                 routeOptions={routeOptions}
                 isAutoSelected={!selectedRouterId}
+                quoteUsdValueLabel={
+                  receiveToken?.symbol === "EURC" ? sellUsdValueLabel : undefined
+                }
               />
             </div>
           )}
@@ -2442,7 +2473,7 @@ const SwapCard = ({
               {sellToken.symbol}
             </span>
             <span className="text-muted-foreground">
-              {sellToken.symbol === "EURC" ? "$1.15" : "$1"}
+              {formatUsdAmount(1, sellToken.usdPrice)}
             </span>
           </motion.button>
           {receiveToken && (
@@ -2465,7 +2496,7 @@ const SwapCard = ({
                 {receiveToken.symbol}
               </span>
               <span className="text-muted-foreground">
-                {receiveToken.symbol === "EURC" ? "$1.15" : "$1"}
+                {formatUsdAmount(1, receiveToken.usdPrice)}
               </span>
             </motion.button>
           )}
