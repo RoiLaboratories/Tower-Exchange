@@ -162,17 +162,17 @@ export const TransactionConfirmation: React.FC<
           )}
 
           {transactionHash && (
-            <div className="mb-3 p-2 rounded bg-black/30 font-mono text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-400">TX Hash:</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-300 truncate">
+            <div className="mb-3 min-w-0 overflow-hidden rounded bg-black/30 p-2 font-mono text-xs">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <span className="shrink-0 text-gray-400">TX Hash:</span>
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                  <span className="min-w-0 truncate text-gray-300">
                     {transactionHash.slice(0, 10)}...
                     {transactionHash.slice(-10)}
                   </span>
                   <button
                     onClick={handleCopyHash}
-                    className="p-1 hover:bg-white/10 rounded transition-colors"
+                    className="shrink-0 rounded p-1 transition-colors hover:bg-white/10"
                     title="Copy full hash"
                   >
                     <Copy size={14} />
@@ -184,7 +184,7 @@ export const TransactionConfirmation: React.FC<
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1 hover:bg-white/10 rounded transition-colors"
+                    className="shrink-0 rounded p-1 transition-colors hover:bg-white/10"
                     title="View on Arcscan Testnet"
                   >
                     <ExternalLink size={14} />

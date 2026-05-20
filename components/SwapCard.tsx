@@ -2331,8 +2331,8 @@ const SwapCard = ({
               <motion.button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
               >
                 <Settings className="w-5 h-5 text-muted-foreground" />
               </motion.button>

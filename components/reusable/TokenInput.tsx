@@ -23,7 +23,7 @@ const TokenInput = ({
   };
 
   return (
-    <div className="text-right relative flex-1 min-w-0 overflow-hidden">
+    <div className="relative ml-auto flex-1 basis-0 min-w-0 max-w-full overflow-hidden text-right">
       <style jsx>{`
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
@@ -50,7 +50,7 @@ const TokenInput = ({
           fontSize: `${getInputFontSize()}px`,
           transition: "font-size 0.2s ease",
         }}
-        className="bg-transparent font-semibold text-right w-full outline-none text-foreground pr-6 overflow-hidden"
+        className="block w-full min-w-0 max-w-full overflow-hidden bg-transparent pr-6 text-right font-semibold text-foreground outline-none"
         placeholder="0.00"
       />
       {value !== "0.00" && value !== "" && (

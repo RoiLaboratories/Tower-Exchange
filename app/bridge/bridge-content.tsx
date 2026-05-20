@@ -615,8 +615,8 @@ export default function BridgePageContent({
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
                 >
                   <Settings className="w-5 h-5 text-muted-foreground" />
                 </motion.button>
@@ -649,7 +649,7 @@ export default function BridgePageContent({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center justify-between gap-2">
                 {/* Token + chain selector button */}
                 <motion.button
                   type="button"
@@ -660,7 +660,7 @@ export default function BridgePageContent({
                     current.set("side", "from");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -731,7 +731,7 @@ export default function BridgePageContent({
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center justify-between gap-2">
                 <motion.button
                   type="button"
                   onClick={() => {
@@ -741,7 +741,7 @@ export default function BridgePageContent({
                     current.set("side", "to");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -785,9 +785,9 @@ export default function BridgePageContent({
             </div>
 
             {/* Add receiving wallet row */}
-            <div className="mb-4 inline-flex w-full select-none items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white pointer-events-none">
-              <Plus className="h-3 w-3 text-white" />
-              <span className="text-white">Add receiving wallet</span>
+            <div className="mb-4 inline-flex w-full select-none items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white/45 pointer-events-none">
+              <Plus className="h-3 w-3 text-current" />
+              <span>Add receiving wallet</span>
             </div>
 
             {/* Fee + estimated time info */}

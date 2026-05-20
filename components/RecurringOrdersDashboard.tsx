@@ -425,11 +425,11 @@ export const RecurringOrdersDashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-center gap-4 pb-4 border-b border-zinc-800/30">
+                  <div className="flex flex-col items-start gap-1 pb-4 border-b border-zinc-800/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                     <span className="text-zinc-400 shrink-0 whitespace-nowrap">
                       Next Execution (UTC)
                     </span>
-                    <span className="font-semibold text-white text-right whitespace-nowrap">
+                    <span className="font-semibold text-white whitespace-nowrap sm:text-right">
                       {formatDateTimeShort(selectedOrder.next_execution_date)}{" "}
                       UTC
                     </span>
@@ -448,11 +448,11 @@ export const RecurringOrdersDashboard = () => {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-center gap-4 pb-4 border-b border-zinc-800/30">
+                  <div className="flex flex-col items-start gap-1 pb-4 border-b border-zinc-800/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                     <span className="text-zinc-400 shrink-0 whitespace-nowrap">
                       First Execution (UTC)
                     </span>
-                    <span className="font-semibold text-white text-right whitespace-nowrap">
+                    <span className="font-semibold text-white whitespace-nowrap sm:text-right">
                       {formatDateTime(selectedOrder.start_date)} UTC
                     </span>
                   </div>
