@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  type PublicClient,
   createPublicClient,
   http,
   getContract,
@@ -11,9 +12,58 @@ const ARC_TESTNET_CHAIN_ID = "arc-testnet";
 const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const ARC_NATIVE_USDC_DECIMALS = 18;
 
+const RPC_URL_FALLBACKS: Record<string, string[]> = {
+  "421614": [
+    "https://sepolia-rollup.arbitrum.io/rpc",
+    "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://arbitrum-sepolia.drpc.org",
+  ],
+  "arbitrum-sepolia": [
+    "https://sepolia-rollup.arbitrum.io/rpc",
+    "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://arbitrum-sepolia.drpc.org",
+  ],
+};
+
+const getRpcUrlsForChain = (chainId: string, rpcUrl: string) => {
+  const configuredFallbacks =
+    RPC_URL_FALLBACKS[String(chainId).toLowerCase()] ?? [];
+
+  return Array.from(
+    new Set([...configuredFallbacks, rpcUrl].filter(Boolean)),
+  );
+};
+
+const readWithRpcFallback = async <T,>(
+  chainId: string,
+  rpcUrl: string,
+  read: (publicClient: PublicClient) => Promise<T>,
+) => {
+  let lastError: unknown = null;
+
+  for (const candidateRpcUrl of getRpcUrlsForChain(chainId, rpcUrl)) {
+    try {
+      const publicClient = createPublicClient({
+        transport: http(candidateRpcUrl),
+      });
+
+      return await read(publicClient);
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Wallet balance RPC failed for ${chainId} using ${candidateRpcUrl}:`,
+        error,
+      );
+    }
+  }
+
+  throw lastError ?? new Error("No RPC endpoints available");
+};
+
 export async function POST(request: NextRequest) {
   try {
     const { address, chainId, rpcUrl, tokenAddress, balanceType } = await request.json();
+    const normalizedChainId = String(chainId).toLowerCase();
 
     if (!address || !chainId || !rpcUrl) {
       return NextResponse.json(
@@ -22,23 +72,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create public client for the chain
-    const publicClient = createPublicClient({
-      transport: http(rpcUrl),
-    });
-
     if (balanceType === "native") {
-      const balance = await publicClient.getBalance({
-        address: address as `0x${string}`,
-      });
+      const formattedBalance = await readWithRpcFallback(
+        normalizedChainId,
+        rpcUrl,
+        async (publicClient) => {
+          const balance = await publicClient.getBalance({
+            address: address as `0x${string}`,
+          });
+
+          return Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(
+            6,
+          );
+        },
+      );
 
       return NextResponse.json({
-        balance: Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(6),
+        balance: formattedBalance,
       });
     }
 
     // Use provided token address, or default to USDC for the chain
-    const contractAddress = tokenAddress || getUSDCAddressForChain(chainId);
+    const contractAddress =
+      tokenAddress || getUSDCAddressForChain(String(chainId));
     if (!contractAddress) {
       return NextResponse.json(
         { balance: "0.00", error: "Token not supported on this chain" },
@@ -47,37 +103,51 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      String(chainId).toLowerCase() === ARC_TESTNET_CHAIN_ID &&
+      normalizedChainId === ARC_TESTNET_CHAIN_ID &&
       contractAddress.toLowerCase() === ARC_NATIVE_USDC_ADDRESS
     ) {
-      const balance = await publicClient.getBalance({
-        address: address as `0x${string}`,
-      });
+      const formattedBalance = await readWithRpcFallback(
+        normalizedChainId,
+        rpcUrl,
+        async (publicClient) => {
+          const balance = await publicClient.getBalance({
+            address: address as `0x${string}`,
+          });
+
+          return Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(
+            6
+          );
+        },
+      );
 
       return NextResponse.json({
-        balance: Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(
-          6
-        ),
+        balance: formattedBalance,
       });
     }
 
-    // Get the contract
-    const contract = getContract({
-      address: contractAddress as `0x${string}`,
-      abi: erc20Abi,
-      client: publicClient,
-    });
+    const formattedBalance = await readWithRpcFallback(
+      normalizedChainId,
+      rpcUrl,
+      async (publicClient) => {
+        // Get the contract
+        const contract = getContract({
+          address: contractAddress as `0x${string}`,
+          abi: erc20Abi,
+          client: publicClient,
+        });
 
-    // Fetch balance
-    const balance = (await contract.read.balanceOf([
-      address as `0x${string}`,
-    ])) as bigint;
+        // Fetch balance
+        const balance = (await contract.read.balanceOf([
+          address as `0x${string}`,
+        ])) as bigint;
 
-    // Fetch decimals
-    const decimals = (await contract.read.decimals()) as number;
+        // Fetch decimals
+        const decimals = (await contract.read.decimals()) as number;
 
-    // Convert to readable format
-    const formattedBalance = Number(formatUnits(balance, decimals)).toFixed(6);
+        // Convert to readable format
+        return Number(formatUnits(balance, decimals)).toFixed(6);
+      },
+    );
 
     return NextResponse.json({ balance: formattedBalance });
   } catch (error) {

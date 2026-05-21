@@ -346,8 +346,10 @@ export default function BridgePageContent({
 
   useEffect(() => {
     const feeAmount = parseFloat(bridgeHook.estimatedFee);
-    const estimated = (parseFloat(fromAmount) - feeAmount).toFixed(2);
-    setToAmount(isNaN(parseFloat(estimated)) ? "0.00" : estimated);
+    const estimated = parseFloat(fromAmount) - feeAmount;
+    setToAmount(
+      Number.isFinite(estimated) ? Math.max(estimated, 0).toFixed(2) : "0.00",
+    );
   }, [bridgeHook.estimatedFee, fromAmount]);
 
   const handleFromAmountFocus = () => {
@@ -723,10 +725,12 @@ export default function BridgePageContent({
             <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Bridge to</span>
-                {toChainBalance !== "0.00" && (
+                {toChainId && toToken && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Wallet className="w-4 h-4" />
-                    <span>{toChainBalance}</span>
+                    <span>
+                      {toChainBalance !== "0.00" ? toChainBalance : "0.00"}
+                    </span>
                   </div>
                 )}
               </div>

@@ -19,7 +19,11 @@ const RPC_ENDPOINTS: Record<string, string[]> = {
   "59141": ["https://rpc.sepolia.linea.build"],
   "80002": ["https://rpc-amoy.polygon.technology"],
   "84532": ["https://sepolia.base.org"],
-  "421614": ["https://sepolia-rollup.arbitrum.io/rpc"],
+  "421614": [
+    "https://sepolia-rollup.arbitrum.io/rpc",
+    "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://arbitrum-sepolia.drpc.org",
+  ],
   "5042002": [
     "https://rpc.drpc.testnet.arc.network",
     "https://rpc.quicknode.testnet.arc.network",

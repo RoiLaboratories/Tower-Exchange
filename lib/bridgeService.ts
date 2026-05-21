@@ -149,7 +149,7 @@ export const SUPPORTED_CHAINS = {
   "arbitrum-sepolia": {
     name: "Arbitrum Sepolia",
     chainId: 421614,
-    rpcUrl: "https://sepolia-rpc.arbitrum.io/rpc",
+    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
     nativeTokenSymbol: "ETH",
     circleChain: "Arbitrum_Sepolia" as const,
     usdcAddress: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
