@@ -360,10 +360,28 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { quote, userAddress } = body as {
+    const { quote, userAddress, executionMode } = body as {
       quote?: SwapQuote;
       userAddress?: string;
+      executionMode?: string;
     };
+    const isRecurringOrderExecution =
+      executionMode === "recurring_order_executor";
+
+    if (
+      isRecurringOrderExecution &&
+      quote &&
+      (isSynthraQuote(quote) || isUnitFlowQuote(quote))
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Recurring order executor only supports XyloNet adapter routes.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (quote && userAddress && isSynthraQuote(quote)) {
       return NextResponse.json({

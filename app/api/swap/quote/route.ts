@@ -387,7 +387,8 @@ export async function POST(request: NextRequest) {
           slippageTolerance,
           backendDexIds,
         });
-    const shouldFetchLocalSynthraQuote = true;
+    const shouldFetchLocalSynthraQuote =
+      !normalizedRequestedDexId || normalizedRequestedDexId === "synthra";
     const synthraQuote = shouldFetchLocalSynthraQuote
       ? await getBestSynthraQuote(
           createSynthraPublicClient(),
@@ -400,6 +401,7 @@ export async function POST(request: NextRequest) {
         })
       : null;
     const shouldFetchLocalUnitFlowQuote =
+      (!normalizedRequestedDexId || normalizedRequestedDexId === "unitflow") &&
       !synthraExclusivePair && !unitflowUnavailableForPair;
     const unitflowQuote = shouldFetchLocalUnitFlowQuote
       ? await (async () => {

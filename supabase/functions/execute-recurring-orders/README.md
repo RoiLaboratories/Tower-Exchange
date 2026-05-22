@@ -158,6 +158,7 @@ Add to Supabase Function Settings:
 - `TOWER_BACKEND_MAX_RETRY_DELAY_MS` - Optional cap for backend retry delay, defaults to `15000`
 - `RECURRING_ORDER_EXECUTOR_ADDRESS` - Deployed recurring order executor
 - `RECURRING_ORDER_RELAYER_PRIVATE_KEY` - Relayer wallet private key
+- `RECURRING_ORDER_DEX_ID` - Optional swap route to use for recurring orders, defaults to `xylonet-adapter`
 - `RECURRING_ORDER_ROUTE_TARGETS` - Comma-separated XyloNet router/adapter addresses allowed for recurring swaps
 - `RECURRING_ORDER_APPROVAL_SPENDERS` - Comma-separated token spenders allowed for recurring swaps
 - `ARC_TESTNET_RPC_URL` - Arc RPC URL

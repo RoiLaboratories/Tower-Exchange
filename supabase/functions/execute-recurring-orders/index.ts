@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-// @ts-ignore Deno Edge Functions resolve npm: specifiers at deploy/runtime.
+// @ts-expect-error Deno Edge Functions resolve npm: specifiers at deploy/runtime.
 import { ethers } from "npm:ethers@6.15.0";
 
 type DenoRuntime = {
@@ -83,10 +83,10 @@ const recurringOrderRouteTargets = splitConfiguredAddresses(
 const recurringOrderApprovalSpenders = splitConfiguredAddresses(
   denoRuntime.env.get("RECURRING_ORDER_APPROVAL_SPENDERS")
 );
+const recurringOrderDexId = normalizeDexId(
+  denoRuntime.env.get("RECURRING_ORDER_DEX_ID") || "xylonet-adapter"
+);
 const feeCollectorAddress = denoRuntime.env.get("FEE_COLLECTOR_ADDRESS") ?? "";
-const xyloNetRouterAddress =
-  denoRuntime.env.get("XYLONET_ROUTER_ADDRESS") ??
-  "0x73742278c31a76dBb0D2587d03ef92E6E2141023";
 
 const tokenDecimalsBySymbol: Record<string, number> = {
   USDC: 6,
@@ -127,8 +127,26 @@ function splitConfiguredAddresses(value?: string): string[] {
     .map((address) => address.toLowerCase());
 }
 
-function normalizeAddress(value?: string): string {
-  return value?.toLowerCase() ?? "";
+function normalizeDexId(value?: string): string {
+  const normalized = String(value || "").toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.includes("xylonet")) {
+    return "xylonet-adapter";
+  }
+
+  if (normalized.includes("unitflow")) {
+    return "unitflow";
+  }
+
+  if (normalized.includes("synthra")) {
+    return "synthra";
+  }
+
+  return normalized;
 }
 
 function getSwapBackendUrl(): string {
@@ -559,6 +577,7 @@ async function getSwapQuote(
       sourceAddress,
       targetAddress,
       amountIn,
+      dexId: recurringOrderDexId,
     });
 
     const backendUrl = getSwapBackendUrl();
@@ -572,6 +591,7 @@ async function getSwapQuote(
           outputToken: targetAddress,
           inputAmount: amountIn,
           slippageTolerance: 10000 - Math.min(Math.max(minOutputBps, 1), 10000),
+          dexId: recurringOrderDexId,
         }),
       },
       "Quote"
@@ -592,6 +612,16 @@ async function getSwapQuote(
       return {
         success: false,
         error: "No quote data in route optimizer response",
+      };
+    }
+
+    const quoteDexId = extractQuoteDexId(quote);
+    const requestedDexId = normalizeDexId(recurringOrderDexId);
+
+    if (quoteDexId && requestedDexId && quoteDexId !== requestedDexId) {
+      return {
+        success: false,
+        error: `Recurring orders require a ${requestedDexId} route, but the route optimizer returned ${quoteDexId}.`,
       };
     }
 
@@ -835,6 +865,24 @@ function firstValidAddress(values: unknown[]): string | null {
   }
 
   return null;
+}
+
+function extractQuoteDexId(quoteData: unknown): string | null {
+  if (!quoteData || typeof quoteData !== "object") {
+    return null;
+  }
+
+  const quote = quoteData as Record<string, unknown>;
+  const route = quote.route as Record<string, unknown> | undefined;
+  const hops = Array.isArray(route?.hops) ? route.hops : [];
+  const firstHop = hops[0] as Record<string, unknown> | undefined;
+  const dexId =
+    firstHop?.dexId ||
+    firstHop?.dex ||
+    firstHop?.dexName ||
+    (quote as { dexId?: unknown }).dexId;
+
+  return typeof dexId === "string" ? normalizeDexId(dexId) || null : null;
 }
 
 function normalizeHexQuantity(value: string): string {
