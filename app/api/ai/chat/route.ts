@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
+const DEFAULT_TOWER_AI_API =
+  "https://tower-exchange-ai-production-3248.up.railway.app";
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_TOWER_AI_API ||
-  "https://tower-exchange-ai-production-5811.up.railway.app";
+  process.env.NEXT_PUBLIC_TOWER_AI_API || DEFAULT_TOWER_AI_API;
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
@@ -41,6 +42,12 @@ type AiChatPayload = Record<string, unknown> & {
 type AiChatResponsePayload = Record<string, unknown> & {
   reply?: unknown;
   data?: unknown;
+};
+
+type AiChatErrorPayload = AiChatResponsePayload & {
+  error?: unknown;
+  message?: unknown;
+  detail?: unknown;
 };
 
 type SwapQuoteIntent = {
@@ -132,6 +139,43 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+
+const readResponsePayload = async (
+  response: Response,
+): Promise<AiChatResponsePayload> => {
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as AiChatResponsePayload;
+  } catch {
+    return {
+      error: "Tower AI backend returned a non-JSON response",
+      message: response.ok
+        ? "Tower AI backend returned an invalid response."
+        : "Tower AI backend returned an error response.",
+      detail: text.slice(0, 500),
+    };
+  }
+};
+
+const getErrorMessage = (
+  payload: AiChatErrorPayload,
+  fallback: string,
+) => {
+  for (const field of ["message", "error", "detail"]) {
+    const value = payload[field];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return fallback;
+};
 
 const getStringField = (
   record: Record<string, unknown> | null,
@@ -966,30 +1010,61 @@ export async function POST(request: NextRequest) {
     const chatUrl = `${BACKEND_URL}/api/v1/chat`;
 
     console.log("Sending request to:", chatUrl);
-    console.log("Headers:", { 
+    console.log("Headers:", {
       "Content-Type": "application/json",
-      "Authorization": "Bearer ***REDACTED***"
+      ...(API_KEY ? { endpoint_auth: "***REDACTED***" } : {}),
     });
 
     const response = await fetch(chatUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      cache: "no-store",
     });
 
-    const data = (await response.json()) as AiChatResponsePayload;
+    const data = await readResponsePayload(response);
 
     if (!response.ok) {
+      const message = getErrorMessage(
+        data,
+        `Tower AI backend request failed with status ${response.status}`,
+      );
+
       console.error(
         "Tower AI Agent Error Response:",
-        JSON.stringify(data, null, 2)
+        JSON.stringify(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            body: data,
+          },
+          null,
+          2,
+        ),
       );
-      console.error("Response Status:", response.status);
-      return NextResponse.json(data, { status: response.status });
+
+      return NextResponse.json(
+        {
+          ...data,
+          error:
+            typeof data.error === "string" && data.error.trim()
+              ? data.error
+              : "Tower AI backend request failed",
+          message,
+          upstreamStatus: response.status,
+        },
+        { status: response.status },
+      );
     }
 
-    const enrichedSwapData = await enrichStableSwapQuote(request, body, data);
-    const enrichedData = enrichBridgeExecution(body, enrichedSwapData);
+    let enrichedData = data;
+
+    try {
+      const enrichedSwapData = await enrichStableSwapQuote(request, body, data);
+      enrichedData = enrichBridgeExecution(body, enrichedSwapData);
+    } catch (enrichmentError) {
+      console.error("[ai/chat] Response enrichment failed:", enrichmentError);
+    }
 
     return NextResponse.json(enrichedData);
   } catch (error) {

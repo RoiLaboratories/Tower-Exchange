@@ -126,6 +126,39 @@ export interface ChatHistoryItem {
 // Use Next.js API proxy route (keeps API key secret)
 const CHAT_ENDPOINT = "/api/ai/chat";
 
+const readAgentErrorMessage = async (response: Response) => {
+  const fallback = `HTTP error! status: ${response.status}`;
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return fallback;
+  }
+
+  try {
+    const errorData = JSON.parse(text) as Partial<AIAgentError> & {
+      detail?: unknown;
+      upstreamStatus?: unknown;
+    };
+
+    for (const field of ["message", "error", "detail"] as const) {
+      const value = errorData[field];
+
+      if (typeof value === "string" && value.trim()) {
+        const upstreamStatus =
+          typeof errorData.upstreamStatus === "number"
+            ? ` (upstream ${errorData.upstreamStatus})`
+            : "";
+
+        return `${value.trim()}${upstreamStatus}`;
+      }
+    }
+
+    return fallback;
+  } catch {
+    return text.slice(0, 500) || fallback;
+  }
+};
+
 /**
  * Send a message to the Tower AI Agent and get a response
  */
@@ -154,10 +187,7 @@ export const sendMessageToAIAgent = async (
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as AIAgentError;
-      throw new Error(
-        errorData.message || `HTTP error! status: ${response.status}`
-      );
+      throw new Error(await readAgentErrorMessage(response));
     }
 
     const data = (await response.json()) as AIAgentResponse;
