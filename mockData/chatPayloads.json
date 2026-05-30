@@ -101,7 +101,7 @@
   "QuickPrompts": {
     "type": "string[]",
     "example": [
-      "What are my buy/sell position",
+      "What are my buy/sell positions",
       "Show my 7D trading volume",
       "Provide overall analysis on the market"
     ]
