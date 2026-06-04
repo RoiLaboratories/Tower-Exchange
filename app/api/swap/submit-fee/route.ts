@@ -12,6 +12,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
 const BACKEND_URL = resolveSwapBackendUrl();
+const BACKEND_API_KEY =
+  process.env.TOWER_BACKEND_API_KEY ||
+  process.env.BACKEND_API_KEY ||
+  process.env.INTERNAL_API_SECRET ||
+  "";
+const BACKEND_AUTH_HEADER =
+  process.env.TOWER_BACKEND_AUTH_HEADER || "Authorization";
+const REQUIRE_BACKEND_API_KEY =
+  process.env.NODE_ENV === "production" &&
+  /tower-backend\.vercel\.app/i.test(BACKEND_URL);
 const ARC_RPC_URL = "https://rpc.testnet.arc.network";
 const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 const NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
@@ -61,6 +71,23 @@ const parseAmount = (value: unknown, label: string): bigint => {
   } catch {
     throw new Error(`${label} is not a valid bigint amount`);
   }
+};
+
+const buildBackendHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (!BACKEND_API_KEY) {
+    return headers;
+  }
+
+  headers[BACKEND_AUTH_HEADER] =
+    BACKEND_AUTH_HEADER.toLowerCase() === "authorization"
+      ? `Bearer ${BACKEND_API_KEY}`
+      : BACKEND_API_KEY;
+
+  return headers;
 };
 
 const callArcRpc = async <T,>(
@@ -362,6 +389,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (REQUIRE_BACKEND_API_KEY && !BACKEND_API_KEY) {
+      console.error(
+        "[FeeSubmit API] Missing TOWER_BACKEND_API_KEY while using the live Tower-Backend"
+      );
+      return NextResponse.json(
+        {
+          error: "Backend auth secret is not configured",
+          details:
+            "Set TOWER_BACKEND_API_KEY on this app so /api/swap/submit-fee can authenticate to Tower-Backend.",
+        },
+        { status: 500 }
+      );
+    }
+
     const validation = await validateSwapSettlement(body);
     if (!validation.ok) {
       console.error("[FeeSubmit API] Settlement validation failed:", validation.payload);
@@ -370,13 +411,14 @@ export async function POST(request: NextRequest) {
 
     // Forward to Tower-Backend
     const backendUrl = `${BACKEND_URL}/api/swap/submit-fee`;
-    console.log("[FeeSubmit API] Forwarding to Tower-Backend:", backendUrl);
+    console.log("[FeeSubmit API] Forwarding to Tower-Backend:", {
+      backendUrl,
+      authHeader: BACKEND_API_KEY ? BACKEND_AUTH_HEADER : "none",
+    });
 
     const response = await fetch(backendUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: buildBackendHeaders(),
       body: JSON.stringify({
         outputToken: body.outputToken,
         totalAmount: body.totalAmount,
