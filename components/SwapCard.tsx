@@ -58,6 +58,9 @@ const ARC_NATIVE_USDC_DECIMALS = 18;
 const RECEIPT_REQUEST_TIMEOUT_MS = 12000;
 const RECEIPT_POLL_INTERVAL_MS = 1000;
 const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
+const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
+const SWAPS_DISABLED_MESSAGE =
+  "Swaps are temporarily paused while we contain a FeeCollector issue.";
 const BALANCE_OF_SELECTOR = "0x70a08231";
 const ERC20_TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -917,6 +920,13 @@ const SwapCard = ({
   const getQuoteForSwap = useCallback(
     async (sellAmountValue: string, routerId?: string) => {
       try {
+        if (SWAPS_DISABLED) {
+          setReceiveAmount("0.00");
+          setRouteOptions([]);
+          setSelectedRouterId(undefined);
+          return;
+        }
+
         if (
           !receiveToken ||
           !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)
@@ -1100,6 +1110,12 @@ const SwapCard = ({
 
   // Handle swap transaction
   const handleSwap = async () => {
+    if (SWAPS_DISABLED) {
+      setSwapState("failed");
+      setRevertReason(SWAPS_DISABLED_MESSAGE);
+      return;
+    }
+
     setSwapState("loading");
     setRevertReason(null);
     let successNotificationTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -2219,6 +2235,10 @@ const SwapCard = ({
 
   // Get button content based on state
   const getButtonContent = () => {
+    if (SWAPS_DISABLED) {
+      return "Swaps Paused";
+    }
+
     if (!isWalletConnected) {
       return "Connect Wallet";
     }
@@ -2256,7 +2276,10 @@ const SwapCard = ({
       return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
     }
 
-    if (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient)) {
+    if (
+      SWAPS_DISABLED ||
+      (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient))
+    ) {
       return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
     }
 
@@ -2338,6 +2361,12 @@ const SwapCard = ({
               </motion.button>
             </div>
           </div>
+
+          {SWAPS_DISABLED && (
+            <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+              {SWAPS_DISABLED_MESSAGE}
+            </div>
+          )}
 
           {/* Sell Section */}
           <div className="bg-[#151617] rounded-xl p-4 mb-2">
@@ -2428,6 +2457,7 @@ const SwapCard = ({
             <Button
               onClick={isWalletConnected ? handleSwap : handleConnectWallet}
               disabled={
+                SWAPS_DISABLED ||
                 swapState === "loading" ||
                 swapState === "pending" ||
                 (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient))

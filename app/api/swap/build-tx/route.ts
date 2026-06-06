@@ -23,6 +23,12 @@ import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
 const BACKEND_URL = resolveSwapBackendUrl();
+const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
+const SWAPS_DISABLED_RESPONSE = {
+  error: "Swaps are temporarily disabled",
+  details:
+    "Tower swaps are paused while the FeeCollector incident is being contained.",
+};
 const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 const PLATFORM_FEE_BPS = 25n;
 const BPS_DENOMINATOR = 10000n;
@@ -359,6 +365,10 @@ const buildUnitFlowFallback = async (quote: SwapQuote, userAddress: string) => {
 
 export async function POST(request: NextRequest) {
   try {
+    if (SWAPS_DISABLED) {
+      return NextResponse.json(SWAPS_DISABLED_RESPONSE, { status: 503 });
+    }
+
     const body = await request.json();
     const { quote, userAddress, executionMode } = body as {
       quote?: SwapQuote;

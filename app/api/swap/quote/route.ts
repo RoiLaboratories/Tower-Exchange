@@ -50,6 +50,12 @@ type RouteOption = {
 };
 
 const BACKEND_URL = resolveSwapBackendUrl();
+const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
+const SWAPS_DISABLED_RESPONSE = {
+  error: "Swaps are temporarily disabled",
+  details:
+    "Tower swaps are paused while the FeeCollector incident is being contained.",
+};
 const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
@@ -331,6 +337,10 @@ async function fetchBackendQuotes(params: {
 
 export async function POST(request: NextRequest) {
   try {
+    if (SWAPS_DISABLED) {
+      return NextResponse.json(SWAPS_DISABLED_RESPONSE, { status: 503 });
+    }
+
     const body = await request.json();
     const {
       inputToken,

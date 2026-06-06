@@ -12,6 +12,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
 const BACKEND_URL = resolveSwapBackendUrl();
+const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
+const SWAPS_DISABLED_RESPONSE = {
+  error: "Swaps are temporarily disabled",
+  details:
+    "Tower swaps are paused while the FeeCollector incident is being contained.",
+};
 const BACKEND_API_KEY =
   process.env.TOWER_BACKEND_API_KEY ||
   process.env.BACKEND_API_KEY ||
@@ -368,6 +374,10 @@ const validateSwapSettlement = async (body: Record<string, unknown>) => {
 
 export async function POST(request: NextRequest) {
   try {
+    if (SWAPS_DISABLED) {
+      return NextResponse.json(SWAPS_DISABLED_RESPONSE, { status: 503 });
+    }
+
     console.log("[FeeSubmit API] Received fee submission request");
 
     // Parse request body

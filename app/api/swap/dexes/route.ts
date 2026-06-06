@@ -21,6 +21,9 @@ type DexInfo = {
 };
 
 const HIDDEN_DEX_IDS = new Set(["swaparc", "quantum-exchange"]);
+const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
+const SWAPS_DISABLED_MESSAGE =
+  "Tower swaps are paused while the FeeCollector incident is being contained.";
 
 const getCanonicalSynthraDex = (): DexInfo => ({
   ...getSynthraDexInfo(),
@@ -91,6 +94,19 @@ export async function GET() {
   try {
     const synthraDex = getCanonicalSynthraDex();
     const unitFlowDex = getCanonicalUnitFlowDex();
+
+    if (SWAPS_DISABLED) {
+      return NextResponse.json({
+        success: true,
+        disabled: true,
+        message: SWAPS_DISABLED_MESSAGE,
+        data: [synthraDex, unitFlowDex].map((dex) => ({
+          ...dex,
+          enabled: false,
+        })),
+      });
+    }
+
     // Fetch routers from backend API
     const backendUrl = resolveSwapBackendUrl();
     const response = await fetch(`${backendUrl}/api/swap/dexes`, {
