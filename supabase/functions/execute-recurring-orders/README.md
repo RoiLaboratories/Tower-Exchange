@@ -156,6 +156,7 @@ Add to Supabase Function Settings:
 - `TOWER_BACKEND_AUTH_HEADER` - Optional auth header name, defaults to `Authorization`
 - `TOWER_BACKEND_MAX_ATTEMPTS` - Optional retry attempts for rate limits/transient backend errors, defaults to `3`
 - `TOWER_BACKEND_MAX_RETRY_DELAY_MS` - Optional cap for backend retry delay, defaults to `15000`
+- `RECURRING_ORDERS_DISABLED` - Set to `true` to pause the worker before it selects, expires, claims, or executes orders
 - `RECURRING_ORDER_EXECUTOR_ADDRESS` - Deployed recurring order executor
 - `RECURRING_ORDER_RELAYER_PRIVATE_KEY` - Relayer wallet private key
 - `RECURRING_ORDER_DEX_ID` - Optional swap route to use for recurring orders, defaults to `xylonet-adapter`

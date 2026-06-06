@@ -88,6 +88,10 @@ const recurringOrderDexId = normalizeDexId(
 );
 const feeCollectorAddress = denoRuntime.env.get("FEE_COLLECTOR_ADDRESS") ?? "";
 
+function recurringOrdersAreDisabled(): boolean {
+  return denoRuntime.env.get("RECURRING_ORDERS_DISABLED") === "true";
+}
+
 const tokenDecimalsBySymbol: Record<string, number> = {
   USDC: 6,
   WUSDC: 18,
@@ -287,6 +291,18 @@ async function deactivateExpiredOrders(
  */
 denoRuntime.serve(async (req: Request) => {
   try {
+    if (recurringOrdersAreDisabled()) {
+      console.warn(`[${new Date().toISOString()}] Recurring orders are paused by RECURRING_ORDERS_DISABLED`);
+      return new Response(
+        JSON.stringify({
+          message: "Recurring orders are temporarily disabled",
+          processed: 0,
+          disabled: true,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     // Log the incoming request for debugging
     console.log(`[${new Date().toISOString()}] Received request:`, {
       method: req.method,
