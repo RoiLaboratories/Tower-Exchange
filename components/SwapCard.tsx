@@ -60,7 +60,7 @@ const RECEIPT_POLL_INTERVAL_MS = 1000;
 const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
-  "Swaps are temporarily paused while we contain a FeeCollector issue.";
+  "Swaps are temporarily paused for maintenance.";
 const BALANCE_OF_SELECTOR = "0x70a08231";
 const ERC20_TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

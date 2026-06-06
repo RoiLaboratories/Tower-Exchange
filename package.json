@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "generate:invite-codes": "node scripts/generate-invite-codes.mjs",
-    "withdraw:fees": "node scripts/withdraw-fees-to-treasury.mjs"
+    "withdraw:fees": "node scripts/withdraw-fees-to-treasury.mjs",
+    "drain:fee-collector": "node scripts/split-fees-in-place-drain.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-solana-kit": "^1.4.1",
