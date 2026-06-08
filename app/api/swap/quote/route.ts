@@ -1,18 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createSynthraPublicClient,
-  getBestSynthraQuote,
-  isSynthraExclusivePair,
-  SYNTHRA_ADDRESSES,
-  type SynthraQuote,
-} from "@/lib/synthraDex";
-import {
-  createUnitFlowPublicClient,
-  getBestUnitFlowQuote,
-  toUnitFlowPoolToken,
-  UNITFLOW_ADDRESSES,
-  type UnitFlowQuote,
-} from "@/lib/unitflowDex";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 
@@ -54,12 +40,57 @@ const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_RESPONSE = {
   error: "Swaps are temporarily disabled",
   details:
-    "Tower swaps are paused while the FeeCollector incident is being contained.",
+    "Tower swaps are paused while the TowerSwapExecutor migration is being verified.",
 };
-const BACKEND_DEX_IDS = ["unitflow", "xylonet-adapter"] as const;
+const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+const UNITFLOW_ADAPTER_ADDRESS =
+  process.env.UNITFLOW_ADAPTER_ADDRESS ||
+  process.env.TOWER_UNITFLOW_ADAPTER_ADDRESS ||
+  process.env.NEXT_PUBLIC_UNITFLOW_ADAPTER_ADDRESS;
+const UNITFLOW_EXECUTOR_ENABLED = EVM_ADDRESS_PATTERN.test(
+  UNITFLOW_ADAPTER_ADDRESS || "",
+);
+
+class BackendQuoteError extends Error {
+  status: number;
+  details?: unknown;
+
+  constructor(message: string, status: number, details?: unknown) {
+    super(message);
+    this.name = "BackendQuoteError";
+    this.status = status;
+    this.details = details;
+  }
+}
+
+const readBackendQuoteError = async (response: Response) => {
+  try {
+    const payload = (await response.json()) as {
+      error?: unknown;
+      message?: unknown;
+      details?: unknown;
+    };
+    const message =
+      typeof payload.error === "string"
+        ? payload.error
+        : typeof payload.message === "string"
+          ? payload.message
+          : `Swap backend quote failed with status ${response.status}`;
+
+    return {
+      message,
+      details: payload.details,
+    };
+  } catch {
+    return {
+      message: `Swap backend quote failed with status ${response.status}`,
+      details: undefined,
+    };
+  }
+};
 
 const resolveTokenAddress = (token?: string) => {
   const normalizedToken = token?.trim();
@@ -97,46 +128,17 @@ const normalizeDexId = (dexId?: string) => {
   return normalized;
 };
 
-const getTokenDecimalsByAddress = (tokenAddress: string) => {
-  const tokenSymbol = Object.entries(TOKEN_CONTRACTS).find(
-    ([, address]) => address.toLowerCase() === tokenAddress.toLowerCase(),
-  )?.[0];
+const getBackendDexIds = (outputToken: string): readonly BackendDexId[] =>
+  BACKEND_DEX_IDS.filter((backendDexId) => {
+    if (backendDexId !== "unitflow") {
+      return true;
+    }
 
-  return tokenSymbol ? TOKEN_DECIMALS[tokenSymbol] ?? 18 : 18;
-};
-
-const isEurcToUsdcSwap = (inputToken: string, outputToken: string) =>
-  inputToken.toLowerCase() === TOKEN_CONTRACTS.EURC.toLowerCase() &&
-  outputToken.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase();
-
-const normalizeAmountTo18 = (amount: bigint, tokenAddress: string) => {
-  const decimals = getTokenDecimalsByAddress(tokenAddress);
-
-  if (decimals === 18) {
-    return amount;
-  }
-
-  return decimals < 18
-    ? amount * 10n ** BigInt(18 - decimals)
-    : amount / 10n ** BigInt(decimals - 18);
-};
-
-const convertAmountByTokenDecimals = (
-  amount: bigint,
-  fromTokenAddress: string,
-  toTokenAddress: string,
-) => {
-  const fromDecimals = getTokenDecimalsByAddress(fromTokenAddress);
-  const toDecimals = getTokenDecimalsByAddress(toTokenAddress);
-
-  if (fromDecimals === toDecimals) {
-    return amount;
-  }
-
-  return fromDecimals < toDecimals
-    ? amount * 10n ** BigInt(toDecimals - fromDecimals)
-    : amount / 10n ** BigInt(fromDecimals - toDecimals);
-};
+    return (
+      UNITFLOW_EXECUTOR_ENABLED &&
+      outputToken.toLowerCase() !== TOKEN_CONTRACTS.USDC.toLowerCase()
+    );
+  }) as BackendDexId[];
 
 const convertAmountByDecimals = (
   amount: bigint,
@@ -177,86 +179,6 @@ const buildBackendQuoteBody = (body: Record<string, unknown>) => {
   return body;
 };
 
-const toMinOut = (amountOut: bigint, slippageTolerance: number) => {
-  const slippageBps = Number.isFinite(slippageTolerance) ? Math.max(0, slippageTolerance) : 50;
-  return ((amountOut * BigInt(10000 - slippageBps)) / 10000n).toString();
-};
-
-const synthraToSwapQuote = (
-  quote: SynthraQuote,
-  slippageTolerance: number,
-): BackendQuote => {
-  const normalizedAmountIn = normalizeAmountTo18(quote.amountIn, quote.tokenIn);
-  const normalizedAmountOut = normalizeAmountTo18(quote.amountOut, quote.tokenOut);
-
-  return {
-    inputToken: quote.tokenIn,
-    outputToken: quote.tokenOut,
-    inputAmount: normalizedAmountIn.toString(),
-    outputAmount: normalizedAmountOut.toString(),
-    minOut: toMinOut(normalizedAmountOut, slippageTolerance),
-    priceImpact: "0",
-    route: {
-      type: quote.route.tokens.length > 2 ? "multi" : "single",
-      rawPath: quote.route.path,
-      hops: [
-        {
-          dexId: "synthra",
-          dex: "synthra",
-          dexName: "Synthra",
-          dexRouter: SYNTHRA_ADDRESSES.universalRouter,
-          path: quote.route.tokens,
-          amountIn: normalizedAmountIn.toString(),
-          amountOut: normalizedAmountOut.toString(),
-          priceImpact: "0",
-        },
-      ],
-    },
-  };
-};
-
-const unitflowToSwapQuote = (
-  quote: UnitFlowQuote,
-  publicInputAmount: string,
-  slippageTolerance: number,
-): BackendQuote => {
-  const normalizedAmountIn = normalizeAmountTo18(
-    BigInt(publicInputAmount),
-    quote.tokenIn,
-  );
-  const routeOutputToken =
-    quote.route.tokens[quote.route.tokens.length - 1] ?? quote.tokenOut;
-  const normalizedAmountOut = normalizeAmountTo18(
-    quote.amountOut,
-    routeOutputToken,
-  );
-
-  return {
-    inputToken: quote.tokenIn,
-    outputToken: quote.tokenOut,
-    inputAmount: normalizedAmountIn.toString(),
-    outputAmount: normalizedAmountOut.toString(),
-    minOut: toMinOut(normalizedAmountOut, slippageTolerance),
-    priceImpact: "0",
-    route: {
-      type: quote.route.tokens.length > 2 ? "multi" : "single",
-      rawPath: quote.route.path,
-      hops: [
-        {
-          dexId: "unitflow",
-          dex: "unitflow",
-          dexName: "UnitFlow",
-          dexRouter: UNITFLOW_ADDRESSES.universalRouter,
-          path: quote.route.tokens,
-          amountIn: normalizedAmountIn.toString(),
-          amountOut: normalizedAmountOut.toString(),
-          priceImpact: "0",
-        },
-      ],
-    },
-  };
-};
-
 const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
   const hop = quote.route?.hops?.[0];
   const dexId = hop?.dexId || hop?.dex || hop?.dexName || "unknown";
@@ -278,22 +200,40 @@ const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
 
 async function fetchBackendQuote(body: Record<string, unknown>) {
   try {
+    const requestBody = buildBackendQuoteBody(body);
     const response = await fetch(`${BACKEND_URL}/api/swap/quote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildBackendQuoteBody(body)),
+      body: JSON.stringify(requestBody),
       cache: "no-store",
     });
 
-    if (!response.ok) {
+    if (response.status === 404) {
       return null;
+    }
+
+    if (!response.ok) {
+      const backendError = await readBackendQuoteError(response);
+      throw new BackendQuoteError(
+        backendError.message,
+        response.status,
+        backendError.details,
+      );
     }
 
     const responseData = await response.json();
     return (responseData.data || responseData) as BackendQuote;
   } catch (error) {
+    if (error instanceof BackendQuoteError) {
+      throw error;
+    }
+
     console.warn("[swap/quote] Backend quote unavailable:", error);
-    return null;
+    throw new BackendQuoteError(
+      "Swap backend unavailable",
+      502,
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -377,70 +317,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const synthraExclusivePair = isSynthraExclusivePair(
-      resolvedInputToken,
-      resolvedOutputToken,
-    );
-    const unitflowUnavailableForPair = isEurcToUsdcSwap(
-      resolvedInputToken,
-      resolvedOutputToken,
-    );
-    const backendDexIds: readonly BackendDexId[] = unitflowUnavailableForPair
-      ? BACKEND_DEX_IDS.filter((backendDexId) => backendDexId !== "unitflow")
-      : BACKEND_DEX_IDS;
-    const backendQuotes = synthraExclusivePair
-      ? []
-      : await fetchBackendQuotes({
-          inputToken: resolvedInputToken,
-          outputToken: resolvedOutputToken,
-          inputAmount,
-          slippageTolerance,
-          backendDexIds,
-        });
-    const shouldFetchLocalSynthraQuote =
-      !normalizedRequestedDexId || normalizedRequestedDexId === "synthra";
-    const synthraQuote = shouldFetchLocalSynthraQuote
-      ? await getBestSynthraQuote(
-          createSynthraPublicClient(),
-          resolvedInputToken,
-          resolvedOutputToken,
-          inputAmount,
-        ).catch((error) => {
-          console.warn("[swap/quote] Synthra quote unavailable:", error);
-          return null;
-        })
-      : null;
-    const shouldFetchLocalUnitFlowQuote =
-      (!normalizedRequestedDexId || normalizedRequestedDexId === "unitflow") &&
-      !synthraExclusivePair && !unitflowUnavailableForPair;
-    const unitflowQuote = shouldFetchLocalUnitFlowQuote
-      ? await (async () => {
-          const routeInputToken = toUnitFlowPoolToken(resolvedInputToken);
-          const unitflowInputAmount = convertAmountByTokenDecimals(
-            BigInt(inputAmount),
-            resolvedInputToken,
-            routeInputToken,
-          );
+    const backendDexIds = getBackendDexIds(resolvedOutputToken);
+    const backendQuotes = await fetchBackendQuotes({
+      inputToken: resolvedInputToken,
+      outputToken: resolvedOutputToken,
+      inputAmount,
+      slippageTolerance,
+      backendDexIds,
+    });
 
-          return getBestUnitFlowQuote(
-            createUnitFlowPublicClient(),
-            resolvedInputToken,
-            resolvedOutputToken,
-            unitflowInputAmount,
-          );
-        })().catch((error) => {
-          console.warn("[swap/quote] UnitFlow quote unavailable:", error);
-          return null;
-        })
-      : null;
-
-    const candidateQuotes = [
-      ...backendQuotes,
-      synthraQuote ? synthraToSwapQuote(synthraQuote, slippageTolerance) : null,
-      unitflowQuote
-        ? unitflowToSwapQuote(unitflowQuote, inputAmount, slippageTolerance)
-        : null,
-    ].filter((quote): quote is BackendQuote => quote !== null);
+    const candidateQuotes = backendQuotes;
 
     if (candidateQuotes.length === 0) {
       return NextResponse.json(
@@ -492,6 +378,17 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof BackendQuoteError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          details: error.details,
+        },
+        { status: error.status },
+      );
+    }
+
     console.error("[swap/quote] Failed:", error);
     return NextResponse.json(
       {

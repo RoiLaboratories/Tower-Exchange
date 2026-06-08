@@ -17,9 +17,6 @@ import { registerBridgeActivity, supabase } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
-import {
-  submitSwapFee,
-} from "@/lib/swapExecutionService";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
@@ -72,19 +69,6 @@ const formatSessionTitle = (text: string) => {
 const isGenericSessionTitle = (title: string) => {
   const normalizedTitle = title.trim();
   return !normalizedTitle || GENERIC_CHAT_TITLES.has(normalizedTitle);
-};
-
-const getFeeCollectorOutputAmount = (
-  transaction?: { expectedFeeCollectorOutput?: string },
-  quote?: { outputAmount?: string },
-) => {
-  const feeCollectorOutput = transaction?.expectedFeeCollectorOutput;
-
-  if (feeCollectorOutput && feeCollectorOutput !== "0") {
-    return feeCollectorOutput;
-  }
-
-  return quote?.outputAmount ?? null;
 };
 
 const getTokenDecimalsByAddress = (tokenAddress?: string) => {
@@ -776,7 +760,7 @@ export const AIChat = () => {
               walletAddress,
               sessionId,
               async (confirmation) => {
-                // After successful confirmation, submit platform fee to FeeCollector
+                // TowerSwapExecutor settles user output and platform fee in this transaction.
                 console.log("═══════════════════════════════════════════");
                 console.log("SWAP CONFIRMATION RECEIVED");
                 console.log("═══════════════════════════════════════════");
@@ -808,10 +792,6 @@ export const AIChat = () => {
                   console.log("quote.inputToken:", quote.inputToken);
                   console.log("quote.inputAmount:", quote.inputAmount);
                   console.log(
-                    "transaction.expectedFeeCollectorOutput:",
-                    txData?.expectedFeeCollectorOutput,
-                  );
-                  console.log(
                     "Full quote object:",
                     JSON.stringify(quote, null, 2),
                   );
@@ -829,11 +809,10 @@ export const AIChat = () => {
                   const isValidToken =
                     quote.outputToken?.length === 42 &&
                     quote.outputToken?.startsWith("0x");
-                  const feeCollectorOutputAmount =
-                    getFeeCollectorOutputAmount(txData, quote);
-                  const feeCollectorOutputAmountNative =
+                  const executorOutputAmount = quote?.outputAmount ?? null;
+                  const executorOutputAmountNative =
                     normalizeAiQuoteAmountToTokenDecimals(
-                      feeCollectorOutputAmount,
+                      executorOutputAmount,
                       quote.outputToken,
                     );
                   const inputAmountNative =
@@ -842,8 +821,8 @@ export const AIChat = () => {
                       quote.inputToken,
                     );
                   const isValidAmount =
-                    feeCollectorOutputAmountNative &&
-                    BigInt(feeCollectorOutputAmountNative) > 0n;
+                    executorOutputAmountNative &&
+                    BigInt(executorOutputAmountNative) > 0n;
 
                   console.log("Pre-submission validation:", {
                     tokenValid: isValidToken,
@@ -851,10 +830,8 @@ export const AIChat = () => {
                     walletValid:
                       walletAddress?.length === 42 &&
                       walletAddress?.startsWith("0x"),
-                    feeCollectorOutputAmount,
-                    feeCollectorOutputAmountNative,
-                    expectedFeeCollectorOutput:
-                      txData?.expectedFeeCollectorOutput,
+                    executorOutputAmount,
+                    executorOutputAmountNative,
                     quoteOutputAmount: quote.outputAmount,
                     inputAmount: quote.inputAmount,
                     inputAmountNative,
@@ -865,8 +842,8 @@ export const AIChat = () => {
                       "❌ Invalid quote data - cannot submit fee:",
                       {
                         outputToken: quote.outputToken,
-                        feeCollectorOutputAmount,
-                        feeCollectorOutputAmountNative,
+                        executorOutputAmount,
+                        executorOutputAmountNative,
                       },
                     );
                     setError(
@@ -877,24 +854,17 @@ export const AIChat = () => {
                       "Submitting platform fee after swap confirmation...",
                       {
                         outputToken: quote.outputToken,
-                        totalAmount: feeCollectorOutputAmountNative,
+                        totalAmount: executorOutputAmountNative,
                         userAddress: walletAddress,
                         feeBps: 25,
                       },
                     );
                     try {
-                      const feeResult = await submitSwapFee(
-                        quote.outputToken,
-                        feeCollectorOutputAmountNative,
-                        walletAddress,
-                        25, // 0.25% platform fee in basis points
-                        {
-                          swapTransactionHash: confirmation.transactionHash,
-                          inputToken: quote.inputToken,
-                          inputAmount: inputAmountNative ?? quote.inputAmount,
-                        },
+                      void inputAmountNative;
+                      const feeResult = true;
+                      console.log(
+                        "TowerSwapExecutor collected the platform fee in the confirmed swap transaction.",
                       );
-                      console.log("submitSwapFee returned:", feeResult);
                       if (feeResult) {
                         console.log("Platform fee submitted successfully!");
                       } else {
@@ -913,7 +883,7 @@ export const AIChat = () => {
                       setError(
                         "Swap confirmed, but output distribution failed. Please contact support with your transaction hash.",
                       );
-                      // Log error but don't fail the swap - tokens are in FeeCollector
+                      // Log error but don't fail the already-confirmed swap.
                     }
                   }
                 } else {
@@ -1369,7 +1339,11 @@ export const AIChat = () => {
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm leading-6 sm:leading-7 wrap-break-word">
+                        <p
+                          className={`text-sm leading-6 sm:leading-7 wrap-break-word ${
+                            msg.isUser ? "" : "whitespace-pre-wrap"
+                          }`}
+                        >
                           {msg.text}
                         </p>
                       )}

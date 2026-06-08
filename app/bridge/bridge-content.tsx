@@ -8,6 +8,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Clock,
   RefreshCw,
   Settings,
   ChevronDown,
@@ -15,13 +16,18 @@ import {
   Plus,
   X,
   Wallet,
-  Loader,
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import { registerBridgeActivity } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
+import ActivityTabModal, {
+  type ActivityTabLiveItem,
+} from "@/components/ActivityTabModal";
+import TransactionStepsModal, {
+  type TransactionStep,
+} from "@/components/TransactionStepsModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
 import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
@@ -54,9 +60,103 @@ type BridgeChain = {
 type SupportedChainConfig =
   (typeof SUPPORTED_CHAINS)[keyof typeof SUPPORTED_CHAINS];
 
-const BRIDGE_SUCCESS_MODAL_DELAY_MS = 1000;
+type BridgeStepsStep = "approve" | "burn" | "attestation" | "wait" | "mint";
+type BridgeStepsPhase = BridgeStepsStep | "success" | "failed";
+
+const BRIDGE_SUCCESS_MODAL_DELAY_MS = 700;
 const BRIDGE_SUCCESS_MODAL_DURATION_MS = 12000;
 const BRIDGE_PENDING_MODAL_DURATION_MS = 9000;
+
+const getBridgeShortChainName = (chainName: string) =>
+  chainName
+    .replace(/\s+(Sepolia|Testnet|Devnet)$/i, "")
+    .replace(/\s+Fuji$/i, "");
+
+const formatBridgeStepAmount = (amount: string) => {
+  const numericAmount = Number.parseFloat(amount);
+
+  if (!Number.isFinite(numericAmount)) {
+    return amount || "0.00";
+  }
+
+  return numericAmount.toLocaleString(undefined, {
+    maximumFractionDigits: 6,
+  });
+};
+
+const getBridgeStepFromProgress = (step?: string): BridgeStepsStep | null => {
+  const normalizedStep = step?.toLowerCase() || "";
+
+  if (!normalizedStep) {
+    return null;
+  }
+
+  if (normalizedStep.includes("mint")) {
+    return "mint";
+  }
+
+  if (normalizedStep.includes("attestation")) {
+    return "attestation";
+  }
+
+  if (
+    normalizedStep.includes("burn") ||
+    normalizedStep.includes("depositforburn")
+  ) {
+    return "burn";
+  }
+
+  if (normalizedStep.includes("approve")) {
+    return "approve";
+  }
+
+  return null;
+};
+
+const isBridgeStepComplete = (
+  phase: BridgeStepsPhase,
+  step: BridgeStepsStep,
+) => {
+  if (phase === "success") {
+    return true;
+  }
+
+  const order: BridgeStepsStep[] = [
+    "approve",
+    "burn",
+    "attestation",
+    "wait",
+    "mint",
+  ];
+  const phaseIndex = order.indexOf(phase as BridgeStepsStep);
+  const stepIndex = order.indexOf(step);
+
+  return phaseIndex > stepIndex;
+};
+
+const getBridgeStepStatus = (
+  phase: BridgeStepsPhase,
+  failedPhase: BridgeStepsStep,
+  step: BridgeStepsStep,
+): TransactionStep["status"] => {
+  if (phase === "failed") {
+    return step === failedPhase
+      ? "failed"
+      : isBridgeStepComplete(failedPhase, step)
+        ? "complete"
+        : "pending";
+  }
+
+  if (phase === "success") {
+    return "complete";
+  }
+
+  if (step === phase) {
+    return "active";
+  }
+
+  return isBridgeStepComplete(phase, step) ? "complete" : "pending";
+};
 
 const getBridgeTokenAddress = (
   chainConfig: SupportedChainConfig,
@@ -127,16 +227,37 @@ export default function BridgePageContent({
   const [toChainId, setToChainId] = useState<string | null>(null);
   const [slippageTolerance, setSlippageTolerance] = useState(0.5);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isReceivingOpen, setIsReceivingOpen] = useState(false);
   const [receivingAddress, setReceivingAddress] = useState("");
   const [isArrowHovered, setIsArrowHovered] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bridgeStepsModalOpen, setBridgeStepsModalOpen] = useState(false);
+  const [bridgeStepsPhase, setBridgeStepsPhase] =
+    useState<BridgeStepsPhase>("approve");
+  const [bridgeStepsFailedPhase, setBridgeStepsFailedPhase] =
+    useState<BridgeStepsStep>("approve");
+  const [bridgeStepsFailureMessage, setBridgeStepsFailureMessage] =
+    useState<string | null>(null);
+  const [bridgeStepsDetails, setBridgeStepsDetails] = useState({
+    amount: "0.00",
+    tokenSymbol: "USDC",
+    tokenIcon: usdcLogo as StaticImageData | undefined,
+    destinationAmount: "0.00",
+    sourceChainName: "source chain",
+    destinationChainName: "destination chain",
+    destinationChainLogo: undefined as StaticImageData | undefined,
+  });
+  const [bridgeActivityStartedAt, setBridgeActivityStartedAt] = useState<
+    number | null
+  >(null);
   const [walletBalance, setWalletBalance] = useState("0.00");
   const [toChainBalance, setToChainBalance] = useState("0.00");
   const [sourceGasBalance, setSourceGasBalance] = useState("0.00");
   const [destinationGasBalance, setDestinationGasBalance] = useState("0.00");
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
   const swapNavigationStartedRef = useRef(false);
+  const latestBridgeStepRef = useRef<BridgeStepsStep>("approve");
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -375,6 +496,28 @@ export default function BridgePageContent({
     setToAmount(fromAmount);
   };
 
+  const openBridgeStepsModal = useCallback(() => {
+    const sourceChain = BRIDGE_CHAINS.find((chain) => chain.id === fromChainId);
+    const destinationChain = BRIDGE_CHAINS.find((chain) => chain.id === toChainId);
+
+    setBridgeStepsDetails({
+      amount: fromAmount,
+      tokenSymbol: fromToken?.symbol || "USDC",
+      tokenIcon: fromToken?.logo || usdcLogo,
+      destinationAmount: toAmount,
+      sourceChainName: sourceChain?.name || "source chain",
+      destinationChainName: destinationChain?.name || "destination chain",
+      destinationChainLogo: destinationChain?.logo,
+    });
+    setBridgeStepsFailureMessage(null);
+    setBridgeStepsFailedPhase("approve");
+    setBridgeStepsPhase("approve");
+    latestBridgeStepRef.current = "approve";
+    setBridgeActivityStartedAt(Date.now());
+    setShowSuccessModal(false);
+    setBridgeStepsModalOpen(true);
+  }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
+
   const handleBridge = useCallback(async () => {
     if (!user) {
       alert("Please connect your wallet first");
@@ -392,6 +535,7 @@ export default function BridgePageContent({
 
     // Use receiving address if provided, otherwise use connected wallet
     const destinationAddress = receivingAddress || user.wallet?.address;
+    openBridgeStepsModal();
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
       toChain: toChainId || "",
@@ -399,9 +543,37 @@ export default function BridgePageContent({
       token: fromToken?.symbol || "USDC",
       toAddress: destinationAddress,
       sourceAddress: user.wallet?.address,
+      onProgress: (progress) => {
+        const progressStep =
+          getBridgeStepFromProgress(progress.lastStep) ||
+          getBridgeStepFromProgress(
+            progress.events[progress.events.length - 1]?.step,
+          );
+
+        if (progressStep) {
+          latestBridgeStepRef.current = progressStep;
+          setBridgeStepsPhase(progressStep);
+        }
+      },
     });
+    if (!result.success) {
+      setBridgeStepsFailedPhase(latestBridgeStepRef.current);
+      setBridgeStepsFailureMessage(result.error || "Bridge failed");
+      setBridgeStepsPhase("failed");
+      return;
+    }
+
     if (result.success) {
       const isPending = result.status === "pending";
+      if (isPending) {
+        const pendingStep =
+          latestBridgeStepRef.current === "mint" ? "mint" : "wait";
+        latestBridgeStepRef.current = pendingStep;
+        setBridgeStepsPhase(pendingStep);
+      } else {
+        setBridgeStepsPhase("success");
+      }
+
       await registerBridgeActivity({
         walletAddress: user.wallet?.address || "",
         fromChain:
@@ -419,15 +591,19 @@ export default function BridgePageContent({
         fee: bridgeHook.estimatedFee,
         status: isPending ? "Pending" : "Successful",
       });
+
       setTimeout(() => {
+        setBridgeStepsModalOpen(false);
         setShowSuccessModal(true);
       }, BRIDGE_SUCCESS_MODAL_DELAY_MS);
+
       if (!isPending) {
         setTimeout(() => {
           bridgeHook.resetBridgeState();
           setFromAmount("0.00");
           setToAmount("0.00");
           setShowSuccessModal(false);
+          setBridgeStepsModalOpen(false);
           fetchWalletBalance();
           fetchToChainBalance();
         }, BRIDGE_SUCCESS_MODAL_DURATION_MS);
@@ -448,6 +624,7 @@ export default function BridgePageContent({
     walletBalance,
     fetchWalletBalance,
     fetchToChainBalance,
+    openBridgeStepsModal,
   ]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
@@ -532,12 +709,7 @@ export default function BridgePageContent({
     }
 
     if (bridgeHook.isBridging) {
-      return (
-        <>
-          <Loader className="h-4 w-4 animate-spin" />
-          Bridging...
-        </>
-      );
+      return "Bridge";
     }
 
     if (isBridgeBalanceInsufficient) {
@@ -547,29 +719,162 @@ export default function BridgePageContent({
     return "Bridge";
   };
 
+  const bridgeModalAmount = formatBridgeStepAmount(bridgeStepsDetails.amount);
+  const bridgeModalDestinationAmount = formatBridgeStepAmount(
+    bridgeStepsDetails.destinationAmount || bridgeStepsDetails.amount,
+  );
+  const bridgeModalDestinationChain = getBridgeShortChainName(
+    bridgeStepsDetails.destinationChainName,
+  );
+  const bridgeModalSourceChain = getBridgeShortChainName(
+    bridgeStepsDetails.sourceChainName,
+  );
+  const getModalBridgeStepStatus = (step: BridgeStepsStep) =>
+    getBridgeStepStatus(bridgeStepsPhase, bridgeStepsFailedPhase, step);
+  const getBridgeStepDetail = (
+    step: BridgeStepsStep,
+    activeDetail: string,
+    failedDetail: string,
+  ) => {
+    if (bridgeStepsPhase === "failed" && bridgeStepsFailedPhase === step) {
+      return bridgeStepsFailureMessage || failedDetail;
+    }
+
+    return getModalBridgeStepStatus(step) === "active"
+      ? activeDetail
+      : undefined;
+  };
+  const bridgeTransactionSteps: TransactionStep[] = [
+    {
+      id: "approve",
+      label: `Approve ${bridgeStepsDetails.tokenSymbol}`,
+      status: getModalBridgeStepStatus("approve"),
+      detail: getBridgeStepDetail(
+        "approve",
+        "Approving in your wallet",
+        "Approval failed",
+      ),
+      kind: "wallet",
+    },
+    {
+      id: "burn",
+      label: "Burn",
+      status: getModalBridgeStepStatus("burn"),
+      detail: getBridgeStepDetail(
+        "burn",
+        `Burning on ${bridgeModalSourceChain}`,
+        "Burn failed",
+      ),
+      kind: "wallet",
+    },
+    {
+      id: "attestation",
+      label: "Fetch Attestation",
+      status: getModalBridgeStepStatus("attestation"),
+      detail: getBridgeStepDetail(
+        "attestation",
+        "Fetching attestation",
+        "Attestation failed",
+      ),
+      kind: "wallet",
+    },
+    {
+      id: "wait",
+      label: "Wait ~2 min",
+      status: getModalBridgeStepStatus("wait"),
+      detail: getBridgeStepDetail("wait", "Waiting on Circle", "Bridge delayed"),
+      kind: "wait",
+    },
+    {
+      id: "mint",
+      label: `Mint ${bridgeModalDestinationAmount} ${bridgeStepsDetails.tokenSymbol} on ${bridgeModalDestinationChain}`,
+      status: getModalBridgeStepStatus("mint"),
+      detail: getBridgeStepDetail(
+        "mint",
+        `Minting on ${bridgeModalDestinationChain}`,
+        "Mint failed",
+      ),
+      kind: "mint",
+      icon: bridgeStepsDetails.destinationChainLogo,
+    },
+  ];
+  const bridgeActivityProgressByPhase: Record<BridgeStepsPhase, number> = {
+    approve: 16,
+    burn: 36,
+    attestation: 55,
+    wait: 72,
+    mint: 88,
+    success: 100,
+    failed: 100,
+  };
+  const shouldShowBridgePendingIndicator =
+    !bridgeStepsModalOpen &&
+    (bridgeHook.isBridging || bridgeHook.status === "pending");
+  const bridgeLiveActivityItems: ActivityTabLiveItem[] = bridgeHook.isBridging
+    ? [
+        {
+          id: bridgeHook.transactionHash || "active-bridge",
+          kind: "bridge",
+          title: `Bridge ${bridgeModalAmount} ${bridgeStepsDetails.tokenSymbol}`,
+          routeLabel: "CCTP (Fast)",
+          status: "processing",
+          statusLabel: "Submitting Bridge",
+          progress: bridgeActivityProgressByPhase[bridgeStepsPhase],
+          timestamp: bridgeActivityStartedAt ?? Date.now(),
+          sourceIcon: bridgeStepsDetails.tokenIcon,
+          sourceChainIcon: fromChain?.logo,
+          targetChainIcon: bridgeStepsDetails.destinationChainLogo,
+          transactionHash: bridgeHook.transactionHash ?? null,
+          onClick: () => {
+            setIsActivityOpen(false);
+            setBridgeStepsModalOpen(true);
+          },
+        },
+      ]
+    : [];
+
   return (
     <>
-      <BridgeErrorModal
-        error={bridgeHook.error}
-        onClose={bridgeHook.clearError}
-        onRetry={handleBridge}
-        fromChainName={fromChain?.name}
-        toChainName={toChain?.name}
-        fromGasBalance={sourceGasBalance}
-        toGasBalance={destinationGasBalance}
-        fromGasTokenSymbol={
-          fromChainId
-            ? (SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
-                ?.nativeTokenSymbol ?? null)
-            : null
-        }
-        toGasTokenSymbol={
-          toChainId
-            ? (SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]
-                ?.nativeTokenSymbol ?? null)
-            : null
-        }
+      <TransactionStepsModal
+        isOpen={bridgeStepsModalOpen}
+        onClose={() => setBridgeStepsModalOpen(false)}
+        variant="bridge"
+        title={`Bridge ${bridgeModalAmount} ${bridgeStepsDetails.tokenSymbol}`}
+        subtitle="via CCTP"
+        fromIcon={bridgeStepsDetails.tokenIcon}
+        steps={bridgeTransactionSteps}
       />
+      <ActivityTabModal
+        isOpen={isActivityOpen}
+        onClose={() => setIsActivityOpen(false)}
+        isWalletConnected={Boolean(user)}
+        walletAddress={user?.wallet?.address ?? null}
+        liveItems={bridgeLiveActivityItems}
+      />
+
+      {!bridgeStepsModalOpen && (
+        <BridgeErrorModal
+          error={bridgeHook.error}
+          onClose={bridgeHook.clearError}
+          onRetry={handleBridge}
+          fromChainName={fromChain?.name}
+          toChainName={toChain?.name}
+          fromGasBalance={sourceGasBalance}
+          toGasBalance={destinationGasBalance}
+          fromGasTokenSymbol={
+            fromChainId
+              ? (SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
+                  ?.nativeTokenSymbol ?? null)
+              : null
+          }
+          toGasTokenSymbol={
+            toChainId
+              ? (SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]
+                  ?.nativeTokenSymbol ?? null)
+              : null
+          }
+        />
+      )}
 
       <div className="flex w-full items-start justify-center">
         <div className="w-full max-w-md shrink-0">
@@ -603,6 +908,33 @@ export default function BridgePageContent({
               <div className="flex items-center gap-2">
                 <motion.button
                   type="button"
+                  aria-label="Open activity tab"
+                  onClick={() => setIsActivityOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                  variants={{
+                    hover: { scale: 1.1 },
+                    tap: { scale: 0.9 },
+                  }}
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <motion.span
+                    variants={{
+                      hover: { rotate: 90 },
+                      tap: { scale: 0.9 },
+                    }}
+                    className="inline-flex"
+                  >
+                    <Clock className="h-5 w-5 text-white" />
+                  </motion.span>
+                  {shouldShowBridgePendingIndicator ? (
+                    <span className="text-xs font-medium text-primary">
+                      Pending
+                    </span>
+                  ) : null}
+                </motion.button>
+                <motion.button
+                  type="button"
                   onClick={() => {
                     setFromAmount("0.00");
                     setToAmount("0.00");
@@ -611,7 +943,7 @@ export default function BridgePageContent({
                   whileHover={{ scale: 1.1, rotate: 180 }}
                   transition={{ duration: 0.5 }}
                 >
-                  <RefreshCw className="w-5 h-5 text-muted-foreground" />
+                  <RefreshCw className="w-5 h-5 text-white" />
                 </motion.button>
                 <motion.button
                   type="button"
@@ -620,7 +952,7 @@ export default function BridgePageContent({
                   whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.9 }}
                 >
-                  <Settings className="w-5 h-5 text-muted-foreground" />
+                  <Settings className="w-5 h-5 text-white" />
                 </motion.button>
               </div>
             </div>
@@ -957,7 +1289,7 @@ export default function BridgePageContent({
           )}
 
           {/* Bridge success modal */}
-          {showSuccessModal && (
+          {showSuccessModal && !bridgeStepsModalOpen && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}

@@ -32,7 +32,9 @@ export interface TransactionData {
   approval?: ApprovalTransactionData | ApprovalTransactionData[] | null;
   platformFeeAmount?: string;
   expectedUserOutput?: string;
-  expectedFeeCollectorOutput?: string;
+  feeMode?: "tower-swap-executor" | "none";
+  feeToken?: string;
+  executorAddress?: string;
   feeRecipient?: string;
   feeBps?: number;
 }
@@ -71,8 +73,6 @@ interface RpcTransactionReceipt {
  * Arc testnet RPC endpoint
  */
 const ARC_RPC_URL = "/api/rpc/5042002";
-
-export const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 
 type JsonRpcResponse<T> = {
   result?: T;
@@ -776,13 +776,11 @@ export const notifyBackendConfirmation = async (
 };
 
 /**
- * Submit platform fee to FeeCollector for distribution after swap confirms
- * CRITICAL: Must be called AFTER swap transaction is confirmed on-chain
- * This triggers FeeCollector to atomically deduct fee and send remainder to user wallet
+ * Deprecated. TowerSwapExecutor collects the platform fee inside the
+ * confirmed swap transaction, so no follow-up fee submission is required.
  */
 export interface SwapFeeSettlementValidation {
   swapTransactionHash?: string;
-  feeCollectorBalanceBefore?: string;
   inputToken?: string;
   inputAmount?: string;
 }
@@ -794,6 +792,18 @@ export const submitSwapFee = async (
   feeBps: number = 25,
   settlementValidation: SwapFeeSettlementValidation = {}
 ): Promise<boolean> => {
+  console.warn(
+    "submitSwapFee is deprecated because TowerSwapExecutor collects fees in the swap transaction.",
+    {
+      outputToken,
+      outputAmount,
+      userAddress,
+      feeBps,
+      settlementValidation,
+    },
+  );
+  return true;
+
   try {
     console.log("=== FEE SUBMISSION START ===");
     console.log("submitSwapFee called with:", {

@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { Search } from "lucide-react";
 import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
 import { getChainLogoByName } from "@/lib/chains";
 import arcLogo from "@/public/assets/Arc Testnet logo.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import TransactionInfoModal from "@/components/TransactionInfoModal";
+import {
+  buildTransactionInfoDetails,
+  type TransactionInfoDetails,
+} from "@/lib/activityDetails";
 
 interface ActivitiesProps {
   isWalletConnected?: boolean;
@@ -33,6 +38,8 @@ interface DisplayActivity {
   time: string;
   transactionHash: string | null;
   transactionUrl: string | null;
+  details: TransactionInfoDetails | null;
+  searchText: string;
   isCancellation?: boolean;
 }
 
@@ -106,6 +113,9 @@ const Activities = ({
   const [activities, setActivities] = useState<DisplayActivity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedActivityDetails, setSelectedActivityDetails] =
+    useState<TransactionInfoDetails | null>(null);
 
   useEffect(() => {
     const fetchActivities = async () => {
@@ -157,6 +167,19 @@ const Activities = ({
               time,
               transactionHash: row.transaction_hash,
               transactionUrl: getActivityExplorerUrl(row),
+              details: buildTransactionInfoDetails(row),
+              searchText: [
+                row.type,
+                row.source_currency_ticker,
+                row.destination_currency_ticker,
+                row.source_network_name,
+                row.destination_network_name,
+                row.status,
+                row.transaction_hash,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase(),
               isCancellation,
             };
           },
@@ -174,6 +197,18 @@ const Activities = ({
 
     fetchActivities();
   }, [isWalletConnected, walletAddress]);
+
+  const visibleActivities = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return activities;
+    }
+
+    return activities.filter((activity) =>
+      activity.searchText.includes(normalizedQuery),
+    );
+  }, [activities, query]);
 
   // Show loading state
   if (isLoading) {
@@ -205,6 +240,11 @@ const Activities = ({
         onClose={() => setError(null)}
         title="Failed to load activities"
       />
+      <TransactionInfoModal
+        isOpen={Boolean(selectedActivityDetails)}
+        onClose={() => setSelectedActivityDetails(null)}
+        details={selectedActivityDetails}
+      />
       <motion.div
         key="activities"
         initial={{ opacity: 0, y: 20 }}
@@ -218,32 +258,46 @@ const Activities = ({
         }}
       >
         {activities.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: "1px solid hsl(220, 15%, 18%)" }}>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                    Type
-                  </th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                    Source
-                  </th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                    Destination
-                  </th>
-                  <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
-                    Status
-                  </th>
-                  <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
-                    Date
-                  </th>
-                  <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {activities.map((activity, index) => (
+          <>
+            <div className="px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
+              <label className="flex h-12 items-center gap-3 rounded-lg border border-white/10 bg-transparent px-4 text-sm text-white/55 focus-within:border-primary/50">
+                <Search className="h-4 w-4 shrink-0" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="search by token hash/symbol/chain"
+                  className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-white/55"
+                />
+              </label>
+            </div>
+
+            {visibleActivities.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid hsl(220, 15%, 18%)" }}>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                        Type
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                        Source
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                        Destination
+                      </th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                        Status
+                      </th>
+                      <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                        Date
+                      </th>
+                      <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleActivities.map((activity, index) => (
                   <motion.tr
                     key={`${activity.type}-${activity.transactionHash || index}-${activity.date}`}
                     initial={{ opacity: 0, x: -20 }}
@@ -259,7 +313,9 @@ const Activities = ({
                   >
                     <td className="py-5 px-6">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{activity.type}</span>
+                        <span className="whitespace-nowrap font-medium">
+                          {activity.type}
+                        </span>
                         {activity.isCancellation && (
                           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/50">
                             Cancelled
@@ -384,25 +440,34 @@ const Activities = ({
                       </div>
                     </td>
                     <td className="py-5 px-6 text-right">
-                      {activity.transactionUrl ? (
-                        <a
-                          href={activity.transactionUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      {activity.details ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedActivityDetails(activity.details)}
                           className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white px-4 text-xs font-semibold text-black transition-colors hover:bg-gray-100"
                         >
-                          <span>View Transaction</span>
-                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                        </a>
+                          <span>View Details</span>
+                        </button>
                       ) : (
                         <span className="text-xs text-gray-500">-</span>
                       )}
                     </td>
                   </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                <h4 className="text-lg font-semibold text-white">
+                  No matching transactions
+                </h4>
+                <p className="mt-2 text-sm text-gray-400">
+                  Try another token, hash, symbol, or chain.
+                </p>
+              </div>
+            )}
+          </>
         ) : (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -420,7 +485,7 @@ const Activities = ({
                 }
                 width={80}
                 height={80}
-                className="w-20 h-20 opacity-60"
+                className="w-20 h-20"
               />
             </div>
             <h4 className="text-xl font-semibold mb-2">

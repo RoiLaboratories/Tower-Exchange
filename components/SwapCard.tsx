@@ -2,6 +2,7 @@
 import {
   ArrowDown,
   BarChart3,
+  Clock,
   Settings,
   ChevronDown,
   Wallet,
@@ -36,11 +37,14 @@ import ChartModal from "./ChartModal";
 import TokenInput from "./reusable/TokenInput";
 import SwapNotification from "./SwapNotification";
 import RouterDisplay from "./RouterDisplay";
+import ActivityTabModal, {
+  type ActivityTabLiveItem,
+} from "./ActivityTabModal";
+import TransactionStepsModal, {
+  type TransactionStep,
+} from "./TransactionStepsModal";
 import {
   supabase,
-  registerSwapFee,
-  updateSwapFeeConfirmation,
-  formatTokenAmountByAddress,
 } from "@/lib/supabase";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -49,6 +53,7 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
+import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;
@@ -57,13 +62,9 @@ const ARC_RPC_PROXY_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
 const ARC_NATIVE_USDC_DECIMALS = 18;
 const RECEIPT_REQUEST_TIMEOUT_MS = 12000;
 const RECEIPT_POLL_INTERVAL_MS = 1000;
-const FEE_COLLECTOR_ADDRESS = "0xE71e5baDb9528647F0dd42298bC543D493FC9E40";
 const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Swaps are temporarily paused for maintenance.";
-const BALANCE_OF_SELECTOR = "0x70a08231";
-const ERC20_TRANSFER_TOPIC =
-  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 type JsonRpcResponse<T> = {
   result?: T;
@@ -74,21 +75,10 @@ type JsonRpcResponse<T> = {
   };
 };
 
-type TransactionReceiptLog = {
-  address?: string;
-  topics?: string[];
-  data?: string;
-};
-
 type RpcTransaction = {
   blockNumber?: string | null;
   hash?: string;
   nonce?: string;
-};
-
-type BalanceIncreaseResult = {
-  currentBalance: bigint;
-  increase: bigint;
 };
 
 const sleep = (ms: number) =>
@@ -309,139 +299,6 @@ const applyGasBuffer = (gasEstimate: unknown) => {
   return `0x${((BigInt(gasEstimate) * 13n) / 10n).toString(16)}`;
 };
 
-const encodeErc20BalanceOf = (ownerAddress: string): string => {
-  const normalizedAddress = ownerAddress.replace(/^0x/i, "").toLowerCase();
-  if (normalizedAddress.length !== 40) {
-    throw new Error(`Invalid address for balance lookup: ${ownerAddress}`);
-  }
-
-  return `${BALANCE_OF_SELECTOR}${normalizedAddress.padStart(64, "0")}`;
-};
-
-const getTokenBalanceAtAddress = async (
-  tokenAddress: string,
-  ownerAddress: string,
-  label: string,
-): Promise<bigint> => {
-  const rawBalance = await callArcRpc<string>(
-    "eth_call",
-    [
-      {
-        to: tokenAddress,
-        data: encodeErc20BalanceOf(ownerAddress),
-      },
-      "latest",
-    ],
-    RECEIPT_REQUEST_TIMEOUT_MS,
-    label,
-  );
-
-  return BigInt(rawBalance || "0x0");
-};
-
-const waitForTokenBalanceIncrease = async (
-  tokenAddress: string,
-  ownerAddress: string,
-  previousBalance: bigint,
-  minimumIncrease: bigint,
-  label: string,
-): Promise<BalanceIncreaseResult | null> => {
-  const requiredBalance = previousBalance + minimumIncrease;
-
-  for (let attempt = 1; attempt <= 12; attempt += 1) {
-    const currentBalance = await getTokenBalanceAtAddress(
-      tokenAddress,
-      ownerAddress,
-      label,
-    );
-    const increase =
-      currentBalance > previousBalance ? currentBalance - previousBalance : 0n;
-
-    if (currentBalance >= requiredBalance) {
-      return {
-        currentBalance,
-        increase,
-      };
-    }
-
-    if (attempt === 1 || attempt === 12) {
-      console.warn(`${label} has not reached the expected balance yet`, {
-        tokenAddress,
-        ownerAddress,
-        previousBalance: previousBalance.toString(),
-        minimumIncrease: minimumIncrease.toString(),
-        currentBalance: currentBalance.toString(),
-        increase: increase.toString(),
-      });
-    }
-
-    await sleep(1000);
-  }
-
-  return null;
-};
-
-const addressToTopic = (address: string) =>
-  `0x${address.replace(/^0x/i, "").toLowerCase().padStart(64, "0")}`;
-
-const sumTransferAmountFromReceipt = (
-  receipt: BrowserWalletTransactionReceipt,
-  tokenAddress: string,
-  filters: {
-    from?: string;
-    to?: string;
-  },
-) => {
-  const logs = Array.isArray(receipt.logs)
-    ? (receipt.logs as TransactionReceiptLog[])
-    : [];
-  const token = tokenAddress.toLowerCase();
-  const fromTopic = filters.from ? addressToTopic(filters.from) : null;
-  const toTopic = filters.to ? addressToTopic(filters.to) : null;
-
-  return logs.reduce((total, log) => {
-    const [eventTopic, from, to] = log.topics || [];
-
-    if ((log.address || "").toLowerCase() !== token) {
-      return total;
-    }
-
-    if ((eventTopic || "").toLowerCase() !== ERC20_TRANSFER_TOPIC) {
-      return total;
-    }
-
-    if (fromTopic && (from || "").toLowerCase() !== fromTopic) {
-      return total;
-    }
-
-    if (toTopic && (to || "").toLowerCase() !== toTopic) {
-      return total;
-    }
-
-    return total + BigInt(log.data && log.data !== "0x" ? log.data : "0x0");
-  }, 0n);
-};
-
-const amountFrom18Decimals = (amount: string | undefined, decimals: number) => {
-  if (!amount) {
-    return null;
-  }
-
-  try {
-    const amountBn = BigInt(amount);
-
-    if (decimals === 18) {
-      return amountBn;
-    }
-
-    return decimals < 18
-      ? amountBn / 10n ** BigInt(18 - decimals)
-      : amountBn * 10n ** BigInt(decimals - 18);
-  } catch {
-    return null;
-  }
-};
-
 interface TokenSelectorProps {
   selected: SwapToken | null;
   onOpenModal: () => void;
@@ -512,6 +369,41 @@ const SwapCard = ({
     "success" | "pending" | "failed" | null
   >(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [notificationSwapDetails, setNotificationSwapDetails] = useState<{
+    sellAmount: string;
+    sellTokenSymbol: string;
+    receiveAmount: string;
+    receiveTokenSymbol: string;
+  } | null>(null);
+  const [swapStepsModalOpen, setSwapStepsModalOpen] = useState(false);
+  const [swapStepsPhase, setSwapStepsPhase] = useState<
+    "approval" | "confirm" | "wait" | "success" | "failed"
+  >("approval");
+  const [swapStepsFailedPhase, setSwapStepsFailedPhase] = useState<
+    "approval" | "confirm" | "wait"
+  >("confirm");
+  const [swapStepsFailureMessage, setSwapStepsFailureMessage] =
+    useState<string | null>(null);
+  const [swapStepsDetails, setSwapStepsDetails] = useState<{
+    sellAmount: string;
+    sellTokenSymbol: string;
+    sellTokenIcon: SwapToken["icon"];
+    receiveAmount: string;
+    receiveTokenSymbol: string;
+    receiveTokenIcon?: SwapToken["icon"];
+    dexName: string;
+  }>({
+    sellAmount: "0.00",
+    sellTokenSymbol: SWAP_TOKENS[0].symbol,
+    sellTokenIcon: SWAP_TOKENS[0].icon,
+    receiveAmount: "0.00",
+    receiveTokenSymbol: "",
+    receiveTokenIcon: undefined,
+    dexName: "Swap",
+  });
+  const [swapActivityStartedAt, setSwapActivityStartedAt] = useState<
+    number | null
+  >(null);
   const [revertReason, setRevertReason] = useState<string | null>(null);
   const [slippageTolerance, setSlippageTolerance] = useState(1); // 1% default to reduce "execution reverted" from slippage
 
@@ -675,15 +567,83 @@ const SwapCard = ({
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
   const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
+  const quoteRequestIdRef = useRef(0);
+
+  const resetSwapQuote = useCallback(() => {
+    quoteRequestIdRef.current += 1;
+    setReceiveAmount("0.00");
+    setRouteOptions([]);
+    setSelectedRouterId(undefined);
+  }, []);
+
+  const resetSwapForm = useCallback(() => {
+    setSellAmount("0.00");
+    resetSwapQuote();
+  }, [resetSwapQuote]);
+
+  const getActiveSwapRouteName = useCallback(() => {
+    if (selectedRouterId) {
+      return (
+        routeOptions.find((option) => option.dexId === selectedRouterId)
+          ?.dexName || selectedRouterId
+      );
+    }
+
+    return routeOptions[0]?.dexName || "Swap";
+  }, [routeOptions, selectedRouterId]);
+
+  const openSwapStepsModal = useCallback(() => {
+    setSwapStepsDetails({
+      sellAmount,
+      sellTokenSymbol: sellToken.symbol,
+      sellTokenIcon: sellToken.icon,
+      receiveAmount,
+      receiveTokenSymbol: receiveToken?.symbol || "",
+      receiveTokenIcon: receiveToken?.icon,
+      dexName: getActiveSwapRouteName(),
+    });
+    setSwapStepsFailureMessage(null);
+    setSwapStepsFailedPhase("confirm");
+    setSwapStepsPhase("approval");
+    setSwapActivityStartedAt(Date.now());
+    setSwapStepsModalOpen(true);
+  }, [
+    receiveAmount,
+    receiveToken?.icon,
+    receiveToken?.symbol,
+    getActiveSwapRouteName,
+    sellAmount,
+    sellToken.icon,
+    sellToken.symbol,
+  ]);
+
+  const updateSwapStepsRoute = useCallback(
+    (dexName?: string, outputAmount?: string) => {
+      setSwapStepsDetails((current) => ({
+        ...current,
+        dexName: dexName || current.dexName,
+        receiveAmount: outputAmount || current.receiveAmount,
+      }));
+    },
+    [],
+  );
 
   const logSwapActivity = useCallback(
-    async (status: "Successful" | "Failed", txHash?: string | null) => {
+    async (
+      status: "Successful" | "Failed",
+      txHash?: string | null,
+      routeLabel?: string | null,
+    ) => {
       try {
         if (!user?.wallet?.address) return;
         const amountUsd = (parseFloat(sellAmount) || 0) * sellToken.usdPrice;
+        const resolvedRouteLabel = routeLabel || getActiveSwapRouteName();
         await supabase.from("activities").insert({
           wallet_address: user.wallet.address.toLowerCase(),
-          type: "Swap",
+          type:
+            resolvedRouteLabel && resolvedRouteLabel !== "Swap"
+              ? `Swap via ${resolvedRouteLabel}`
+              : "Swap",
           source_currency_ticker: sellToken.symbol,
           destination_currency_ticker: receiveToken?.symbol || null,
           source_network_name: "Arc",
@@ -704,6 +664,7 @@ const SwapCard = ({
       sellAmount,
       user?.wallet?.address,
       sellToken.usdPrice,
+      getActiveSwapRouteName,
     ],
   );
 
@@ -718,6 +679,7 @@ const SwapCard = ({
   // Modal states
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChartOpen, setIsChartOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
   const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
@@ -881,11 +843,9 @@ const SwapCard = ({
 
     if (!isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)) {
       setReceiveToken(availableReceiveTokens[0] ?? null);
-      setReceiveAmount("0.00");
-      setRouteOptions([]);
-      setSelectedRouterId(undefined);
+      resetSwapQuote();
     }
-  }, [availableReceiveTokens, receiveToken, sellToken.symbol]);
+  }, [availableReceiveTokens, receiveToken, resetSwapQuote, sellToken.symbol]);
 
   const handleSwapTokens = () => {
     if (!receiveToken) {
@@ -904,26 +864,23 @@ const SwapCard = ({
 
   const handleSellTokenSelect = (token: SwapToken) => {
     setSellToken(token);
-    setReceiveAmount("0.00");
-    setRouteOptions([]);
-    setSelectedRouterId(undefined);
+    resetSwapQuote();
   };
 
   const handleReceiveTokenSelect = (token: SwapToken) => {
     setReceiveToken(token);
-    setReceiveAmount("0.00");
-    setRouteOptions([]);
-    setSelectedRouterId(undefined);
+    resetSwapQuote();
   };
 
   // Get swap quote from Tower Exchange backend
   const getQuoteForSwap = useCallback(
     async (sellAmountValue: string, routerId?: string) => {
+      const requestId = quoteRequestIdRef.current + 1;
+      quoteRequestIdRef.current = requestId;
+
       try {
         if (SWAPS_DISABLED) {
-          setReceiveAmount("0.00");
-          setRouteOptions([]);
-          setSelectedRouterId(undefined);
+          resetSwapQuote();
           return;
         }
 
@@ -931,9 +888,7 @@ const SwapCard = ({
           !receiveToken ||
           !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)
         ) {
-          setReceiveAmount("0.00");
-          setRouteOptions([]);
-          setSelectedRouterId(undefined);
+          resetSwapQuote();
           return;
         }
 
@@ -945,9 +900,7 @@ const SwapCard = ({
           console.warn(
             `Token address not found for ${sellToken.symbol} or ${receiveToken.symbol}`,
           );
-          setReceiveAmount("0.00");
-          setRouteOptions([]);
-          setSelectedRouterId(undefined);
+          resetSwapQuote();
           return;
         }
 
@@ -977,6 +930,10 @@ const SwapCard = ({
           throw new Error(
             towerError || "Failed to get quote from Tower Exchange",
           );
+        }
+
+        if (requestId !== quoteRequestIdRef.current) {
+          return;
         }
 
         console.log("Quote received from Tower Exchange:", quoteData);
@@ -1018,12 +975,19 @@ const SwapCard = ({
         );
       } catch (error) {
         console.error("Error getting swap quote:", error);
-        setReceiveAmount("0.00");
-        setRouteOptions([]);
-        setSelectedRouterId(undefined);
+        if (requestId === quoteRequestIdRef.current) {
+          resetSwapQuote();
+        }
       }
     },
-    [getQuote, receiveToken, sellToken.symbol, slippageTolerance, towerError],
+    [
+      getQuote,
+      receiveToken,
+      resetSwapQuote,
+      sellToken.symbol,
+      slippageTolerance,
+      towerError,
+    ],
   );
 
   useEffect(() => {
@@ -1050,9 +1014,7 @@ const SwapCard = ({
       // Get quote from Arc pool for actual exchange rate
       getQuoteForSwap(value);
     } else {
-      setReceiveAmount("0.00");
-      setRouteOptions([]);
-      setSelectedRouterId(undefined);
+      resetSwapQuote();
     }
   };
 
@@ -1118,6 +1080,7 @@ const SwapCard = ({
 
     setSwapState("loading");
     setRevertReason(null);
+    openSwapStepsModal();
     let successNotificationTimeout: ReturnType<typeof setTimeout> | undefined;
     let successResetTimeout: ReturnType<typeof setTimeout> | undefined;
     let submittedSwapTxHash: string | null = null;
@@ -1153,18 +1116,28 @@ const SwapCard = ({
       const markSwapSuccess = (hash: string) => {
         setTransactionHash(hash);
         setRevertReason(null);
+        setNotificationSwapDetails({
+          sellAmount,
+          sellTokenSymbol: sellToken.symbol,
+          receiveAmount,
+          receiveTokenSymbol: receiveToken?.symbol || "",
+        });
         setSwapState("success");
         setNotification("success");
+        resetSwapForm();
+
+        window.setTimeout(() => {
+          setSwapStepsModalOpen(false);
+        }, 700);
 
         // Auto-dismiss after a longer confirmation window so users can review/open the transaction.
         successNotificationTimeout = setTimeout(() => {
           setNotification(null);
+          setNotificationSwapDetails(null);
         }, SWAP_SUCCESS_NOTIFICATION_DURATION_MS);
 
         // Reset after the success modal has had time to remain visible.
         successResetTimeout = setTimeout(() => {
-          setSellAmount("0.00");
-          setReceiveAmount("0.00");
           setSwapState("idle");
           setTransactionHash(null);
           fetchUserBalances();
@@ -1401,6 +1374,7 @@ const SwapCard = ({
         routeType: quote.route.type,
         hopsCount: quote.route.hops.length,
       });
+      updateSwapStepsRoute(quote.route.hops[0]?.dexName);
 
       // Step 4: Get swap transaction (which includes approval if needed)
       console.log(
@@ -1421,6 +1395,7 @@ const SwapCard = ({
 
       // Step 5: If approval is needed, submit approval transaction first
       if (approvalTxs.length > 0) {
+        setSwapStepsPhase("approval");
         console.log("Approval required - submitting approval transaction...");
         try {
           for (
@@ -1523,6 +1498,7 @@ const SwapCard = ({
           // Update swapTx to the fresh one with new deadline
           Object.assign(swapTx, freshTransaction.swap);
           quote = freshQuote;
+          updateSwapStepsRoute(freshQuote.route.hops[0]?.dexName);
 
           console.log("Fresh swap transaction ready:", {
             to: swapTx.to,
@@ -1565,6 +1541,7 @@ const SwapCard = ({
       } else {
         console.log("No approval needed - proceeding with swap");
       }
+      setSwapStepsPhase("confirm");
 
       // Step 6: Send swap transaction
       const swapDataToSend = {
@@ -1677,32 +1654,6 @@ const SwapCard = ({
       });
       const swapNonce = await getArcLatestNonce(userAddress, "Swap nonce lookup");
 
-      const feeCollectorOutput = swapTx?.expectedFeeCollectorOutput;
-      const outputTokenForFee = tokenOutAddress || quote.outputToken;
-      const inputAmountForFeeValidation = parseUnits(
-        sellAmount,
-        TOKEN_DECIMALS[sellToken.symbol] || 18,
-      ).toString();
-      let feeCollectorBalanceBefore: bigint | null = null;
-
-      if (feeCollectorOutput && feeCollectorOutput !== "0") {
-        if (!outputTokenForFee) {
-          throw new Error("Missing output token for fee distribution");
-        }
-
-        feeCollectorBalanceBefore = await getTokenBalanceAtAddress(
-          outputTokenForFee,
-          FEE_COLLECTOR_ADDRESS,
-          "FeeCollector pre-swap output balance lookup",
-        );
-
-        console.log("[SwapCard] FeeCollector balance before swap:", {
-          outputToken: outputTokenForFee,
-          balanceBefore: feeCollectorBalanceBefore.toString(),
-          expectedSwapOutput: feeCollectorOutput,
-        });
-      }
-
       console.log("Final swap transaction parameters:", {
         to: swapDataToSend.to,
         value: finalSwapValue,
@@ -1731,6 +1682,7 @@ const SwapCard = ({
       submittedSwapTxHash = txHash;
       setTransactionHash(txHash);
       setRevertReason(null);
+      setSwapStepsPhase("wait");
 
       let receipt = await waitForArcTransactionReceipt(txHash, {
         label: "Swap receipt lookup",
@@ -1760,6 +1712,7 @@ const SwapCard = ({
           );
           setSwapState("pending");
           setNotification("pending");
+          setSwapStepsPhase("wait");
 
           const extendedWaitStartedAt = Date.now();
           let missingPendingLookups = 0;
@@ -1876,281 +1829,21 @@ const SwapCard = ({
         );
       }
 
-      // Step 8: Submit platform fee with atomic distribution through FeeCollector
-      // Swap output went to FeeCollector, now execute atomic fee split
-      console.log("[SwapCard] Fee collection check:", {
-        hasExpectedFeeCollectorOutput: !!feeCollectorOutput,
-        feeCollectorOutput: feeCollectorOutput,
+      console.log("[SwapCard] TowerSwapExecutor swap settled:", {
+        txHash,
+        feeMode: swapTx?.feeMode,
+        feeToken: swapTx?.feeToken,
         platformFeeAmount: swapTx?.platformFeeAmount,
-        expectedUserOutput: swapTx?.expectedUserOutput,
-        isNativeUSDC: sellToken.symbol === "USDC",
+        executorAddress: swapTx?.executorAddress,
       });
+      await fetchUserBalances();
 
-      if (feeCollectorOutput && feeCollectorOutput !== "0") {
-        const feeSubmitUrl = "/api/swap/submit-fee";
-        const quotedFeeCollectorOutput = BigInt(feeCollectorOutput);
-        const outputTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-        const minFeeCollectorOutputFromQuote = amountFrom18Decimals(
-          quote.minOut,
-          outputTokenDecimals,
-        );
-        const minimumFeeCollectorOutput =
-          minFeeCollectorOutputFromQuote && minFeeCollectorOutputFromQuote > 0n
-            ? minFeeCollectorOutputFromQuote
-            : 1n;
-
-        if (!outputTokenForFee) {
-          throw new Error("Missing output token for fee distribution");
-        }
-
-        if (feeCollectorBalanceBefore === null) {
-          throw new Error(
-            "Missing FeeCollector balance snapshot. Fee distribution was stopped to protect existing funds.",
-          );
-        }
-
-        const feeCollectorOutputFromReceipt = sumTransferAmountFromReceipt(
-          receipt,
-          outputTokenForFee,
-          { to: FEE_COLLECTOR_ADDRESS },
-        );
-        const receiptShowsFeeCollectorOutput =
-          feeCollectorOutputFromReceipt >= minimumFeeCollectorOutput;
-        const feeCollectorBalanceIncrease = receiptShowsFeeCollectorOutput
-          ? null
-          : await waitForTokenBalanceIncrease(
-              outputTokenForFee,
-              FEE_COLLECTOR_ADDRESS,
-              feeCollectorBalanceBefore,
-              minimumFeeCollectorOutput,
-              "FeeCollector post-swap output balance lookup",
-            );
-        const settledFeeCollectorOutput = receiptShowsFeeCollectorOutput
-          ? feeCollectorOutputFromReceipt
-          : feeCollectorBalanceIncrease?.increase ?? 0n;
-
-        if (settledFeeCollectorOutput < minimumFeeCollectorOutput) {
-          throw new Error(
-            "Swap confirmed, but the FeeCollector did not receive the minimum output from this swap. Fee distribution was stopped so existing FeeCollector funds are not sent out.",
-          );
-        }
-
-        console.log("[SwapCard] Submitting fee with atomic distribution:", {
-          outputToken: outputTokenForFee,
-          totalAmount: settledFeeCollectorOutput.toString(),
-          quotedFeeCollectorOutput: quotedFeeCollectorOutput.toString(),
-          minimumFeeCollectorOutput: minimumFeeCollectorOutput.toString(),
-          userAddress: userAddress,
-          feeSubmitUrl,
-          sellToken: sellToken.symbol,
-          feeCollectorBalanceBefore: feeCollectorBalanceBefore.toString(),
-          feeCollectorBalanceAfter:
-            feeCollectorBalanceIncrease?.currentBalance.toString(),
-          feeCollectorBalanceIncrease:
-            feeCollectorBalanceIncrease?.increase.toString(),
-          feeCollectorOutputFromReceipt:
-            feeCollectorOutputFromReceipt.toString(),
-          proofSource: receiptShowsFeeCollectorOutput
-            ? "swap receipt transfer logs"
-            : "FeeCollector balance increase",
-        });
-
-        try {
-          console.log("[SwapCard] Submitting fee with transaction hash:", {
-            txHash,
-            txHashPresent: !!txHash,
-            outputToken: outputTokenForFee,
-            totalAmount: settledFeeCollectorOutput.toString(),
-            userAddress,
-          });
-
-          const feeResponse = await withTimeout(
-            fetch(feeSubmitUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                outputToken: outputTokenForFee,
-                totalAmount: settledFeeCollectorOutput.toString(), // Actual amount the FeeCollector received
-                userAddress: userAddress, // User address to receive (amount - fee)
-                feeBps: 25, // 0.25% = 25 basis points
-                swapTransactionHash: txHash,
-                feeCollectorBalanceBefore: feeCollectorBalanceBefore.toString(),
-                inputToken: tokenInAddress,
-                inputAmount: inputAmountForFeeValidation,
-              }),
-            }),
-            180000,
-            "Fee distribution",
-          );
-
-          if (!feeResponse.ok) {
-            const feeError = await withTimeout(
-              feeResponse.text(),
-              10000,
-              "Fee error response",
-            );
-            console.warn("[SwapCard] Fee submission response not OK:", {
-              status: feeResponse.status,
-              error: feeError,
-            });
-            throw new Error(
-              `Fee distribution failed (${feeResponse.status}): ${feeError}`,
-            );
-          } else {
-            const feeResult = await withTimeout(
-              feeResponse.json(),
-              10000,
-              "Fee distribution response",
-            );
-            const feeDistributionTxHash =
-              feeResult.data?.transactionHash || feeResult.transactionHash;
-            if (!feeDistributionTxHash) {
-              throw new Error("Fee distribution did not return a transaction hash");
-            }
-
-            console.log(
-              "[SwapCard] Atomic fee collection and distribution successful:",
-              {
-                transactionHash: feeDistributionTxHash,
-                outputToken:
-                  feeResult.data?.outputToken || feeResult.outputToken,
-                feeAmount: feeResult.data?.feeAmount || feeResult.feeAmount,
-              },
-            );
-
-            // Record the fee in the database
-            let registerResult: Awaited<
-              ReturnType<typeof registerSwapFee>
-            > | null = null;
-            const feeAmount =
-              feeResult.data?.feeAmount || feeResult.feeAmount || "0";
-            if (userAddress && feeAmount !== "0") {
-              const formattedFeeAmount = formatTokenAmountByAddress(
-                feeAmount,
-                outputTokenForFee,
-              );
-              const feeUsdValue = formattedFeeAmount * receiveToken.usdPrice;
-              registerResult = await registerSwapFee({
-                walletAddress: userAddress,
-                tokenAddress: outputTokenForFee,
-                tokenSymbol: receiveToken.symbol,
-                feeAmount: feeAmount,
-                feeAmountUsd: feeUsdValue.toString(),
-                feeBasisPoints: 25,
-                totalAmount: settledFeeCollectorOutput.toString(),
-                transactionHash: feeDistributionTxHash,
-                status: "Recorded",
-              });
-
-              if (registerResult.success) {
-                console.log("[SwapCard] Fee recorded in database:", {
-                  feeId: registerResult.id,
-                  feeAmount,
-                  feeAmountFormatted: formattedFeeAmount,
-                  feeAmountUsd: feeUsdValue,
-                });
-              } else {
-                console.warn(
-                  "[SwapCard] Failed to record fee in database:",
-                  registerResult.error,
-                );
-              }
-            }
-
-            // CRITICAL: Wait for fee distribution transaction to finalize before refreshing balance
-            // This ensures the user receives their tokens before we query the balance
-            if (feeDistributionTxHash) {
-              const backendBlockNumber = feeResult.data?.blockNumber
-                ? Number(feeResult.data.blockNumber)
-                : null;
-              let confirmedBlockNumber =
-                backendBlockNumber !== null && Number.isFinite(backendBlockNumber)
-                  ? backendBlockNumber
-                  : null;
-
-              if (confirmedBlockNumber === null) {
-                console.log(
-                  "[SwapCard] Waiting for fee distribution transaction to finalize:",
-                  feeDistributionTxHash,
-                );
-
-                const feeReceipt = await waitForArcTransactionReceipt(
-                  feeDistributionTxHash,
-                  {
-                    label: "Fee distribution receipt lookup",
-                    maxWaitMs: 45000,
-                    walletReceiptLookup,
-                  },
-                );
-
-                if (feeReceipt?.status === "0x0") {
-                  throw new Error(
-                    "Fee distribution transaction failed on-chain",
-                  );
-                }
-
-                if (feeReceipt?.status === "0x1" && feeReceipt.blockNumber) {
-                  console.log(
-                    "[SwapCard] Fee distribution transaction confirmed!",
-                  );
-                  confirmedBlockNumber = parseInt(feeReceipt.blockNumber, 16);
-                }
-              }
-
-              if (confirmedBlockNumber === null) {
-                console.warn(
-                  "Fee distribution transaction was submitted, but confirmation was not received within 45 seconds. Continuing because backend accepted the split transaction.",
-                  { feeDistributionTxHash },
-                );
-              }
-
-              if (
-                confirmedBlockNumber !== null &&
-                registerResult &&
-                registerResult.success &&
-                registerResult.id
-              ) {
-                await updateSwapFeeConfirmation(
-                  registerResult.id,
-                  feeDistributionTxHash,
-                  confirmedBlockNumber,
-                ).catch((err) => {
-                  console.warn(
-                    "[SwapCard] Failed to update fee confirmation:",
-                    err,
-                  );
-                });
-              }
-
-              console.log(
-                "[SwapCard] Refreshing balance after fee distribution confirmed",
-              );
-              await fetchUserBalances();
-            }
-          }
-        } catch (feeError: unknown) {
-          console.error(
-            "[SwapCard] Error submitting fee with atomic distribution:",
-            {
-              message:
-                feeError instanceof Error ? feeError.message : String(feeError),
-              outputToken: outputTokenForFee,
-              totalAmount: settledFeeCollectorOutput.toString(),
-            },
-          );
-          throw new Error(
-            `Fee distribution failed: ${
-              feeError instanceof Error ? feeError.message : String(feeError)
-            }`,
-          );
-        }
-      } else {
-        console.warn(
-          "[SwapCard] Skipping fee submission - no expectedFeeCollectorOutput or value is 0",
-        );
-      }
-
-      await logSwapActivity("Successful", txHash);
+      await logSwapActivity(
+        "Successful",
+        txHash,
+        quote.route.hops[0]?.dexName || getActiveSwapRouteName(),
+      );
+      setSwapStepsPhase("success");
       markSwapSuccess(txHash);
     } catch (error: unknown) {
       // Better error serialization for swap errors
@@ -2215,8 +1908,23 @@ const SwapCard = ({
         JSON.stringify(errorDetails, null, 2),
       );
 
+      setSwapStepsPhase("failed");
+      setSwapStepsFailedPhase(
+        submittedSwapTxHash
+          ? "wait"
+          : typeof errorDetails.message === "string" &&
+              errorDetails.message.toLowerCase().includes("approval")
+            ? "approval"
+            : "confirm",
+      );
+      setSwapStepsFailureMessage(
+        typeof errorDetails.message === "string"
+          ? errorDetails.message
+          : "Swap failed",
+      );
       setSwapState("failed");
       setNotification("failed");
+      setNotificationSwapDetails(null);
       if (!submittedSwapTxHash) {
         setTransactionHash(null);
       }
@@ -2243,17 +1951,8 @@ const SwapCard = ({
       return "Connect Wallet";
     }
 
-    if (swapState === "loading") {
-      return (
-        <div className="flex items-center justify-center gap-2">
-          <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
-          <span>Loading</span>
-        </div>
-      );
-    }
-
-    if (swapState === "pending") {
-      return "Pending";
+    if (swapState === "loading" || swapState === "pending") {
+      return "Swap";
     }
 
     if (isSwapBalanceInsufficient) {
@@ -2286,19 +1985,186 @@ const SwapCard = ({
     return `${baseStyles} bg-primary hover:opacity-90`;
   };
 
+  const activeNotificationSwapDetails =
+    notificationSwapDetails ??
+    (receiveToken
+      ? {
+          sellAmount,
+          sellTokenSymbol: sellToken.symbol,
+          receiveAmount,
+          receiveTokenSymbol: receiveToken.symbol,
+        }
+      : null);
+
+  const isSwapStepComplete = (step: "approval" | "confirm" | "wait") => {
+    if (swapStepsPhase === "success") {
+      return true;
+    }
+
+    if (swapStepsPhase === "wait") {
+      return step === "approval" || step === "confirm";
+    }
+
+    if (swapStepsPhase === "confirm") {
+      return step === "approval";
+    }
+
+    return false;
+  };
+
+  const getSwapStepStatus = (
+    step: "approval" | "confirm" | "wait" | "receive",
+  ): TransactionStep["status"] => {
+    if (swapStepsPhase === "failed") {
+      if (step === swapStepsFailedPhase) {
+        return "failed";
+      }
+
+      if (step === "receive") {
+        return "pending";
+      }
+
+      return isSwapStepComplete(step) ? "complete" : "pending";
+    }
+
+    if (swapStepsPhase === "success") {
+      return "complete";
+    }
+
+    if (step === "receive") {
+      return "pending";
+    }
+
+    if (step === swapStepsPhase) {
+      return "active";
+    }
+
+    return isSwapStepComplete(step) ? "complete" : "pending";
+  };
+
+  const swapTransactionSteps: TransactionStep[] = [
+    {
+      id: "approve",
+      label: `Approve ${swapStepsDetails.sellTokenSymbol}`,
+      status: getSwapStepStatus("approval"),
+      detail:
+        swapStepsPhase === "failed" && swapStepsFailedPhase === "approval"
+          ? swapStepsFailureMessage || "Approval failed"
+          : getSwapStepStatus("approval") === "active"
+            ? "Approving in your wallet"
+            : undefined,
+      kind: "wallet",
+    },
+    {
+      id: "confirm",
+      label: "Confirm Swap",
+      status: getSwapStepStatus("confirm"),
+      detail:
+        swapStepsPhase === "failed" && swapStepsFailedPhase === "confirm"
+          ? swapStepsFailureMessage || "Swap failed"
+          : getSwapStepStatus("confirm") === "active"
+            ? "Confirming in your wallet"
+            : undefined,
+      kind: "wallet",
+    },
+    {
+      id: "wait",
+      label: "Wait ~2 sec",
+      status: getSwapStepStatus("wait"),
+      detail:
+        swapStepsPhase === "failed" && swapStepsFailedPhase === "wait"
+          ? swapStepsFailureMessage || "Confirmation failed"
+          : getSwapStepStatus("wait") === "active"
+            ? "Waiting on Arc"
+            : undefined,
+      kind: "wait",
+    },
+    {
+      id: "receive",
+      label: `Got ${swapStepsDetails.receiveAmount || "0.00"} ${
+        swapStepsDetails.receiveTokenSymbol || "tokens"
+      } on Arc`,
+      status: getSwapStepStatus("receive"),
+    },
+  ];
+  const swapActivityProgressByPhase: Record<typeof swapStepsPhase, number> = {
+    approval: 18,
+    confirm: 44,
+    wait: 72,
+    success: 100,
+    failed: 100,
+  };
+  const isSwapActivityProcessing =
+    swapState === "loading" || swapState === "pending";
+  const shouldShowSwapPendingIndicator =
+    isSwapActivityProcessing && !swapStepsModalOpen;
+  const swapLiveActivityItems: ActivityTabLiveItem[] =
+    isSwapActivityProcessing
+      ? [
+          {
+            id: transactionHash || "active-swap",
+            kind: "swap",
+            title: `Swap ${swapStepsDetails.sellAmount} ${
+              swapStepsDetails.sellTokenSymbol
+            } to ${swapStepsDetails.receiveAmount || "0.00"} ${
+              swapStepsDetails.receiveTokenSymbol || "tokens"
+            }`,
+            routeLabel: swapStepsDetails.dexName || getActiveSwapRouteName(),
+            status: "processing",
+            statusLabel: "Submitting Swap",
+            progress: swapActivityProgressByPhase[swapStepsPhase],
+            timestamp: swapActivityStartedAt ?? Date.now(),
+            sourceIcon: swapStepsDetails.sellTokenIcon,
+            targetIcon: swapStepsDetails.receiveTokenIcon,
+            sourceChainIcon: arcTestnetLogo,
+            targetChainIcon: arcTestnetLogo,
+            transactionHash,
+            onClick: () => {
+              setIsActivityOpen(false);
+              setSwapStepsModalOpen(true);
+            },
+          },
+        ]
+      : [];
+
   return (
     <div className="flex w-full items-start justify-center gap-6">
+      <TransactionStepsModal
+        isOpen={swapStepsModalOpen}
+        onClose={() => setSwapStepsModalOpen(false)}
+        variant="swap"
+        title={`Swap ${swapStepsDetails.sellAmount} ${
+          swapStepsDetails.sellTokenSymbol
+        } to ${swapStepsDetails.receiveAmount || "0.00"} ${
+          swapStepsDetails.receiveTokenSymbol || ""
+        }`.trim()}
+        subtitle={`via ${swapStepsDetails.dexName || getActiveSwapRouteName()}`}
+        fromIcon={swapStepsDetails.sellTokenIcon}
+        toIcon={swapStepsDetails.receiveTokenIcon}
+        fromBadgeIcon={arcTestnetLogo}
+        toBadgeIcon={arcTestnetLogo}
+        steps={swapTransactionSteps}
+      />
+      <ActivityTabModal
+        isOpen={isActivityOpen}
+        onClose={() => setIsActivityOpen(false)}
+        isWalletConnected={isWalletConnected}
+        walletAddress={user?.wallet?.address ?? null}
+        liveItems={swapLiveActivityItems}
+      />
+
       {/* Swap Notification */}
       <AnimatePresence>
-        {notification && receiveToken && (
+        {notification && activeNotificationSwapDetails && !swapStepsModalOpen && (
           <SwapNotification
             type={notification}
-            sellAmount={sellAmount}
-            sellToken={sellToken.symbol}
-            receiveAmount={receiveAmount}
-            receiveToken={receiveToken.symbol}
+            sellAmount={activeNotificationSwapDetails.sellAmount}
+            sellToken={activeNotificationSwapDetails.sellTokenSymbol}
+            receiveAmount={activeNotificationSwapDetails.receiveAmount}
+            receiveToken={activeNotificationSwapDetails.receiveTokenSymbol}
             onClose={() => {
               setNotification(null);
+              setNotificationSwapDetails(null);
               // CRITICAL: Refresh balances when user closes the notification
               // This ensures the displayed balance is up-to-date after successful swap
               if (notification === "success") {
@@ -2344,12 +2210,39 @@ const SwapCard = ({
             </div>
             <div className="flex items-center gap-2">
               <motion.button
+                type="button"
+                aria-label="Open activity tab"
+                onClick={() => setIsActivityOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                variants={{
+                  hover: { scale: 1.1 },
+                  tap: { scale: 0.9 },
+                }}
+                whileHover="hover"
+                whileTap="tap"
+              >
+                <motion.span
+                  variants={{
+                    hover: { rotate: 90 },
+                    tap: { scale: 0.9 },
+                  }}
+                  className="inline-flex"
+                >
+                  <Clock className="h-5 w-5 text-white" />
+                </motion.span>
+                {shouldShowSwapPendingIndicator ? (
+                  <span className="text-xs font-medium text-primary">
+                    Pending
+                  </span>
+                ) : null}
+              </motion.button>
+              <motion.button
                 onClick={() => setIsChartOpen(!isChartOpen)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
               >
-                <BarChart3 className="w-5 h-5 text-muted-foreground" />
+                <BarChart3 className="w-5 h-5 text-white" />
               </motion.button>
               <motion.button
                 onClick={() => setIsSettingsOpen(true)}
@@ -2357,7 +2250,7 @@ const SwapCard = ({
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <Settings className="w-5 h-5 text-muted-foreground" />
+                <Settings className="w-5 h-5 text-white" />
               </motion.button>
             </div>
           </div>
@@ -2401,10 +2294,7 @@ const SwapCard = ({
               <TokenInput
                 value={sellAmount}
                 onChange={handleSellAmountChange}
-                onClear={() => {
-                  setSellAmount("0.00");
-                  setReceiveAmount("0.00");
-                }}
+                onClear={resetSwapForm}
                 usdValueLabel={sellUsdValueLabel}
               />
             </div>
@@ -2446,7 +2336,7 @@ const SwapCard = ({
               <TokenInput
                 value={receiveAmount}
                 onChange={setReceiveAmount}
-                onClear={() => setReceiveAmount("0.00")}
+                onClear={resetSwapQuote}
                 usdValueLabel={effectiveReceiveUsdValueLabel}
               />
             </div>

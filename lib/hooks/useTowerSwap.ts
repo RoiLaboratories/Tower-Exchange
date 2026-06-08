@@ -40,9 +40,11 @@ export interface SwapTransaction {
   from: string;
   gasLimit: string;
   chainId: number;
-  platformFeeAmount?: string; // Platform fee in output token (native decimals, only for native USDC)
-  expectedUserOutput?: string; // Expected output after fee deduction (native decimals, only for native USDC)
-  expectedFeeCollectorOutput?: string; // Full expected output that FeeCollector receives (before fee split)
+  platformFeeAmount?: string; // Platform fee in input token native decimals
+  expectedUserOutput?: string; // Deprecated legacy metadata
+  feeMode?: 'tower-swap-executor' | 'none';
+  feeToken?: string;
+  executorAddress?: string;
 }
 
 export interface ApprovalTransaction {

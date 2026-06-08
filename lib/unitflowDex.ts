@@ -181,7 +181,7 @@ const UNITFLOW_DIRECT_PAIRS: readonly UnitFlowDirectPairConfig[] = [
     tokens: sortUnitFlowTokens(TOKEN_CONTRACTS.WUSDC_SYNTHRA, TOKEN_CONTRACTS.EURC),
     fee: UNITFLOW_WUSDC_EURC_FEE,
     poolAddress: normalizeUnitFlowAddress(
-      "0x719bFFe6f356Fe842b79650Ea58e893A7061FD57",
+      "0x13873aD4296AC255361BeA54681FdCC55eF9c316",
     ),
   },
 ] as const;

@@ -572,7 +572,7 @@ export function getSynthraDexInfo() {
   return {
     id: "synthra",
     name: "Synthra",
-    routerAddress: SYNTHRA_ADDRESSES.universalRouter,
+    routerAddress: SYNTHRA_ADDRESSES.swapRouter02,
     factoryAddress: SYNTHRA_ADDRESSES.factory,
     quoterAddress: SYNTHRA_ADDRESSES.quoterV2,
     universalRouterAddress: SYNTHRA_ADDRESSES.universalRouter,

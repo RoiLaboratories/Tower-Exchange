@@ -220,7 +220,7 @@ const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
 ]);
 const CHAIN_SWITCH_RESTORE_DELAY_MS = 350;
 
-type BridgeProgressSnapshot = {
+export type BridgeProgressSnapshot = {
   lastStep?: string;
   lastTxHash?: string;
   lastExplorerUrl?: string;
@@ -388,6 +388,7 @@ export interface BridgeRequest {
   walletClient?: any; // WalletClient from useWalletClient();
   chain?: any; // Chain object from useAccount() or useChainId();
   useForwarder?: boolean; // Let Circle submit the destination mint transaction.
+  onProgress?: (progress: BridgeProgressSnapshot) => void;
 }
 
 // Bridge response
@@ -868,6 +869,10 @@ export async function bridgeTokens(
       bridgeProgress.events.push({ step, txHash, explorerUrl });
 
       (window as any).__lastBridgeProgress = bridgeProgress;
+      request.onProgress?.({
+        ...bridgeProgress,
+        events: [...bridgeProgress.events],
+      });
       console.log(`Bridge event [${step}]`, { txHash, explorerUrl, values });
     };
 

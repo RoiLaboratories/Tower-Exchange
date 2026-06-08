@@ -23,7 +23,15 @@ type DexInfo = {
 const HIDDEN_DEX_IDS = new Set(["swaparc", "quantum-exchange"]);
 const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
-  "Tower swaps are paused while the FeeCollector incident is being contained.";
+  "Tower swaps are paused while the TowerSwapExecutor migration is being verified.";
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+const UNITFLOW_ADAPTER_ADDRESS =
+  process.env.UNITFLOW_ADAPTER_ADDRESS ||
+  process.env.TOWER_UNITFLOW_ADAPTER_ADDRESS ||
+  process.env.NEXT_PUBLIC_UNITFLOW_ADAPTER_ADDRESS;
+const UNITFLOW_EXECUTOR_ENABLED = EVM_ADDRESS_PATTERN.test(
+  UNITFLOW_ADAPTER_ADDRESS || "",
+);
 
 const getCanonicalSynthraDex = (): DexInfo => ({
   ...getSynthraDexInfo(),
@@ -31,11 +39,22 @@ const getCanonicalSynthraDex = (): DexInfo => ({
   name: "Synthra",
 });
 
-const getCanonicalUnitFlowDex = (): DexInfo => ({
-  ...getUnitFlowDexInfo(),
-  id: "unitflow",
-  name: "UnitFlow",
-});
+const getCanonicalUnitFlowDex = (): DexInfo => {
+  const unitFlowDexInfo = getUnitFlowDexInfo();
+
+  return {
+    ...unitFlowDexInfo,
+    id: "unitflow",
+    name: "UnitFlow",
+    routerAddress: UNITFLOW_EXECUTOR_ENABLED
+      ? UNITFLOW_ADAPTER_ADDRESS || unitFlowDexInfo.routerAddress
+      : unitFlowDexInfo.routerAddress,
+    enabled: UNITFLOW_EXECUTOR_ENABLED,
+  };
+};
+
+const isExecutorUnsupportedDexId = (id: string) =>
+  id === "unitflow" && !UNITFLOW_EXECUTOR_ENABLED;
 
 const normalizeDex = (dex: DexInfo): DexInfo => {
   const id = String(dex.id || "").toLowerCase();
@@ -83,7 +102,13 @@ const getVisibleDexes = (dexes: DexInfo[]) => {
     }
   }
 
-  return Array.from(visibleDexes.values());
+  return Array.from(visibleDexes.values()).map((dex) => {
+    const id = String(dex.id || "").toLowerCase();
+
+    return isExecutorUnsupportedDexId(id)
+      ? { ...dex, enabled: false }
+      : dex;
+  });
 };
 
 /**

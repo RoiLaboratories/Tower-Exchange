@@ -210,7 +210,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                     alt="No holdings"
                     width={80}
                     height={80}
-                    className="w-20 h-20 opacity-60"
+                    className="w-20 h-20"
                   />
                 </div>
                 <h4 className="text-xl font-semibold mb-2">
@@ -233,7 +233,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                     alt="No wallet connected"
                     width={80}
                     height={80}
-                    className="w-20 h-20 opacity-60"
+                    className="w-20 h-20"
                   />
                 </div>
                 <h4 className="text-xl font-semibold mb-2">

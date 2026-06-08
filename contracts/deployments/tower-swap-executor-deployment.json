@@ -1,0 +1,22 @@
+{
+  "contract": "TowerSwapExecutor",
+  "network": "arc-testnet",
+  "executor": "0x2De8906a641d65d490bC60A4179d961d59742bCb",
+  "treasury": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "owner": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "feeBps": 25,
+  "routeTargets": [
+    "0xbf4479c07dc6fdc6daa764a0cca06969e894275f",
+    "0xC43cC6A1E0F6EB48Cd4131522C1C73B13f3Da0F1",
+    "0x73742278c31a76dBb0D2587d03ef92E6E2141023"
+  ],
+  "approvalSpenders": [
+    "0xbf4479c07dc6fdc6daa764a0cca06969e894275f",
+    "0xC43cC6A1E0F6EB48Cd4131522C1C73B13f3Da0F1",
+    "0x73742278c31a76dBb0D2587d03ef92E6E2141023"
+  ],
+  "verificationStatus": "verified",
+  "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "timestamp": "2026-06-07T02:55:07.449Z",
+  "blockExplorerUrl": "https://testnet.arcscan.app/address/0x2De8906a641d65d490bC60A4179d961d59742bCb"
+}

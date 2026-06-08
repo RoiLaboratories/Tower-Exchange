@@ -94,7 +94,9 @@ export interface AIAgentResponse {
         approval?: AIAgentApprovalTransaction | AIAgentApprovalTransaction[] | null;
         platformFeeAmount?: string;
         expectedUserOutput?: string;
-        expectedFeeCollectorOutput?: string;
+        feeMode?: "tower-swap-executor" | "none";
+        feeToken?: string;
+        executorAddress?: string;
         feeRecipient?: string;
         feeBps?: number;
       };
