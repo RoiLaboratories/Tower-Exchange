@@ -24,11 +24,15 @@ import {
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
+const recurringTokens = tokens.filter((token) =>
+  ["USDC", "EURC", "USDT"].includes(token.symbol),
+);
+
 export const RecurringBuys = () => {
   const { user } = useRainbowKitAuth();
   const walletAddress = user?.wallet?.address;
 
-  const [selectedPayToken, setSelectedPayToken] = useState(tokens[0]);
+  const [selectedPayToken, setSelectedPayToken] = useState(recurringTokens[0]);
   const [selectedBuyToken, setSelectedBuyToken] = useState<typeof tokens[0] | null>(null);
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
@@ -50,7 +54,7 @@ export const RecurringBuys = () => {
     frequency: string;
   } | null>(null);
 
-  const availableTokensForBuy = tokens.filter(
+  const availableTokensForBuy = recurringTokens.filter(
     (token) => token.symbol !== selectedPayToken.symbol,
   );
   const amountValue = Number.parseFloat(amount);
@@ -184,6 +188,7 @@ export const RecurringBuys = () => {
           label="Pay With"
           selected={selectedPayToken}
           onSelect={setSelectedPayToken}
+          availableTokens={recurringTokens}
           showInfo
           infoMessage="Select which token you'll use to make your regular purchases"
         />

@@ -170,6 +170,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const SYNTHRA_USDC_EURC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDT_USDC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDT_EURC_FEE: SynthraFeeTier = 3000;
+const SYNTHRA_USDC_CIRBTC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_UNIVERSAL_ROUTER_COMMANDS = {
   V3_SWAP_EXACT_IN: "0x00",
   WRAP_NATIVE: "0x0b",
@@ -267,6 +268,13 @@ const SYNTHRA_DIRECT_PAIRS: readonly SynthraDirectPairConfig[] = [
     tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDT, TOKEN_CONTRACTS.EURC),
     fee: SYNTHRA_USDT_EURC_FEE,
     poolAddress: normalizeSynthraAddress("0x66A038f2f6000cf42D34C3cCD6C97Ccfa16443bd"),
+    synthraExclusive: true,
+  },
+  {
+    key: "USDC/cirBTC",
+    tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDC, TOKEN_CONTRACTS.CIRBTC),
+    fee: SYNTHRA_USDC_CIRBTC_FEE,
+    poolAddress: normalizeSynthraAddress("0xa231458f45727CbFa45c1181b25CccB911ca163a"),
     synthraExclusive: true,
   },
 ] as const;

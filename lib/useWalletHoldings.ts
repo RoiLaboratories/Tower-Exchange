@@ -16,12 +16,14 @@ export interface WalletHolding {
 const SUPPORTED_SWAP_ERC20_TOKENS = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
+  cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
 };
 
 const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 18,
   EURC: 6,
   USDT: 18,
+  cirBTC: 8,
 };
 
 const RPC_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
@@ -124,6 +126,7 @@ export const useWalletHoldings = (walletAddress: string | null) => {
             USDC: prices["usd-coin"]?.usd || DEFAULT_TOKEN_USD_PRICES.USDC,
             EURC: prices.eurc?.usd || DEFAULT_TOKEN_USD_PRICES.EURC,
             USDT: prices.tether?.usd || DEFAULT_TOKEN_USD_PRICES.USDT,
+            cirBTC: DEFAULT_TOKEN_USD_PRICES.cirBTC,
           };
         } catch (err) {
           console.warn("Failed to fetch prices from CoinGecko, using defaults", err);

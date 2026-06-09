@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TokenTicker from "@/components/TokenTicker";
 import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
+import Badges from "@/components/Badges";
 import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
 import { AppErrorModal } from "@/components/AppErrorModal";
@@ -21,8 +22,16 @@ import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
   };
 };
 
+type ProfileTab = "positions" | "activities" | "badges";
+
+const profileTabs: Array<{ id: ProfileTab; label: string }> = [
+  { id: "positions", label: "Positions" },
+  { id: "activities", label: "Activities" },
+  { id: "badges", label: "Badges" },
+];
+
 const Profile = () => {
-  const [activeTab, setActiveTab] = useState("positions");
+  const [activeTab, setActiveTab] = useState<ProfileTab>("positions");
   const { authenticated, user } = useRainbowKitAuth();
   const [chainId, setChainId] = useState<string | null>(null);
   const [totalPortfolioValue, setTotalPortfolioValue] = useState("$0.00");
@@ -230,61 +239,49 @@ const Profile = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex items-center gap-4 mb-8 rounded-xl p-1 w-fit "
+          className="flex w-fit items-center gap-1 rounded-xl p-1 mb-8 sm:gap-4"
           style={{
             backgroundColor: "hsl(220, 20%, 10%)",
             border: "1px solid hsl(220, 15%, 18%)",
           }}
         >
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setActiveTab("positions")}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "positions"
-                ? "text-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-            style={
-              activeTab === "positions"
-                ? { backgroundColor: "hsl(220, 20%, 14%)" }
-                : {}
-            }
-          >
-            Positions
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setActiveTab("activities")}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              activeTab === "activities"
-                ? "text-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-            style={
-              activeTab === "activities"
-                ? { backgroundColor: "hsl(220, 20%, 14%)" }
-                : {}
-            }
-          >
-            Activities
-          </motion.button>
+          {profileTabs.map((tab) => (
+            <motion.button
+              key={tab.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-lg px-4 py-3 font-medium transition-all sm:px-6 ${
+                activeTab === tab.id
+                  ? "text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+              style={
+                activeTab === tab.id
+                  ? { backgroundColor: "hsl(220, 20%, 14%)" }
+                  : {}
+              }
+            >
+              {tab.label}
+            </motion.button>
+          ))}
         </motion.div>
 
         {/* Content Section */}
         <AnimatePresence mode="wait">
-          {activeTab === "positions" ? (
+          {activeTab === "positions" && (
             <Positions 
               walletAddress={user?.wallet?.address || null}
               onTotalValueChange={setTotalPortfolioValue}
             />
-          ) : (
+          )}
+          {activeTab === "activities" && (
             <Activities
               isWalletConnected={authenticated}
               walletAddress={user?.wallet?.address || null}
             />
           )}
+          {activeTab === "badges" && <Badges />}
         </AnimatePresence>
       </main>
       </div>

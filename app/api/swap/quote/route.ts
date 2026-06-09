@@ -53,6 +53,7 @@ const UNITFLOW_ADAPTER_ADDRESS =
 const UNITFLOW_EXECUTOR_ENABLED = EVM_ADDRESS_PATTERN.test(
   UNITFLOW_ADAPTER_ADDRESS || "",
 );
+const CIRBTC_ADDRESS = TOKEN_CONTRACTS.CIRBTC.toLowerCase();
 
 class BackendQuoteError extends Error {
   status: number;
@@ -111,7 +112,7 @@ const resolveTokenAddress = (token?: string) => {
 };
 
 const normalizeDexId = (dexId?: string) => {
-  const normalized = String(dexId || "").toLowerCase();
+  const normalized = String(dexId || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
 
   if (!normalized) {
     return undefined;
@@ -121,15 +122,40 @@ const normalizeDexId = (dexId?: string) => {
     return "synthra";
   }
 
-  if (normalized === "unitflow-v3" || normalized.includes("unitflow")) {
+  if (
+    normalized === "unitflow-v3" ||
+    normalized.includes("unitflow") ||
+    normalized.includes("unit-flow")
+  ) {
     return "unitflow";
+  }
+
+  if (
+    normalized === "xylonet" ||
+    normalized === "xylo" ||
+    normalized === "xylo-net" ||
+    normalized === "xylonet-adapter" ||
+    normalized.includes("xylonet")
+  ) {
+    return "xylonet-adapter";
   }
 
   return normalized;
 };
 
-const getBackendDexIds = (outputToken: string): readonly BackendDexId[] =>
-  BACKEND_DEX_IDS.filter((backendDexId) => {
+const getBackendDexIds = (
+  inputToken: string,
+  outputToken: string,
+): readonly BackendDexId[] => {
+  const isCirBtcPair =
+    inputToken.toLowerCase() === CIRBTC_ADDRESS ||
+    outputToken.toLowerCase() === CIRBTC_ADDRESS;
+
+  if (isCirBtcPair) {
+    return ["synthra"];
+  }
+
+  return BACKEND_DEX_IDS.filter((backendDexId) => {
     if (backendDexId !== "unitflow") {
       return true;
     }
@@ -139,6 +165,7 @@ const getBackendDexIds = (outputToken: string): readonly BackendDexId[] =>
       outputToken.toLowerCase() !== TOKEN_CONTRACTS.USDC.toLowerCase()
     );
   }) as BackendDexId[];
+};
 
 const convertAmountByDecimals = (
   amount: bigint,
@@ -191,7 +218,9 @@ const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
         ? "Synthra"
         : normalizedDexId === "unitflow"
           ? "UnitFlow"
-        : hop?.dexName || hop?.dexId || "Unknown Router",
+          : normalizedDexId === "xylonet-adapter"
+            ? "Xylonet"
+            : hop?.dexName || hop?.dexId || "Unknown Router",
     outputAmount: quote.outputAmount,
     routeType: quote.route?.type || "single",
     quote,
@@ -317,7 +346,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const backendDexIds = getBackendDexIds(resolvedOutputToken);
+    const backendDexIds = getBackendDexIds(
+      resolvedInputToken,
+      resolvedOutputToken,
+    );
     const backendQuotes = await fetchBackendQuotes({
       inputToken: resolvedInputToken,
       outputToken: resolvedOutputToken,

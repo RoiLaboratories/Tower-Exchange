@@ -65,6 +65,9 @@ const RECEIPT_POLL_INTERVAL_MS = 1000;
 const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Swaps are temporarily paused for maintenance.";
+const SWAP_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
+  cirBTC: 8,
+};
 
 type JsonRpcResponse<T> = {
   result?: T;
@@ -668,12 +671,13 @@ const SwapCard = ({
     ],
   );
 
+  const getEmptySwapTokenBalances = () =>
+    Object.fromEntries(SWAP_TOKENS.map((token) => [token.symbol, 0]));
+
   // Actual wallet balances for tokens currently supported on the swap card
-  const [tokenBalances, setTokenBalances] = useState<Record<string, number>>({
-    USDC: 0,
-    EURC: 0,
-    USDT: 0,
-  });
+  const [tokenBalances, setTokenBalances] = useState<Record<string, number>>(
+    getEmptySwapTokenBalances,
+  );
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
   // Modal states
@@ -684,7 +688,7 @@ const SwapCard = ({
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
   const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
   const shouldUseInputUsdValueForReceive =
-    receiveToken?.symbol === "EURC" &&
+    (receiveToken?.symbol === "EURC" || receiveToken?.symbol === "cirBTC") &&
     Number.parseFloat(sellAmount) > 0 &&
     Number.parseFloat(receiveAmount) > 0;
   const receiveUsdValueLabel = formatUsdAmount(
@@ -694,6 +698,8 @@ const SwapCard = ({
   const effectiveReceiveUsdValueLabel = shouldUseInputUsdValueForReceive
     ? sellUsdValueLabel
     : receiveUsdValueLabel;
+  const shouldUseQuoteUsdValueLabel =
+    receiveToken?.symbol === "EURC" || receiveToken?.symbol === "cirBTC";
 
   const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
@@ -751,23 +757,19 @@ const SwapCard = ({
     console.log("Fetching balances for wallet:", user.wallet.address);
     setIsLoadingBalances(true);
     try {
-      const [usdcBalance, eurcBalance, usdtBalance] = await Promise.all([
-        fetchSwapTokenBalance("USDC"),
-        fetchSwapTokenBalance("EURC"),
-        fetchSwapTokenBalance("USDT"),
-      ]);
+      const balanceEntries = await Promise.all(
+        SWAP_TOKENS.map(async (token) => [
+          token.symbol,
+          await fetchSwapTokenBalance(token.symbol),
+        ] as const),
+      );
+      const nextTokenBalances = Object.fromEntries(balanceEntries);
 
-      console.log("Swap token balances:", {
-        USDC: usdcBalance,
-        EURC: eurcBalance,
-        USDT: usdtBalance,
-      });
+      console.log("Swap token balances:", nextTokenBalances);
 
       setTokenBalances((prev) => ({
         ...prev,
-        USDC: usdcBalance,
-        EURC: eurcBalance,
-        USDT: usdtBalance,
+        ...nextTokenBalances,
       }));
     } catch (error) {
       console.error("Failed to fetch wallet balances:", error);
@@ -783,17 +785,20 @@ const SwapCard = ({
       fetchUserBalances();
     } else {
       setIsWalletConnected(false);
-      setTokenBalances({
-        USDC: 0,
-        EURC: 0,
-        USDT: 0,
-      });
+      setTokenBalances(getEmptySwapTokenBalances());
     }
   }, [authenticated, user, fetchUserBalances]);
 
   // Get display balance for a token (actual if available, mock otherwise)
   const getTokenBalance = (symbol: string): number => {
     return tokenBalances[symbol] || 0;
+  };
+
+  const getFormattedBalance = (symbol: string): string => {
+    const balance = getTokenBalance(symbol);
+    // Use appropriate decimal places based on token type
+    const decimals = symbol === "cirBTC" ? 8 : 2;
+    return formatBalance(balance.toString(), decimals);
   };
 
   const sellTokenBalance = getTokenBalance(sellToken.symbol);
@@ -952,7 +957,9 @@ const SwapCard = ({
         setRouteOptions(quoteData.routeOptions || []);
 
         const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-        const displayPrecision = Math.min(receiveTokenDecimals, 6);
+        const displayPrecision =
+          SWAP_DISPLAY_DECIMALS[receiveToken.symbol] ??
+          Math.min(receiveTokenDecimals, 6);
         const quoteAmount = Number.parseFloat(
           formatUnits(BigInt(quoteData.outputAmount || "0"), 18),
         );
@@ -2270,7 +2277,7 @@ const SwapCard = ({
                 <span>
                   {isLoadingBalances
                     ? "Loading..."
-                    : `${formatBalance(getTokenBalance(sellToken.symbol).toString())} ${sellToken.symbol}`}
+                    : `${getFormattedBalance(sellToken.symbol)} ${sellToken.symbol}`}
                 </span>
                 <button
                   onClick={handle50Percent}
@@ -2323,7 +2330,7 @@ const SwapCard = ({
                   <span>
                     {isLoadingBalances
                       ? "Loading..."
-                      : `${formatBalance(getTokenBalance(receiveToken.symbol).toString())} ${receiveToken.symbol}`}
+                      : `${getFormattedBalance(receiveToken.symbol)} ${receiveToken.symbol}`}
                   </span>
                 </div>
               )}
@@ -2365,7 +2372,9 @@ const SwapCard = ({
                 routeOptions={routeOptions}
                 isAutoSelected={!selectedRouterId}
                 quoteUsdValueLabel={
-                  receiveToken?.symbol === "EURC" ? sellUsdValueLabel : undefined
+                  shouldUseQuoteUsdValueLabel
+                    ? effectiveReceiveUsdValueLabel
+                    : undefined
                 }
               />
             </div>

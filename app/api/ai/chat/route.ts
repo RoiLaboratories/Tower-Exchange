@@ -8,10 +8,35 @@ const BACKEND_URL =
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
-const AI_QUOTE_SYMBOLS = ["USDT", "USDC", "EURC"] as const;
+const AI_QUOTE_SYMBOLS = ["USDT", "USDC", "EURC", "CIRBTC"] as const;
 const AI_QUOTE_SYMBOL_SET = new Set<string>(AI_QUOTE_SYMBOLS);
+const AI_SWAP_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow"] as const;
 
 type AiQuoteSymbol = (typeof AI_QUOTE_SYMBOLS)[number];
+type AiSwapDexId = (typeof AI_SWAP_DEX_IDS)[number];
+
+const AI_SWAP_DEX_LABELS: Record<AiSwapDexId, string> = {
+  synthra: "Synthra",
+  "xylonet-adapter": "Xylonet",
+  unitflow: "UnitFlow",
+};
+
+const AI_SWAP_DEX_ALIASES: Record<AiSwapDexId, string[]> = {
+  synthra: ["synthra", "synthra dex", "synthra-v3"],
+  "xylonet-adapter": [
+    "xylonet",
+    "xylo net",
+    "xylo",
+    "xylonet dex",
+    "xylonet adapter",
+    "xylonet-adapter",
+  ],
+  unitflow: ["unitflow", "unit flow", "unitflow dex", "unitflow-v3"],
+};
+const AI_QUOTE_TOKEN_PATTERN = "(USDT|USDC|EURC|CIRBTC)";
+const AI_QUOTE_TOKEN_LABELS: Record<string, string> = {
+  CIRBTC: "cirBTC",
+};
 
 type AiQuote = {
   inputToken: string;
@@ -54,6 +79,7 @@ type SwapQuoteIntent = {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
+  dexId?: AiSwapDexId;
 };
 
 type BridgeExecutionRequest = {
@@ -221,6 +247,101 @@ const getNumberField = (
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeSwapDexId = (dexId?: string | null): AiSwapDexId | undefined => {
+  const normalized = dexId?.trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "synthra-v3" || normalized.includes("synthra")) {
+    return "synthra";
+  }
+
+  if (
+    normalized === "unitflow-v3" ||
+    normalized.includes("unitflow") ||
+    normalized.includes("unit-flow")
+  ) {
+    return "unitflow";
+  }
+
+  if (
+    normalized === "xylonet" ||
+    normalized === "xylo" ||
+    normalized === "xylo-net" ||
+    normalized.includes("xylonet")
+  ) {
+    return "xylonet-adapter";
+  }
+
+  return AI_SWAP_DEX_IDS.includes(normalized as AiSwapDexId)
+    ? (normalized as AiSwapDexId)
+    : undefined;
+};
+
+const formatSwapDexName = (dexId?: string | null) => {
+  const normalizedDexId = normalizeSwapDexId(dexId);
+  return normalizedDexId ? AI_SWAP_DEX_LABELS[normalizedDexId] : dexId?.trim();
+};
+
+const getDirectSwapDexPreference = (
+  ...records: Array<Record<string, unknown> | null>
+) => {
+  const fields = [
+    "dexId",
+    "dex",
+    "dexName",
+    "route",
+    "routeId",
+    "routeName",
+    "router",
+    "routerId",
+    "preferredDex",
+    "preferredDexId",
+    "preferredRoute",
+  ];
+
+  for (const record of records) {
+    const directDexId = normalizeSwapDexId(getStringField(record, fields));
+    if (directDexId) {
+      return directDexId;
+    }
+
+    const route = asRecord(record?.route);
+    const routeDexId = normalizeSwapDexId(getStringField(route, fields));
+    if (routeDexId) {
+      return routeDexId;
+    }
+  }
+
+  return undefined;
+};
+
+const extractSwapDexPreference = (
+  payload: AiChatPayload,
+  message: string,
+  directIntent?: Record<string, unknown> | null,
+) => {
+  const directDexId = getDirectSwapDexPreference(payload, directIntent ?? null);
+  if (directDexId) {
+    return directDexId;
+  }
+
+  for (const dexId of AI_SWAP_DEX_IDS) {
+    const aliases = AI_SWAP_DEX_ALIASES[dexId];
+    if (
+      aliases.some((alias) =>
+        new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(message),
+      )
+    ) {
+      return dexId;
+    }
+  }
+
+  return undefined;
+};
 
 const normalizeBridgeChain = (chain?: string | null): SupportedBridgeChain | null => {
   const normalizedChain = chain?.trim().toLowerCase();
@@ -409,6 +530,11 @@ const getTokenSymbol = (token?: string | null) => {
   return match?.[0] ?? null;
 };
 
+const getTokenDisplaySymbol = (token?: string | null) => {
+  const symbol = getTokenSymbol(token);
+  return symbol ? AI_QUOTE_TOKEN_LABELS[symbol] || symbol : null;
+};
+
 const getTokenDecimals = (tokenAddress: string) => {
   const symbol = getTokenSymbol(tokenAddress);
 
@@ -462,13 +588,19 @@ const extractMessageSwapIntent = (
   payload: AiChatPayload,
 ): SwapQuoteIntent | null => {
   const message = typeof payload.message === "string" ? payload.message : "";
+  const directIntent =
+    asRecord(payload.swap_intent) ||
+    asRecord(payload.swapIntent) ||
+    asRecord(payload.quote_intent) ||
+    asRecord(payload.quoteIntent) ||
+    asRecord(payload.parameters);
 
   if (!message || !/\b(swap|exchange|trade|quote|convert)\b/i.test(message)) {
     return null;
   }
 
   const amountTokenMatch = message.match(
-    /\b(\d[\d,]*(?:\.\d+)?)\s*(USDT|USDC|EURC)\b/i,
+    new RegExp(`\\b(\\d[\\d,]*(?:\\.\\d+)?)\\s*${AI_QUOTE_TOKEN_PATTERN}\\b`, "i"),
   );
 
   if (!amountTokenMatch || amountTokenMatch.index == null) {
@@ -495,10 +627,13 @@ const extractMessageSwapIntent = (
     amountTokenMatch.index + amountTokenMatch[0].length,
   );
   const outputAfterInputMatch = afterInputToken.match(
-    /\b(?:to|for|into|receive|receiving|get|buy)\s+(?:about\s+|approximately\s+|approx\.?\s+)?(?:\d[\d,]*(?:\.\d+)?\s*)?(USDT|USDC|EURC)\b/i,
+    new RegExp(
+      `\\b(?:to|for|into|receive|receiving|get|buy)\\s+(?:about\\s+|approximately\\s+|approx\\.?\\s+)?(?:\\d[\\d,]*(?:\\.\\d+)?\\s*)?${AI_QUOTE_TOKEN_PATTERN}\\b`,
+      "i",
+    ),
   );
   const tokenMatches = Array.from(
-    message.matchAll(/\b(USDT|USDC|EURC)\b/gi),
+    message.matchAll(new RegExp(`\\b${AI_QUOTE_TOKEN_PATTERN}\\b`, "gi")),
   );
   const fallbackOutputSymbol = tokenMatches
     .map((match) => match[1].toUpperCase() as AiQuoteSymbol)
@@ -516,7 +651,16 @@ const extractMessageSwapIntent = (
     inputToken,
     outputToken,
     inputAmount,
+    dexId: extractSwapDexPreference(payload, message, directIntent),
   };
+};
+
+const getQuoteDexPreference = (quote: Record<string, unknown> | null) => {
+  const route = asRecord(quote?.route);
+  const hops = Array.isArray(route?.hops) ? route.hops : [];
+  const firstHop = asRecord(hops[0]);
+
+  return getDirectSwapDexPreference(quote, firstHop);
 };
 
 const getExistingQuote = (response: AiChatResponsePayload) => {
@@ -563,6 +707,7 @@ const extractResponseSwapIntent = (
     inputToken,
     outputToken,
     inputAmount,
+    dexId: getQuoteDexPreference(quote),
   };
 };
 
@@ -617,20 +762,22 @@ const formatNormalizedQuoteAmount = (amount: string) => {
 };
 
 const buildQuoteLine = (quote: AiQuote) => {
-  const inputSymbol = getTokenSymbol(quote.inputToken) || "input token";
-  const outputSymbol = getTokenSymbol(quote.outputToken) || "output token";
+  const inputSymbol = getTokenDisplaySymbol(quote.inputToken) || "input token";
+  const outputSymbol = getTokenDisplaySymbol(quote.outputToken) || "output token";
   const dexName =
-    quote.route?.hops?.[0]?.dexName ||
-    quote.route?.hops?.[0]?.dexId ||
-    quote.route?.hops?.[0]?.dex ||
+    formatSwapDexName(
+      quote.route?.hops?.[0]?.dexName ||
+        quote.route?.hops?.[0]?.dexId ||
+        quote.route?.hops?.[0]?.dex,
+    ) ||
     "best route";
 
   return `Quote: ${formatNormalizedQuoteAmount(quote.inputAmount)} ${inputSymbol} -> approximately ${formatNormalizedQuoteAmount(quote.outputAmount)} ${outputSymbol} via ${dexName}.`;
 };
 
 const buildSwapReadyReply = (quote: AiQuote) => {
-  const inputSymbol = getTokenSymbol(quote.inputToken) || "input token";
-  const outputSymbol = getTokenSymbol(quote.outputToken) || "output token";
+  const inputSymbol = getTokenDisplaySymbol(quote.inputToken) || "input token";
+  const outputSymbol = getTokenDisplaySymbol(quote.outputToken) || "output token";
 
   return [
     `The swap of ${formatNormalizedQuoteAmount(quote.inputAmount)} ${inputSymbol} for ${outputSymbol} is ready for execution.`,
@@ -734,6 +881,7 @@ const fetchLocalQuote = async (
         outputToken: intent.outputToken,
         inputAmount: intent.inputAmount,
         slippageTolerance: 50,
+        dexId: intent.dexId,
       }),
       cache: "no-store",
     });

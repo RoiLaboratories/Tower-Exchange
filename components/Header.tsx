@@ -181,8 +181,13 @@ const Header = () => {
               />
             </div>
             <span
-              className="text-lg sm:text-xl font-bold text-foreground"
-              style={{ fontFamily: "var(--font-cinzel)" }}
+              className="text-lg sm:text-xl font-black text-foreground"
+              style={{
+                fontFamily: "var(--font-cinzel)",
+                fontWeight: 900,
+                letterSpacing: "0.045em",
+                WebkitTextStroke: "0.35px currentColor",
+              }}
             >
               TOWER
             </span>

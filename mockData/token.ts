@@ -2,6 +2,7 @@ import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/usdc.svg";
 import eurcLogo from "@/public/assets/eurc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
+import cirbtcLogo from "@/public/assets/cirBTC logo.png";
 
 export interface Token {
   symbol: string;
@@ -45,6 +46,26 @@ export const tokens: Token[] = [
     change24h: "+0.0%",
     marketCap: "$95.5B",
     chartData: [1.0, 1.0, 1.001, 1.0, 0.999, 1.0, 1.0, 1.001, 1.0],
+  },
+  {
+    symbol: "cirBTC",
+    price: "$404,000",
+    change: "+0.0%",
+    icon: cirbtcLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [
+      403000,
+      404500,
+      403800,
+      404200,
+      404000,
+      404700,
+      403900,
+      404100,
+      404000,
+    ],
   },
   // {
   //   symbol: "SWPRC",

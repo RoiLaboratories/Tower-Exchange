@@ -24,12 +24,16 @@ import {
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
+const recurringTokens = tokens.filter((token) =>
+  ["USDC", "EURC", "USDT"].includes(token.symbol),
+);
+
 export const RecurringSell = () => {
   const { user } = useRainbowKitAuth();
   const walletAddress = user?.wallet?.address;
 
   const [selectedSellToken, setSelectedSellToken] = useState<typeof tokens[0] | null>(null);
-  const [selectedConvertToken, setSelectedConvertToken] = useState(tokens[0]);
+  const [selectedConvertToken, setSelectedConvertToken] = useState(recurringTokens[0]);
   const [amount, setAmount] = useState("10.00");
   const [frequency, setFrequency] = useState("Weekly");
   const [firstExecutionDate, setFirstExecutionDate] = useState(
@@ -50,7 +54,7 @@ export const RecurringSell = () => {
     frequency: string;
   } | null>(null);
 
-  const availableTokensForSell = tokens.filter(
+  const availableTokensForSell = recurringTokens.filter(
     (token) => token.symbol !== selectedConvertToken.symbol,
   );
   const amountValue = Number.parseFloat(amount);
@@ -184,6 +188,7 @@ export const RecurringSell = () => {
           label="Sell"
           selected={selectedSellToken}
           onSelect={setSelectedSellToken}
+          availableTokens={recurringTokens}
           showInfo
           infoMessage="Select which token you want to sell regularly"
         />

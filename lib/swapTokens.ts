@@ -3,10 +3,11 @@ import type { StaticImageData } from "next/image";
 import eurcLogo from "@/public/assets/eurc.svg";
 import usdcLogo from "@/public/assets/usdc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
+import cirbtcLogo from "@/public/assets/cirBTC logo.png";
 import { DEFAULT_TOKEN_USD_PRICES } from "@/lib/tokenUsdPrices";
 
 export interface SwapToken {
-  symbol: "USDC" | "EURC" | "USDT";
+  symbol: "USDC" | "EURC" | "USDT" | "cirBTC";
   icon: StaticImageData;
   name: string;
   balance: number;
@@ -37,6 +38,13 @@ export const SWAP_TOKENS: readonly SwapToken[] = [
     balance: 500,
     usdPrice: DEFAULT_TOKEN_USD_PRICES.USDT,
   },
+  {
+    symbol: "cirBTC",
+    icon: cirbtcLogo,
+    name: "Circle Bitcoin",
+    balance: 0,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.cirBTC,
+  },
 ] as const;
 
 const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([
@@ -46,6 +54,8 @@ const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([
   "USDT:USDC",
   "USDT:EURC",
   "EURC:USDT",
+  "USDC:CIRBTC",
+  "CIRBTC:USDC",
 ]);
 
 export function isSupportedSwapPair(

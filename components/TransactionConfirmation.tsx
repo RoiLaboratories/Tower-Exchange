@@ -61,7 +61,7 @@ export const TransactionConfirmation: React.FC<
             animate={{ rotate: 360 }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            <Loader size={24} className="text-blue-500" />
+            <Loader size={24} className="text-primary" />
           </motion.div>
         );
       case "confirmed":
@@ -82,7 +82,7 @@ export const TransactionConfirmation: React.FC<
       case "signing":
       case "broadcasting":
       case "confirming":
-        return "border-blue-500/50 bg-blue-500/5";
+        return "border-primary/50 bg-primary/5";
       case "confirmed":
         return "border-green-500/50 bg-green-500/5";
       case "error":

@@ -53,6 +53,8 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
+  CIRBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
+  cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
   // Synthra WUSDC (different from main WUSDC)
@@ -68,7 +70,7 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
 export const NATIVE_TOKENS = ["USDC"];
 
 // Tokens that are regular ERC-20 (require approval)
-export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USYC", "USDT", "SYN", "SWPRC", "UNI", "HYPE"];
+export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USYC", "USDT", "CIRBTC", "cirBTC", "SYN", "SWPRC", "UNI", "HYPE"];
 
 // Token Decimals Configuration
 // Note: USDC, EURC, SWPRC, and USYC have 6 decimals on Arc Testnet
@@ -79,6 +81,8 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   EURC: 6,
   USYC: 6,
   USDT: 18,
+  CIRBTC: 8,
+  cirBTC: 8,
   SWPRC: 6,
   SYN: 18,
   UNI: 18,
@@ -644,6 +648,7 @@ export async function getSwapQuote(
     const addressToSymbol: Record<string, string> = {
       "0x3600000000000000000000000000000000000000": "USDC",
       "0x89b50855aa3be2f677cd6303cec089b5f319d72a": "EURC",
+      "0xf0c4a4ce82a5746abaad9425360ab04fbba432bf": "cirBTC",
       "0xbe7477bf91526fc9988c8f33e91b6db687119d45": "SWPRC",
     };
 
