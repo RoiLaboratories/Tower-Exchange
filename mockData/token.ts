@@ -2,7 +2,7 @@ import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/usdc.svg";
 import eurcLogo from "@/public/assets/eurc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
-import cirbtcLogo from "@/public/assets/cirBTC logo.png";
+import cirbtcLogo from "@/public/assets/cirBTC.svg";
 
 export interface Token {
   symbol: string;

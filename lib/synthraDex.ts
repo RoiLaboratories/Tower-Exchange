@@ -171,6 +171,7 @@ const SYNTHRA_USDC_EURC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDT_USDC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDT_EURC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_USDC_CIRBTC_FEE: SynthraFeeTier = 3000;
+const SYNTHRA_USDT_CIRBTC_FEE: SynthraFeeTier = 3000;
 const SYNTHRA_UNIVERSAL_ROUTER_COMMANDS = {
   V3_SWAP_EXACT_IN: "0x00",
   WRAP_NATIVE: "0x0b",
@@ -277,6 +278,13 @@ const SYNTHRA_DIRECT_PAIRS: readonly SynthraDirectPairConfig[] = [
     poolAddress: normalizeSynthraAddress("0xa231458f45727CbFa45c1181b25CccB911ca163a"),
     synthraExclusive: true,
   },
+  {
+    key: "USDT/cirBTC",
+    tokens: sortSynthraTokens(TOKEN_CONTRACTS.USDT, TOKEN_CONTRACTS.CIRBTC),
+    fee: SYNTHRA_USDT_CIRBTC_FEE,
+    poolAddress: normalizeSynthraAddress("0xfc60c214cca6ab1ef2e5706c802ed288f85189f2"),
+    synthraExclusive: true,
+  },
 ] as const;
 
 const getSynthraDirectPair = (tokenA: string, tokenB: string) => {
@@ -292,7 +300,25 @@ const getSynthraDirectPair = (tokenA: string, tokenB: string) => {
 };
 
 export function isSynthraSupportedPair(tokenA: string, tokenB: string) {
-  return getSynthraDirectPair(tokenA, tokenB) !== null;
+  if (getSynthraDirectPair(tokenA, tokenB)) {
+    return true;
+  }
+
+  const intermediateToken = TOKEN_CONTRACTS.USDC;
+  const normalizedTokenA = normalizeSynthraAddress(tokenA);
+  const normalizedTokenB = normalizeSynthraAddress(tokenB);
+
+  if (
+    normalizedTokenA.toLowerCase() === intermediateToken.toLowerCase() ||
+    normalizedTokenB.toLowerCase() === intermediateToken.toLowerCase()
+  ) {
+    return false;
+  }
+
+  return (
+    getSynthraDirectPair(normalizedTokenA, intermediateToken) !== null &&
+    getSynthraDirectPair(intermediateToken, normalizedTokenB) !== null
+  );
 }
 
 export function isSynthraExclusivePair(tokenA: string, tokenB: string) {
@@ -379,26 +405,75 @@ export async function buildSynthraRouteCandidates(
   const normalizedTokenIn = normalizeSynthraAddress(tokenIn);
   const normalizedTokenOut = normalizeSynthraAddress(tokenOut);
   const directPair = getSynthraDirectPair(normalizedTokenIn, normalizedTokenOut);
-
-  if (!directPair) {
-    return [];
-  }
-
   const feeTiers = options.feeTiers ?? SYNTHRA_FEE_TIERS;
-  if (!feeTiers.includes(directPair.fee)) {
-    return [];
+
+  if (directPair) {
+    if (!feeTiers.includes(directPair.fee)) {
+      return [];
+    }
+
+    return [
+      {
+        tokens: [normalizedTokenIn, normalizedTokenOut],
+        fees: [directPair.fee],
+        path: encodeSynthraV3Path(
+          [normalizedTokenIn, normalizedTokenOut],
+          [directPair.fee],
+        ),
+      },
+    ];
   }
 
-  return [
-    {
-      tokens: [normalizedTokenIn, normalizedTokenOut],
-      fees: [directPair.fee],
-      path: encodeSynthraV3Path(
-        [normalizedTokenIn, normalizedTokenOut],
-        [directPair.fee],
-      ),
-    },
-  ];
+  const intermediateTokens =
+    options.intermediateTokens ?? [TOKEN_CONTRACTS.USDC];
+  const routes = intermediateTokens.flatMap((intermediateToken) => {
+    const normalizedIntermediateToken =
+      normalizeSynthraAddress(intermediateToken);
+
+    if (
+      normalizedIntermediateToken.toLowerCase() ===
+        normalizedTokenIn.toLowerCase() ||
+      normalizedIntermediateToken.toLowerCase() ===
+        normalizedTokenOut.toLowerCase()
+    ) {
+      return [];
+    }
+
+    const firstHop = getSynthraDirectPair(
+      normalizedTokenIn,
+      normalizedIntermediateToken,
+    );
+    const secondHop = getSynthraDirectPair(
+      normalizedIntermediateToken,
+      normalizedTokenOut,
+    );
+
+    if (
+      !firstHop ||
+      !secondHop ||
+      !feeTiers.includes(firstHop.fee) ||
+      !feeTiers.includes(secondHop.fee)
+    ) {
+      return [];
+    }
+
+    const tokens = [
+      normalizedTokenIn,
+      normalizedIntermediateToken,
+      normalizedTokenOut,
+    ];
+    const fees = [firstHop.fee, secondHop.fee];
+
+    return [
+      {
+        tokens,
+        fees,
+        path: encodeSynthraV3Path(tokens, fees),
+      },
+    ];
+  });
+
+  return routes;
 }
 
 export async function quoteSynthraRoute(

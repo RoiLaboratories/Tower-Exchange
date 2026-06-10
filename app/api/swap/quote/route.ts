@@ -6,21 +6,33 @@ type BackendQuote = {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
+  swapInputAmount?: string; // Net amount after TowerSwapExecutor fee, normalized to 18 decimals
   outputAmount: string;
   minOut: string;
   priceImpact: string | number;
+  gasEstimate?: string;
+  slippage?: number; // in basis points
+  exec_price?: number;
+  feeBps?: number;
+  feeMode?: 'tower-swap-executor' | 'none';
+  platformFeeAmount?: string; // Platform fee in input token, normalized to 18 decimals
   route: {
     type: "single" | "multi" | "split";
     rawPath?: string;
+    totalFee?: number; // in basis points
+    estimatedOutput?: string;
     hops: Array<{
       dexId: string;
       dex?: string;
       dexName?: string;
       dexRouter?: string;
       path: string[];
+      feeTier?: number;
+      feeTiers?: number[];
       amountIn: string;
       amountOut: string;
       priceImpact: string | number;
+      liquidity?: string; // Liquidity available in the hop
     }>;
   };
   routeOptions?: RouteOption[];

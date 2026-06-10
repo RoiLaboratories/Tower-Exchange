@@ -4,21 +4,33 @@ export interface SwapQuote {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
+  swapInputAmount?: string; // Net amount after TowerSwapExecutor fee, normalized to 18 decimals
   outputAmount: string;
   minOut: string;
-  priceImpact: string;
+  priceImpact: string | number;
+  gasEstimate?: string;
+  slippage?: number; // in basis points
+  exec_price?: number;
+  feeBps?: number;
+  feeMode?: 'tower-swap-executor' | 'none';
+  platformFeeAmount?: string; // Platform fee in input token, normalized to 18 decimals
   route: {
     type: 'single' | 'multi' | 'split';
     rawPath?: string;
+    totalFee?: number; // in basis points
+    estimatedOutput?: string;
     hops: Array<{
       dexId: string; // DEX identifier from backend
       dex?: string;
       dexName?: string; // Router name (e.g., "XyloNet Adapter", "Synthra")
       dexRouter?: string; // Router contract address
       path: string[];
+      feeTier?: number;
+      feeTiers?: number[];
       amountIn: string;
       amountOut: string;
-      priceImpact: string;
+      priceImpact: string | number;
+      liquidity?: string; // Liquidity available in the hop
     }>;
   };
   routeOptions?: SwapRouteOption[];
@@ -41,7 +53,10 @@ export interface SwapTransaction {
   gasLimit: string;
   chainId: number;
   platformFeeAmount?: string; // Platform fee in input token native decimals
-  expectedUserOutput?: string; // Deprecated legacy metadata
+  expectedUserOutput?: string; // Expected output after fee deduction
+  expectedFeeCollectorOutput?: string; // Deprecated: legacy FeeCollector flow only
+  feeRecipient?: string;
+  feeBps?: number;
   feeMode?: 'tower-swap-executor' | 'none';
   feeToken?: string;
   executorAddress?: string;
@@ -127,7 +142,8 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
     async (
       quote: SwapQuote,
       userAddress: string,
-      referrer?: string
+      referrer?: string,
+      walletBalance?: string
     ): Promise<{ approval?: ApprovalTransaction | ApprovalTransaction[] | null; swap: SwapTransaction } | null> => {
       setIsLoading(true);
       setError(null);
@@ -142,6 +158,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
             quote,
             userAddress,
             referrer,
+            walletBalance,
           }),
         });
 

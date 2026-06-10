@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TokenTicker from "@/components/TokenTicker";
 import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
-import Badges from "@/components/Badges";
+// import Badges from "@/components/Badges"; // TODO: Disabled badges - will implement later
 import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
 import { AppErrorModal } from "@/components/AppErrorModal";
@@ -22,12 +22,14 @@ import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
   };
 };
 
-type ProfileTab = "positions" | "activities" | "badges";
+// TODO: Disabled badges - will implement later
+type ProfileTab = "positions" | "activities"; // | "badges";
 
+// TODO: Disabled badges - will implement later
 const profileTabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "positions", label: "Positions" },
   { id: "activities", label: "Activities" },
-  { id: "badges", label: "Badges" },
+  // { id: "badges", label: "Badges" },
 ];
 
 const Profile = () => {
@@ -281,7 +283,8 @@ const Profile = () => {
               walletAddress={user?.wallet?.address || null}
             />
           )}
-          {activeTab === "badges" && <Badges />}
+          {/* TODO: Disabled badges - will implement later */}
+          {/* {activeTab === "badges" && <Badges />} */}
         </AnimatePresence>
       </main>
       </div>

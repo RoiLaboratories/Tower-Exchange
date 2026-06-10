@@ -1387,7 +1387,19 @@ const SwapCard = ({
       console.log(
         "Building swap transaction with automatic approval detection...",
       );
-      const transaction = await buildSwapTransaction(quote, userAddress);
+      // Convert wallet balance to token's native decimals format for approval limit
+      const tokenDecimals = TOKEN_DECIMALS[sellToken.symbol] ?? 18;
+      const walletBalanceForApproval = parseUnits(
+        sellTokenBalance.toString(),
+        tokenDecimals
+      ).toString();
+      
+      const transaction = await buildSwapTransaction(
+        quote,
+        userAddress,
+        undefined,
+        walletBalanceForApproval
+      );
 
       if (!transaction) {
         throw new Error(towerError || "Failed to build swap transaction");
@@ -1494,6 +1506,8 @@ const SwapCard = ({
           const freshTransaction = await buildSwapTransaction(
             freshQuote,
             userAddress,
+            undefined,
+            walletBalanceForApproval,
           );
           if (!freshTransaction) {
             throw new Error(
