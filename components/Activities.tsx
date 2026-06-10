@@ -8,7 +8,7 @@ import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
 import { getChainLogoByName } from "@/lib/chains";
-import arcLogo from "@/public/assets/Arc Testnet logo.svg";
+import arcLogo from "@/public/assets/arclogo.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import TransactionInfoModal from "@/components/TransactionInfoModal";
 import {

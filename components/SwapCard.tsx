@@ -53,7 +53,7 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
-import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import arcTestnetLogo from "@/public/assets/arclogo.svg";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;

@@ -7,7 +7,7 @@ import { X, Search, ChevronDown } from "lucide-react";
 import Image, { type StaticImageData } from "next/image";
 import { getSupportedTokens, type SupportedToken } from "@/lib/bridgeService";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
-import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import arcTestnetLogo from "@/public/assets/arclogo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";

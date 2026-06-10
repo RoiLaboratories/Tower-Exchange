@@ -18,7 +18,7 @@ import {
 } from "@/lib/activityDetails";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import usdcLogo from "@/public/assets/usdc.svg";
-import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import arcTestnetLogo from "@/public/assets/arclogo.svg";
 import routeIcon from "@/public/assets/route icon.svg";
 import transferTimeIcon from "@/public/assets/transfertime icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";

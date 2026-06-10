@@ -30,7 +30,7 @@ import TransactionStepsModal, {
 } from "@/components/TransactionStepsModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
-import arcTestnetLogo from "@/public/assets/Arc Testnet logo.svg";
+import arcTestnetLogo from "@/public/assets/arclogo.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";

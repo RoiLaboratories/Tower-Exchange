@@ -166,31 +166,20 @@ const Header = () => {
         <div className="flex items-center gap-4 sm:gap-8">
           {/* Logo */}
           <motion.div
-            className="flex items-center gap-2 cursor-pointer"
+            className="flex items-center justify-center cursor-pointer mr-4 ml-8"
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.2 }}
             onClick={() => router.push("/")}
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
               <Image
-                src="/assets/Tower Logo.svg"
+                src="/assets/towerlogo.svg"
                 alt="Tower logo"
-                width={40}
-                height={40}
-                className="object-contain"
+                width={256}
+                height={256}
+                className="object-contain scale-250"
               />
             </div>
-            <span
-              className="text-lg sm:text-xl font-black text-foreground"
-              style={{
-                fontFamily: "var(--font-cinzel)",
-                fontWeight: 900,
-                letterSpacing: "0.045em",
-                WebkitTextStroke: "0.35px currentColor",
-              }}
-            >
-              TOWER
-            </span>
           </motion.div>
 
           {/* Desktop Navigation */}
@@ -311,7 +300,7 @@ const Header = () => {
           >
             <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
               <Image
-                src="/assets/arc_logo_1-removebg-preview.png"
+                src="/assets/arclogo.svg"
                 alt="Arc"
                 width={40}
                 height={40}
@@ -331,7 +320,7 @@ const Header = () => {
             >
               <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
                 <Image
-                  src="/assets/arc_logo_1-removebg-preview.png"
+                  src="/assets/arclogo.svg"
                   alt="Arc"
                   width={40}
                   height={40}

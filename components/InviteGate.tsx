@@ -621,7 +621,7 @@ export default function InviteGate({ children }: InviteGateProps) {
 
                     <div className="absolute left-[47.6%] top-[55.5%] z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-[0.65rem]">
                       <Image
-                        src="/assets/Tower Logo.svg"
+                        src="/assets/towerlogo.svg"
                         alt="Tower logo"
                         width={33}
                         height={33}
