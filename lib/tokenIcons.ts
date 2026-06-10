@@ -10,7 +10,7 @@ import hypeLogo from "@/public/assets/hype.png";
 import usdtLogo from "@/public/assets/usdt.svg";
 import uniLogo from "@/public/assets/uniswap-removebg-preview.png";
 import qtmLogo from "@/public/assets/quantum-logo.png";
-import cirbtcLogo from "@/public/assets/cirBTC.svg";
+import cirbtcLogo from "@/public/assets/cirbtc.svg";
 
 export const TOKEN_ICONS: Record<string, StaticImageData> = {
   USDC: usdcLogo,

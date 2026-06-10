@@ -3,7 +3,7 @@ import type { StaticImageData } from "next/image";
 import eurcLogo from "@/public/assets/eurc.svg";
 import usdcLogo from "@/public/assets/usdc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
-import cirbtcLogo from "@/public/assets/cirBTC.svg";
+import cirbtcLogo from "@/public/assets/cirbtc.svg";
 import { DEFAULT_TOKEN_USD_PRICES } from "@/lib/tokenUsdPrices";
 
 export interface SwapToken {
