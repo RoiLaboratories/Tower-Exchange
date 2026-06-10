@@ -623,16 +623,10 @@ export default function InviteGate({ children }: InviteGateProps) {
                       <Image
                         src="/assets/towerlogo.svg"
                         alt="Tower logo"
-                        width={33}
-                        height={33}
-                        className="h-[2.05rem] w-[2.05rem] object-contain"
+                        width={80}
+                        height={80}
+                        className="h-[5rem] w-[5rem] object-contain scale-250"
                       />
-                      <span
-                        className="relative top-[0.08rem] text-[1.66rem] leading-none font-semibold tracking-[-0.035em] text-white"
-                        style={{ fontFamily: "var(--font-cinzel)" }}
-                      >
-                        Tower
-                      </span>
                     </div>
                   </div>
 
