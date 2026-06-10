@@ -625,7 +625,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                         alt="Tower logo"
                         width={80}
                         height={80}
-                        className="h-[5rem] w-[5rem] object-contain scale-250"
+                        className="h-[5rem] w-[5rem] object-contain scale-200"
                       />
                     </div>
                   </div>
