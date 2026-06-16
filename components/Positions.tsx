@@ -12,10 +12,7 @@ interface PositionsProps {
   onTotalValueChange?: (value: string) => void;
 }
 
-const getHoldingIconClassName = (token: string) =>
-  token.toUpperCase() === "EURC"
-    ? "object-contain w-full h-full scale-125"
-    : "object-contain w-full h-full";
+const getHoldingIconClassName = () => "object-contain w-full h-full";
 
 const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
   const [holdingsExpanded, setHoldingsExpanded] = useState(false);
@@ -169,7 +166,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                                     alt={`${holding.token} logo`}
                                     width={24}
                                     height={24}
-                                    className={getHoldingIconClassName(holding.token)}
+                                    className={getHoldingIconClassName()}
                                   />
                                 ) : (
                                   <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs font-bold">

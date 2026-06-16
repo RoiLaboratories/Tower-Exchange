@@ -3,27 +3,36 @@ import { createClient } from "@supabase/supabase-js";
 
 const LEGACY_ACCESS_TABLES = [
   "activities",
-  "ai_chat_messages",
+  "ai_db",
   "ai_chat_sessions",
   "recurring_orders",
   "recurring_order_executions",
   "swap_fees",
 ] as const;
+const EVM_WALLET_ADDRESS_PATTERN = /^0x[a-f0-9]{40}$/;
 
 type CheckWalletAccessRow = {
-  is_registered: boolean;
-  access_source: string | null;
+  is_registered?: boolean | null;
+  isRegistered?: boolean | null;
+  access_source?: string | null;
+  accessSource?: string | null;
 };
 
-function createSupabaseRouteClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+function createSupabaseRouteClient(options?: { preferServiceRole?: boolean }) {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey =
+    options?.preferServiceRole && supabaseServiceRoleKey
+      ? supabaseServiceRoleKey
+      : supabaseAnonKey;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     throw new Error("Supabase environment variables are not configured.");
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createClient(supabaseUrl, supabaseKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -44,7 +53,7 @@ const isIgnorableQueryError = (message: string) => {
 
 async function hasWalletRecord(
   supabase: ReturnType<typeof createSupabaseRouteClient>,
-  table: (typeof LEGACY_ACCESS_TABLES)[number],
+  table: string,
   normalizedWalletAddress: string,
 ) {
   const { data, error } = await supabase
@@ -55,7 +64,7 @@ async function hasWalletRecord(
 
   if (error) {
     if (isIgnorableQueryError(error.message)) {
-      console.warn(`Skipping legacy wallet lookup for ${table}:`, error.message);
+      console.warn(`Skipping wallet access lookup for ${table}:`, error.message);
       return false;
     }
 
@@ -63,6 +72,17 @@ async function hasWalletRecord(
   }
 
   return Array.isArray(data) && data.length > 0;
+}
+
+async function getInviteRedemptionAccess(
+  supabase: ReturnType<typeof createSupabaseRouteClient>,
+  normalizedWalletAddress: string,
+) {
+  return hasWalletRecord(
+    supabase,
+    "invite_code_redemptions",
+    normalizedWalletAddress,
+  );
 }
 
 async function getLegacyWalletAccess(
@@ -93,6 +113,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!EVM_WALLET_ADDRESS_PATTERN.test(normalizedWalletAddress)) {
+      return NextResponse.json(
+        { success: false, message: "Wallet address is invalid." },
+        { status: 400 },
+      );
+    }
+
     const supabase = createSupabaseRouteClient();
 
     let isRegistered = false;
@@ -109,13 +136,33 @@ export async function POST(request: NextRequest) {
         ? (data[0] as CheckWalletAccessRow | undefined)
         : (data as CheckWalletAccessRow | null);
 
-      isRegistered = result?.is_registered === true;
-      accessSource = result?.access_source ?? null;
+      isRegistered = (result?.is_registered ?? result?.isRegistered) === true;
+      accessSource = result?.access_source ?? result?.accessSource ?? null;
     }
 
     if (!isRegistered) {
+      const fallbackSupabase = createSupabaseRouteClient({
+        preferServiceRole: true,
+      });
+
+      const hasInviteRedemptionAccess = await getInviteRedemptionAccess(
+        fallbackSupabase,
+        normalizedWalletAddress,
+      );
+
+      if (hasInviteRedemptionAccess) {
+        isRegistered = true;
+        accessSource = accessSource ?? "invite-redemption";
+      }
+    }
+
+    if (!isRegistered) {
+      const fallbackSupabase = createSupabaseRouteClient({
+        preferServiceRole: true,
+      });
+
       const hasLegacyWalletAccess = await getLegacyWalletAccess(
-        supabase,
+        fallbackSupabase,
         normalizedWalletAddress,
       );
 

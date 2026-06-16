@@ -2,6 +2,7 @@ import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import {
   bitgetWallet,
   coinbaseWallet,
+  gateWallet,
   injectedWallet,
   metaMaskWallet,
   safeWallet,
@@ -158,10 +159,16 @@ const connectors = walletConnectProjectId
   ? connectorsForWallets(
       [
         {
-          groupName: "Popular wallets",
+          groupName: "Default",
+          wallets: [
+            gateWallet,
+          ],
+        },
+
+        {
+          groupName: "Recommended",
           wallets: [
             metaMaskWallet,
-            trustWallet,
             bitgetWallet,
             coinbaseWallet,
           ],

@@ -37,7 +37,7 @@ const Footer = () => {
       >
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
-            Tower Exchange • Copyright 2026
+            Towerdex Inc • Copyright 2026
           </p>
           <motion.button
             type="button"

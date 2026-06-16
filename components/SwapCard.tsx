@@ -46,6 +46,7 @@ import TransactionStepsModal, {
 import {
   supabase,
 } from "@/lib/supabase";
+import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import {
@@ -638,27 +639,38 @@ const SwapCard = ({
       routeLabel?: string | null,
     ) => {
       try {
-        if (!user?.wallet?.address) return;
+        if (!user?.wallet?.address) return null;
         const amountUsd = (parseFloat(sellAmount) || 0) * sellToken.usdPrice;
         const resolvedRouteLabel = routeLabel || getActiveSwapRouteName();
-        await supabase.from("activities").insert({
-          wallet_address: user.wallet.address.toLowerCase(),
-          type:
-            resolvedRouteLabel && resolvedRouteLabel !== "Swap"
-              ? `Swap via ${resolvedRouteLabel}`
-              : "Swap",
-          source_currency_ticker: sellToken.symbol,
-          destination_currency_ticker: receiveToken?.symbol || null,
-          source_network_name: "Arc",
-          destination_network_name: "Arc",
-          status,
-          amount: parseFloat(sellAmount) || null,
-          amount_usd: amountUsd || null,
-          transaction_hash: txHash || null,
-          timestamp: new Date().toISOString(),
-        });
+        const { data, error } = await supabase
+          .from("activities")
+          .insert({
+            wallet_address: user.wallet.address.toLowerCase(),
+            type:
+              resolvedRouteLabel && resolvedRouteLabel !== "Swap"
+                ? `Swap via ${resolvedRouteLabel}`
+                : "Swap",
+            source_currency_ticker: sellToken.symbol,
+            destination_currency_ticker: receiveToken?.symbol || null,
+            source_network_name: "Arc",
+            destination_network_name: "Arc",
+            status,
+            amount: parseFloat(sellAmount) || null,
+            amount_usd: amountUsd || null,
+            transaction_hash: txHash || null,
+            timestamp: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        return data?.id ?? null;
       } catch (e) {
         console.error("Error logging swap activity:", e);
+        return null;
       }
     },
     [
@@ -1859,11 +1871,42 @@ const SwapCard = ({
       });
       await fetchUserBalances();
 
-      await logSwapActivity(
+      const swapActivityId = await logSwapActivity(
         "Successful",
         txHash,
         quote.route.hops[0]?.dexName || getActiveSwapRouteName(),
       );
+
+      if (
+        swapTx?.feeMode === "tower-swap-executor" &&
+        swapTx.platformFeeAmount &&
+        swapTx.feeToken
+      ) {
+        const receiptBlockNumber =
+          typeof receipt.blockNumber === "string"
+            ? Number.parseInt(receipt.blockNumber, 16)
+            : undefined;
+        const swapFeeResult = await recordExecutorSwapFee({
+          walletAddress: userAddress,
+          tokenAddress: swapTx.feeToken,
+          tokenSymbol: sellToken.symbol,
+          totalAmount: amountInWei,
+          feeAmount: swapTx.platformFeeAmount,
+          feeBps: swapTx.feeBps ?? quote.feeBps ?? 25,
+          transactionHash: txHash,
+          blockNumber: receiptBlockNumber,
+          activityId: swapActivityId,
+          usdPrice: sellToken.usdPrice,
+        });
+
+        if (!swapFeeResult.success) {
+          console.error("[SwapCard] Failed to persist executor swap fee:", {
+            txHash,
+            error: swapFeeResult.error,
+          });
+        }
+      }
+
       setSwapStepsPhase("success");
       markSwapSuccess(txHash);
     } catch (error: unknown) {

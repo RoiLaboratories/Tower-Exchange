@@ -2,14 +2,20 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter, useSearchParams } from "next/navigation";
 import TokenTicker from "@/components/TokenTicker";
 import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
-// import Badges from "@/components/Badges"; // TODO: Disabled badges - will implement later
+import Badges from "@/components/Badges";
 import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
+import badgeClaimedImage from "@/public/assets/badge claimed image.svg";
+import {
+  fetchSquireBadgeStatus,
+  type SquireBadgeStatus,
+} from "@/lib/squireBadge";
 
   type EthereumWindow = Window & {
   ethereum?: {
@@ -22,17 +28,17 @@ import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
   };
 };
 
-// TODO: Disabled badges - will implement later
-type ProfileTab = "positions" | "activities"; // | "badges";
+type ProfileTab = "positions" | "activities" | "badges";
 
-// TODO: Disabled badges - will implement later
 const profileTabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "positions", label: "Positions" },
   { id: "activities", label: "Activities" },
-  // { id: "badges", label: "Badges" },
+  { id: "badges", label: "Badges" },
 ];
 
 const Profile = () => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ProfileTab>("positions");
   const { authenticated, user } = useRainbowKitAuth();
   const [chainId, setChainId] = useState<string | null>(null);
@@ -41,7 +47,11 @@ const Profile = () => {
   const [profileImageError, setProfileImageError] = useState(false);
   const [isUploadingProfile, setIsUploadingProfile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [squireBadgeStatus, setSquireBadgeStatus] =
+    useState<SquireBadgeStatus | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const requestedTab = searchParams.get("tab");
+  const requestedBadgeId = searchParams.get("badge");
 
   useEffect(() => {
     const ethereum = typeof window === "undefined" ? undefined : (window as EthereumWindow).ethereum;
@@ -77,12 +87,78 @@ const Profile = () => {
     loadProfile();
   }, [user?.wallet?.address]);
 
+  useEffect(() => {
+    if (
+      requestedTab === "positions" ||
+      requestedTab === "activities" ||
+      requestedTab === "badges"
+    ) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
+
+  useEffect(() => {
+    const walletAddress = user?.wallet?.address?.trim().toLowerCase();
+
+    if (!walletAddress) {
+      setSquireBadgeStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSquireBadgeStatus = async () => {
+      try {
+        const { response, result } = await fetchSquireBadgeStatus(walletAddress);
+
+        if (cancelled || !response.ok || !result.success || !result.badge) {
+          if (!cancelled) {
+            setSquireBadgeStatus(null);
+          }
+          return;
+        }
+
+        setSquireBadgeStatus(result.badge);
+      } catch (error) {
+        console.error("Failed to load profile badge state:", error);
+
+        if (!cancelled) {
+          setSquireBadgeStatus(null);
+        }
+      }
+    };
+
+    void loadSquireBadgeStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.wallet?.address]);
+
   const isOnArcTestnet = chainId === ARC_CHAIN_HEX;
   const displayAddress = useMemo(() => {
     const addr = user?.wallet?.address;
     if (!addr) return null;
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   }, [user?.wallet?.address]);
+  const hasClaimedSquireBadge = squireBadgeStatus?.isClaimed === true;
+
+  const handleTabChange = (tab: ProfileTab) => {
+    setActiveTab(tab);
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.set("tab", tab);
+
+    if (tab !== "badges") {
+      nextSearchParams.delete("badge");
+    } else if (requestedBadgeId) {
+      nextSearchParams.set("badge", requestedBadgeId);
+    }
+
+    router.replace(`/profile?${nextSearchParams.toString()}`, {
+      scroll: false,
+    });
+  };
 
   const handleAddArcNetwork = async () => {
     const ethereum = typeof window === "undefined" ? undefined : (window as EthereumWindow).ethereum;
@@ -175,6 +251,18 @@ const Profile = () => {
                 ) : null}
               </div>
 
+              {hasClaimedSquireBadge ? (
+                <div className="pointer-events-none absolute -bottom-1 -right-1 z-10">
+                  <Image
+                    src={badgeClaimedImage}
+                    alt="Claimed Squire badge"
+                    width={30}
+                    height={34}
+                    className="h-auto w-[1.65rem] object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.24)]"
+                  />
+                </div>
+              ) : null}
+
               {/* Upload overlay button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -252,7 +340,7 @@ const Profile = () => {
               key={tab.id}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`rounded-lg px-4 py-3 font-medium transition-all sm:px-6 ${
                 activeTab === tab.id
                   ? "text-white"
@@ -283,8 +371,14 @@ const Profile = () => {
               walletAddress={user?.wallet?.address || null}
             />
           )}
-          {/* TODO: Disabled badges - will implement later */}
-          {/* {activeTab === "badges" && <Badges />} */}
+          {activeTab === "badges" && (
+            <Badges
+              isWalletConnected={authenticated}
+              highlightedBadgeId={activeTab === "badges" ? requestedBadgeId : null}
+              onSquireBadgeStatusChange={setSquireBadgeStatus}
+              walletAddress={user?.wallet?.address || null}
+            />
+          )}
         </AnimatePresence>
       </main>
       </div>

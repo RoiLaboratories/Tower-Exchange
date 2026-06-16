@@ -1,0 +1,119 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const EVM_WALLET_ADDRESS_PATTERN = /^0x[a-f0-9]{40}$/;
+
+type WalletConnectionRequestBody = {
+  walletAddress?: unknown;
+  walletType?: unknown;
+  chainId?: unknown;
+  connectedAt?: unknown;
+};
+
+function createSupabaseRouteClient() {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = supabaseServiceRoleKey ?? supabaseAnonKey;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+const normalizeWalletAddress = (walletAddress: unknown) =>
+  typeof walletAddress === "string" && walletAddress.trim()
+    ? walletAddress.trim().toLowerCase()
+    : null;
+
+const normalizeWalletType = (walletType: unknown) => {
+  if (typeof walletType !== "string") {
+    return null;
+  }
+
+  const normalized = walletType.trim();
+  return normalized ? normalized.slice(0, 120) : null;
+};
+
+const normalizeChainId = (chainId: unknown) => {
+  if (typeof chainId === "number") {
+    return Number.isInteger(chainId) && chainId >= 0 ? chainId : null;
+  }
+
+  if (typeof chainId === "string" && chainId.trim()) {
+    const parsed = Number.parseInt(chainId, 10);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  return null;
+};
+
+const normalizeConnectedAt = (connectedAt: unknown) => {
+  if (typeof connectedAt !== "string" || !connectedAt.trim()) {
+    return new Date().toISOString();
+  }
+
+  const parsed = new Date(connectedAt);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+};
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json().catch(() => ({}))) as WalletConnectionRequestBody;
+    const walletAddress = normalizeWalletAddress(body.walletAddress);
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        { success: false, message: "Wallet address is required." },
+        { status: 400 },
+      );
+    }
+
+    if (!EVM_WALLET_ADDRESS_PATTERN.test(walletAddress)) {
+      return NextResponse.json(
+        { success: false, message: "Wallet address is invalid." },
+        { status: 400 },
+      );
+    }
+
+    const supabase = createSupabaseRouteClient();
+    const { error } = await supabase.from("wallet_connections").insert({
+      address: walletAddress,
+      wallet_type: normalizeWalletType(body.walletType),
+      chain_id: normalizeChainId(body.chainId),
+      connected_at: normalizeConnectedAt(body.connectedAt),
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error tracking wallet connection:", error);
+
+    const debug =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Internal server error";
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Unable to track wallet connection right now.",
+        debug,
+      },
+      { status: 500 },
+    );
+  }
+}

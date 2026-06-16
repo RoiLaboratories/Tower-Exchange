@@ -6,6 +6,7 @@ import { WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { TowerWalletAvatar } from "@/components/wallet/TowerWalletAvatar";
+import { WalletConnectionTracker } from "@/components/providers/WalletConnectionTracker";
 import "@rainbow-me/rainbowkit/styles.css";
 
 // Create Query Client
@@ -79,6 +80,7 @@ export const CustomRainbowKitProvider = ({
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={customTheme} avatar={TowerWalletAvatar}>
+          <WalletConnectionTracker />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

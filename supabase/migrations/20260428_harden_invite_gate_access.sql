@@ -95,8 +95,8 @@ BEGIN
     WHERE lower(wallet_address) = normalized_wallet
   ) OR EXISTS (
     SELECT 1
-    FROM ai_chat_messages
-    WHERE lower(wallet_address) = normalized_wallet
+    FROM ai_db
+    WHERE lower(user_id) = normalized_wallet
   ) OR EXISTS (
     SELECT 1
     FROM ai_chat_sessions

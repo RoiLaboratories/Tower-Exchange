@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { ArrowUp, ArrowDown, Info } from "lucide-react";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
 import { registerBridgeActivity, supabase } from "@/lib/supabase";
+import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
 import { useSwapExecution } from "@/lib/useSwapExecution";
@@ -174,7 +175,7 @@ const logAiSwapActivity = async ({
 }) => {
   try {
     if (!walletAddress || !quote?.inputToken || !quote.outputToken) {
-      return;
+      return null;
     }
 
     const sourceSymbol = getTokenSymbolByAddress(quote.inputToken);
@@ -184,25 +185,33 @@ const logAiSwapActivity = async ({
       quote.inputToken,
     );
 
-    const { error } = await supabase.from("activities").insert({
-      wallet_address: walletAddress.toLowerCase(),
-      type: "Swap",
-      source_currency_ticker: sourceSymbol ?? "Token",
-      destination_currency_ticker: destinationSymbol ?? "Token",
-      source_network_name: "Arc",
-      destination_network_name: "Arc",
-      status: "Successful",
-      amount,
-      amount_usd: amount,
-      transaction_hash: transactionHash || null,
-      timestamp: new Date().toISOString(),
-    });
+    const { data, error } = await supabase
+      .from("activities")
+      .insert({
+        wallet_address: walletAddress.toLowerCase(),
+        type: "Swap",
+        source_currency_ticker: sourceSymbol ?? "Token",
+        destination_currency_ticker: destinationSymbol ?? "Token",
+        source_network_name: "Arc",
+        destination_network_name: "Arc",
+        status: "Successful",
+        amount,
+        amount_usd: amount,
+        transaction_hash: transactionHash || null,
+        timestamp: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
 
     if (error) {
       console.error("Error logging AI swap activity:", error);
+      return null;
     }
+
+    return data?.id ?? null;
   } catch (activityError) {
     console.error("Error logging AI swap activity:", activityError);
+    return null;
   }
 };
 
@@ -309,6 +318,10 @@ export const AIChat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSwapConfirmation, setShowSwapConfirmation] = useState(false);
   const [showBridgeConfirmation, setShowBridgeConfirmation] = useState(false);
+  const [swapConfirmationInsertIndex, setSwapConfirmationInsertIndex] =
+    useState<number | null>(null);
+  const [bridgeConfirmationInsertIndex, setBridgeConfirmationInsertIndex] =
+    useState<number | null>(null);
   const [activeBridgeRequest, setActiveBridgeRequest] =
     useState<AIAgentBridgeRequest | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -798,7 +811,7 @@ export const AIChat = () => {
                 }
 
                 if (quote && confirmation.status === "success") {
-                  await logAiSwapActivity({
+                  const swapActivityId = await logAiSwapActivity({
                     walletAddress,
                     quote,
                     transactionHash: confirmation.transactionHash,
@@ -806,73 +819,90 @@ export const AIChat = () => {
 
                   console.log("─── Initiating Fee Submission ───");
 
-                  const isValidToken =
-                    quote.outputToken?.length === 42 &&
-                    quote.outputToken?.startsWith("0x");
-                  const executorOutputAmount = quote?.outputAmount ?? null;
-                  const executorOutputAmountNative =
-                    normalizeAiQuoteAmountToTokenDecimals(
-                      executorOutputAmount,
-                      quote.outputToken,
-                    );
+                  const feeTokenAddress =
+                    typeof txData?.feeToken === "string" && txData.feeToken
+                      ? txData.feeToken
+                      : quote.inputToken;
+                  const executorFeeAmount =
+                    typeof txData?.platformFeeAmount === "string"
+                      ? txData.platformFeeAmount
+                      : null;
                   const inputAmountNative =
                     normalizeAiQuoteAmountToTokenDecimals(
                       quote.inputAmount,
                       quote.inputToken,
                     );
                   const isValidAmount =
-                    executorOutputAmountNative &&
-                    BigInt(executorOutputAmountNative) > 0n;
+                    executorFeeAmount && BigInt(executorFeeAmount) > 0n;
+                  const isValidToken =
+                    feeTokenAddress?.length === 42 &&
+                    feeTokenAddress.startsWith("0x");
 
-                  console.log("Pre-submission validation:", {
+                  console.log("Executor fee tracking validation:", {
                     tokenValid: isValidToken,
                     amountValid: isValidAmount,
                     walletValid:
                       walletAddress?.length === 42 &&
                       walletAddress?.startsWith("0x"),
-                    executorOutputAmount,
-                    executorOutputAmountNative,
-                    quoteOutputAmount: quote.outputAmount,
+                    feeTokenAddress,
+                    executorFeeAmount,
                     inputAmount: quote.inputAmount,
                     inputAmountNative,
+                    feeMode: txData?.feeMode,
                   });
 
                   if (!isValidToken || !isValidAmount) {
                     console.error(
                       "❌ Invalid quote data - cannot submit fee:",
                       {
-                        outputToken: quote.outputToken,
-                        executorOutputAmount,
-                        executorOutputAmountNative,
+                        feeTokenAddress,
+                        executorFeeAmount,
                       },
                     );
                     setError(
-                      "Swap confirmed, but output distribution could not be started because the fee amount was missing.",
+                      "Swap confirmed, but fee tracking could not be completed because the executor fee details were missing.",
                     );
                   } else {
                     console.log(
                       "Submitting platform fee after swap confirmation...",
                       {
-                        outputToken: quote.outputToken,
-                        totalAmount: executorOutputAmountNative,
+                        feeTokenAddress,
+                        feeAmount: executorFeeAmount,
+                        totalAmount: inputAmountNative,
                         userAddress: walletAddress,
-                        feeBps: 25,
+                        feeBps: txData?.feeBps ?? 25,
                       },
                     );
                     try {
-                      void inputAmountNative;
-                      const feeResult = true;
-                      console.log(
-                        "TowerSwapExecutor collected the platform fee in the confirmed swap transaction.",
-                      );
-                      if (feeResult) {
-                        console.log("Platform fee submitted successfully!");
+                      if (!inputAmountNative) {
+                        throw new Error(
+                          "Executor swap input amount could not be normalized.",
+                        );
+                      }
+
+                      const feeResult = await recordExecutorSwapFee({
+                        walletAddress,
+                        tokenAddress: feeTokenAddress,
+                        tokenSymbol: getTokenSymbolByAddress(feeTokenAddress),
+                        totalAmount: inputAmountNative,
+                        feeAmount: executorFeeAmount,
+                        feeBps:
+                          typeof txData?.feeBps === "number"
+                            ? txData.feeBps
+                            : 25,
+                        transactionHash: confirmation.transactionHash,
+                        blockNumber: confirmation.blockNumber,
+                        activityId: swapActivityId,
+                      });
+                      if (feeResult.success) {
+                        console.log("Executor swap fee recorded successfully!");
                       } else {
                         console.warn(
-                          "Fee submission returned false - check logs above for validation errors",
+                          "Executor swap fee tracking failed",
+                          feeResult.error,
                         );
                         setError(
-                          "Swap confirmed, but output distribution failed. Please contact support with your transaction hash.",
+                          "Swap confirmed, but fee tracking failed. Please contact support with your transaction hash.",
                         );
                       }
                     } catch (feeError) {
@@ -881,9 +911,8 @@ export const AIChat = () => {
                         feeError,
                       );
                       setError(
-                        "Swap confirmed, but output distribution failed. Please contact support with your transaction hash.",
+                        "Swap confirmed, but fee tracking failed. Please contact support with your transaction hash.",
                       );
-                      // Log error but don't fail the already-confirmed swap.
                     }
                   }
                 } else {
@@ -1067,6 +1096,8 @@ export const AIChat = () => {
   };
 
   const hasMessages = messages.length > 0;
+  const hasConversationContent =
+    hasMessages || showSwapConfirmation || showBridgeConfirmation;
   const bridgeConfirmationStatus = bridgeHook.error
     ? "error"
     : bridgeHook.isBridging
@@ -1097,9 +1128,112 @@ export const AIChat = () => {
           : "Preparing Bridge";
 
   useEffect(() => {
+    if (showSwapConfirmation && swapConfirmationInsertIndex === null) {
+      setSwapConfirmationInsertIndex(messages.length);
+      return;
+    }
+
+    if (!showSwapConfirmation && swapConfirmationInsertIndex !== null) {
+      setSwapConfirmationInsertIndex(null);
+    }
+  }, [messages.length, showSwapConfirmation, swapConfirmationInsertIndex]);
+
+  useEffect(() => {
+    if (showBridgeConfirmation && bridgeConfirmationInsertIndex === null) {
+      setBridgeConfirmationInsertIndex(messages.length);
+      return;
+    }
+
+    if (!showBridgeConfirmation && bridgeConfirmationInsertIndex !== null) {
+      setBridgeConfirmationInsertIndex(null);
+    }
+  }, [
+    messages.length,
+    showBridgeConfirmation,
+    bridgeConfirmationInsertIndex,
+  ]);
+
+  const swapConfirmationAnchorIndex = showSwapConfirmation
+    ? Math.min(swapConfirmationInsertIndex ?? messages.length, messages.length)
+    : null;
+  const bridgeConfirmationAnchorIndex = showBridgeConfirmation
+    ? Math.min(
+        bridgeConfirmationInsertIndex ?? messages.length,
+        messages.length,
+      )
+    : null;
+
+  const renderSwapConfirmationRow = () => (
+    <div className="flex justify-start gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+        <Image
+          src={chatLogo}
+          alt="Tower logo"
+          width={28}
+          height={28}
+          className="object-contain"
+        />
+      </div>
+      <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
+        <TransactionConfirmation
+          status={swapExecution.status}
+          statusMessage={swapExecution.statusMessage}
+          transactionHash={swapExecution.transactionHash}
+          blockNumber={swapExecution.blockNumber}
+          error={swapExecution.error}
+          onClose={() => {
+            setShowSwapConfirmation(false);
+            swapExecution.resetState();
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderBridgeConfirmationRow = () => (
+    <div className="flex justify-start gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+        <Image
+          src={chatLogo}
+          alt="Tower logo"
+          width={28}
+          height={28}
+          className="object-contain"
+        />
+      </div>
+      <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
+        <TransactionConfirmation
+          status={bridgeConfirmationStatus}
+          statusMessage={bridgeStatusMessage}
+          transactionHash={bridgeHook.transactionHash}
+          error={bridgeHook.error}
+          title={bridgeConfirmationTitle}
+          explorerUrl={bridgeExplorerUrl}
+          onClose={() => {
+            setShowBridgeConfirmation(false);
+            setActiveBridgeRequest(null);
+            bridgeHook.resetBridgeState();
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderConfirmationRowsAtIndex = (index: number) => (
+    <>
+      {showSwapConfirmation && swapConfirmationAnchorIndex === index
+        ? renderSwapConfirmationRow()
+        : null}
+      {showBridgeConfirmation && bridgeConfirmationAnchorIndex === index
+        ? renderBridgeConfirmationRow()
+        : null}
+    </>
+  );
+
+  useEffect(() => {
     if (
       !messagesContainerRef.current ||
-      (!hasMessages && !showSwapConfirmation && !showBridgeConfirmation)
+      !hasConversationContent
     ) {
       return;
     }
@@ -1108,7 +1242,7 @@ export const AIChat = () => {
       scrollToBottom();
     });
   }, [
-    hasMessages,
+    hasConversationContent,
     isLoading,
     messages.length,
     showBridgeConfirmation,
@@ -1222,218 +1356,167 @@ export const AIChat = () => {
             onScroll={handleScroll}
             className="chat-scrollbar absolute inset-0 overflow-y-scroll overscroll-contain pr-1"
           >
-            {hasMessages ? (
+            {hasConversationContent ? (
               <div className="mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4 px-4 pb-8 pt-5 sm:px-6 sm:pb-32 sm:pt-7 lg:px-7">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex gap-3 ${
-                      msg.isUser ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    {!msg.isUser && (
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
-                        <Image
-                          src={chatLogo}
-                          alt="Tower logo"
-                          width={28}
-                          height={28}
-                          className="object-contain"
-                        />
-                      </div>
-                    )}
-
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`relative max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
-                        msg.isUser
-                          ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5 overflow-hidden wrap-break-word"
-                          : msg.text === "Trading Volume"
-                            ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
-                            : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
-                      } ${msg.error ? "pr-10 sm:pr-11" : ""}`}
+                {messages.map((msg, index) => (
+                  <Fragment key={msg.id}>
+                    {renderConfirmationRowsAtIndex(index)}
+                    <div
+                      className={`flex gap-3 ${
+                        msg.isUser ? "justify-end" : "justify-start"
+                      }`}
                     >
-                      {msg.error && (
-                        <button
-                          type="button"
-                          onClick={() => dismissMessage(msg.id)}
-                          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-                          aria-label="Dismiss chat error"
-                          title={msg.error}
-                        >
-                          <X size={15} />
-                        </button>
+                      {!msg.isUser && (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
+                          <Image
+                            src={chatLogo}
+                            alt="Tower logo"
+                            width={28}
+                            height={28}
+                            className="object-contain"
+                          />
+                        </div>
                       )}
 
-                      {msg.text === "Trading Volume" ? (
-                        <div>
-                          <div className="mb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold">
-                                Trading Volume
-                              </span>
-                              <div className="relative group">
-                                <button
-                                  onClick={() =>
-                                    isTouchDevice &&
-                                    setShowInfoTooltip(!showInfoTooltip)
-                                  }
-                                  onMouseEnter={() =>
-                                    !isTouchDevice && setShowInfoTooltip(true)
-                                  }
-                                  onMouseLeave={() =>
-                                    !isTouchDevice && setShowInfoTooltip(false)
-                                  }
-                                  className="p-1 text-gray-400 group-hover:text-white transition-colors"
-                                  aria-label="Trading volume information"
-                                >
-                                  <Info size={16} />
-                                </button>
-                                {showInfoTooltip && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    className="absolute top-full mt-2 left-0 z-50 w-48 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md"
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`relative max-w-[calc(100%-3.25rem)] sm:max-w-[80%] ${
+                          msg.isUser
+                            ? "rounded-[20px] bg-[#78b6ff] px-4 py-3 text-[#081019] sm:rounded-[22px] sm:px-5 overflow-hidden wrap-break-word"
+                            : msg.text === "Trading Volume"
+                              ? "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 p-4 text-white backdrop-blur-xl sm:rounded-[24px]"
+                              : "rounded-[20px] border border-white/[0.06] bg-[#14181f]/92 px-4 py-4 text-white backdrop-blur-xl sm:rounded-[24px] sm:px-5"
+                        } ${msg.error ? "pr-10 sm:pr-11" : ""}`}
+                      >
+                        {msg.error && (
+                          <button
+                            type="button"
+                            onClick={() => dismissMessage(msg.id)}
+                            className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                            aria-label="Dismiss chat error"
+                            title={msg.error}
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+
+                        {msg.text === "Trading Volume" ? (
+                          <div>
+                            <div className="mb-4 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">
+                                  Trading Volume
+                                </span>
+                                <div className="relative group">
+                                  <button
+                                    onClick={() =>
+                                      isTouchDevice &&
+                                      setShowInfoTooltip(!showInfoTooltip)
+                                    }
+                                    onMouseEnter={() =>
+                                      !isTouchDevice &&
+                                      setShowInfoTooltip(true)
+                                    }
+                                    onMouseLeave={() =>
+                                      !isTouchDevice &&
+                                      setShowInfoTooltip(false)
+                                    }
+                                    className="p-1 text-gray-400 group-hover:text-white transition-colors"
+                                    aria-label="Trading volume information"
                                   >
-                                    Your total trading volume across 24H, 7D,
-                                    30D, or all-time periods.
-                                  </motion.div>
-                                )}
+                                    <Info size={16} />
+                                  </button>
+                                  {showInfoTooltip && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -10 }}
+                                      className="absolute top-full mt-2 left-0 z-50 w-48 rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md"
+                                    >
+                                      Your total trading volume across 24H, 7D,
+                                      30D, or all-time periods.
+                                    </motion.div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                {["24H", "7D", "30D", "ALL"].map((tf, idx) => (
+                                  <button
+                                    key={tf}
+                                    className={`rounded-lg px-3 py-1 text-xs ${
+                                      idx === 1
+                                        ? "bg-[#7BB8FF] text-[#081019]"
+                                        : "text-gray-400"
+                                    }`}
+                                  >
+                                    {tf}
+                                  </button>
+                                ))}
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              {["24H", "7D", "30D", "ALL"].map((tf, idx) => (
-                                <button
-                                  key={tf}
-                                  className={`rounded-lg px-3 py-1 text-xs ${
-                                    idx === 1
-                                      ? "bg-[#7BB8FF] text-[#081019]"
-                                      : "text-gray-400"
-                                  }`}
-                                >
-                                  {tf}
-                                </button>
-                              ))}
+                            <div className="mb-1 text-2xl font-bold">
+                              $44,238 USD
+                            </div>
+                            <div className="mb-4 text-sm text-gray-400">
+                              Jan, 2026 8:00 AM
+                            </div>
+                            <div className="relative h-32">
+                              <svg
+                                className="h-full w-full"
+                                viewBox="0 0 400 100"
+                              >
+                                <polyline
+                                  points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
+                                  fill="none"
+                                  stroke="#7bb8ff"
+                                  strokeWidth="2"
+                                />
+                              </svg>
                             </div>
                           </div>
-                          <div className="mb-1 text-2xl font-bold">
-                            $44,238 USD
-                          </div>
-                          <div className="mb-4 text-sm text-gray-400">
-                            Jan, 2026 8:00 AM
-                          </div>
-                          <div className="relative h-32">
-                            <svg
-                              className="h-full w-full"
-                              viewBox="0 0 400 100"
-                            >
-                              <polyline
-                                points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
-                                fill="none"
-                                stroke="#7bb8ff"
-                                strokeWidth="2"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      ) : (
-                        <p
-                          className={`text-sm leading-6 sm:leading-7 wrap-break-word ${
-                            msg.isUser ? "" : "whitespace-pre-wrap"
-                          }`}
-                        >
-                          {msg.text}
-                        </p>
-                      )}
-                    </motion.div>
-
-                    {msg.isUser && (
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.08] bg-[#2a313d]">
-                        {profilePictureUrl && !profileImageError ? (
-                          <Image
-                            src={profilePictureUrl}
-                            alt="User avatar"
-                            width={40}
-                            height={40}
-                            className="h-full w-full object-cover"
-                            onError={() => {
-                              console.error(
-                                "Failed to load profile image:",
-                                profilePictureUrl,
-                              );
-                              setProfileImageError(true);
-                            }}
-                            unoptimized={true}
-                          />
                         ) : (
-                          <span className="text-sm font-semibold text-white">
-                            {user?.wallet?.address
-                              ?.substring(0, 1)
-                              .toUpperCase() || "U"}
-                          </span>
+                          <p
+                            className={`text-sm leading-6 sm:leading-7 wrap-break-word ${
+                              msg.isUser ? "" : "whitespace-pre-wrap"
+                            }`}
+                          >
+                            {msg.text}
+                          </p>
                         )}
-                      </div>
-                    )}
-                  </div>
+                      </motion.div>
+
+                      {msg.isUser && (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.08] bg-[#2a313d]">
+                          {profilePictureUrl && !profileImageError ? (
+                            <Image
+                              src={profilePictureUrl}
+                              alt="User avatar"
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                              onError={() => {
+                                console.error(
+                                  "Failed to load profile image:",
+                                  profilePictureUrl,
+                                );
+                                setProfileImageError(true);
+                              }}
+                              unoptimized={true}
+                            />
+                          ) : (
+                            <span className="text-sm font-semibold text-white">
+                              {user?.wallet?.address
+                                ?.substring(0, 1)
+                                .toUpperCase() || "U"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Fragment>
                 ))}
-
-                {showSwapConfirmation && (
-                  <div className="flex justify-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
-                      <Image
-                        src={chatLogo}
-                        alt="Tower logo"
-                        width={28}
-                        height={28}
-                        className="object-contain"
-                      />
-                    </div>
-                    <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
-                      <TransactionConfirmation
-                        status={swapExecution.status}
-                        statusMessage={swapExecution.statusMessage}
-                        transactionHash={swapExecution.transactionHash}
-                        blockNumber={swapExecution.blockNumber}
-                        error={swapExecution.error}
-                        onClose={() => {
-                          setShowSwapConfirmation(false);
-                          swapExecution.resetState();
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {showBridgeConfirmation && (
-                  <div className="flex justify-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-[#10141b]">
-                      <Image
-                        src={chatLogo}
-                        alt="Tower logo"
-                        width={28}
-                        height={28}
-                        className="object-contain"
-                      />
-                    </div>
-                    <div className="w-full max-w-[calc(100%-3.25rem)] sm:max-w-[28rem]">
-                      <TransactionConfirmation
-                        status={bridgeConfirmationStatus}
-                        statusMessage={bridgeStatusMessage}
-                        transactionHash={bridgeHook.transactionHash}
-                        error={bridgeHook.error}
-                        title={bridgeConfirmationTitle}
-                        explorerUrl={bridgeExplorerUrl}
-                        onClose={() => {
-                          setShowBridgeConfirmation(false);
-                          setActiveBridgeRequest(null);
-                          bridgeHook.resetBridgeState();
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                {renderConfirmationRowsAtIndex(messages.length)}
 
                 {isLoading && (
                   <div className="flex justify-start gap-3">
