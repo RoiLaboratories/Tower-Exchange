@@ -19,19 +19,6 @@ const SUPPORTED_SWAP_ERC20_TOKENS = {
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
 };
 
-const TOKEN_DECIMALS: Record<string, number> = {
-  USDC: 18,
-  EURC: 6,
-  USDT: 18,
-  cirBTC: 8,
-};
-
-const RPC_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
-
-const formatBigIntUnits = (value: bigint, decimals: number): number => {
-  return Number(value) / Math.pow(10, decimals);
-};
-
 export const useWalletHoldings = (walletAddress: string | null) => {
   const [holdings, setHoldings] = useState<WalletHolding[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,65 +34,50 @@ export const useWalletHoldings = (walletAddress: string | null) => {
       setLoading(true);
       setError(null);
       try {
-        // Helper function to make JSON-RPC calls
-        const jsonRpcCall = async (method: string, params: unknown[]) => {
-          const response = await fetch(RPC_URL, {
+        const fetchBalance = async ({
+          tokenAddress,
+          balanceType,
+        }: {
+          tokenAddress?: string;
+          balanceType?: "native";
+        }) => {
+          const response = await fetch("/api/wallet/balance", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              jsonrpc: "2.0",
-              method,
-              params,
-              id: 1,
+              address: walletAddress,
+              chainId: String(ARC_TESTNET_CONFIG.chainId),
+              rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
+              tokenAddress,
+              balanceType,
             }),
           });
-          const data = await response.json();
-          if (data.error) {
-            throw new Error(data.error.message);
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch wallet balance.");
           }
-          return data.result;
+
+          const data = (await response.json()) as {
+            balance?: string;
+            error?: string;
+          };
+
+          const parsedBalance = Number.parseFloat(data.balance ?? "0");
+          return Number.isFinite(parsedBalance) ? parsedBalance : 0;
         };
 
-        // Fetch native balance (USDC on Arc)
-        const nativeBalance = await jsonRpcCall("eth_getBalance", [
-          walletAddress,
-          "latest",
-        ]);
-        const nativeBalanceFormatted = formatBigIntUnits(
-          BigInt(nativeBalance || "0x0"),
-          TOKEN_DECIMALS.USDC
-        );
+        const nativeBalanceFormatted = await fetchBalance({
+          balanceType: "native",
+        });
 
-        // Fetch token balances using eth_call to balanceOf function
         const tokenPromises = Object.entries(SUPPORTED_SWAP_ERC20_TOKENS).map(
           async ([tokenName, tokenAddress]) => {
             try {
-              // Encode balanceOf function call
-              // balanceOf(address) = 0x70a08231 + padded address
-              const data =
-                "0x70a08231" +
-                walletAddress.slice(2).padStart(64, "0");
-
-              const result = await jsonRpcCall("eth_call", [
-                {
-                  to: tokenAddress,
-                  data,
-                },
-                "latest",
-              ]);
-
-              // Handle empty result
-              if (!result || result === "0x") {
-                console.log(`No balance found for ${tokenName}`);
-                return { tokenName, balance: 0n };
-              }
-
-              const balance = BigInt(result);
-              console.log(`${tokenName} balance (raw): ${balance.toString()}`);
+              const balance = await fetchBalance({ tokenAddress });
               return { tokenName, balance };
             } catch (err) {
               console.error(`Error fetching ${tokenName} balance:`, err);
-              return { tokenName, balance: 0n };
+              return { tokenName, balance: 0 };
             }
           }
         );
@@ -149,15 +121,12 @@ export const useWalletHoldings = (walletAddress: string | null) => {
 
         // Add ERC20 tokens
         tokenBalances.forEach(({ tokenName, balance }) => {
-          if (balance > 0n) {
-            const formattedBalance = formatBigIntUnits(
-              balance,
-              TOKEN_DECIMALS[tokenName] ?? 18
-            );
-            
+          if (balance > 0) {
+            const formattedBalance = balance;
+
             // Skip if balance is too small (dust)
             if (formattedBalance < 0.000001) return;
-            
+
             const price = priceMap[tokenName] || 0;
             const value = formattedBalance * price;
 

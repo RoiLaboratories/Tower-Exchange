@@ -5,8 +5,8 @@ import {
   gateWallet,
   injectedWallet,
   metaMaskWallet,
+  rabbyWallet,
   safeWallet,
-  trustWallet,
   walletConnectWallet,
 } from "@rainbow-me/rainbowkit/wallets";
 import { createConfig, http } from "wagmi";
@@ -160,18 +160,11 @@ const connectors = walletConnectProjectId
       [
         {
           groupName: "Default",
-          wallets: [
-            gateWallet,
-          ],
+          wallets: [gateWallet],
         },
-
         {
           groupName: "Recommended",
-          wallets: [
-            metaMaskWallet,
-            bitgetWallet,
-            coinbaseWallet,
-          ],
+          wallets: [metaMaskWallet, rabbyWallet, bitgetWallet, coinbaseWallet],
         },
         {
           groupName: "Other wallets",
@@ -191,6 +184,7 @@ const connectors = walletConnectProjectId
 export const wagmiConfig = createConfig({
   chains: supportedChains,
   connectors,
+  multiInjectedProviderDiscovery: false,
   transports: {
     [ethereumMainnet.id]: http(rpcProxyUrl(ethereumMainnet.id)),
     [polygon.id]: http(rpcProxyUrl(polygon.id)),

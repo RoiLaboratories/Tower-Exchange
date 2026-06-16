@@ -5,8 +5,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import badgeClaimedImage from "@/public/assets/badge claimed image.svg";
-import badgeUnclaimedImage from "@/public/assets/badge unclaimed image.svg";
+import badgeClaimedImage from "@/public/assets/Squire 2.svg";
+import badgeUnclaimedImage from "@/public/assets/Dull 2.svg";
 import starIcon from "@/public/assets/Star icon.svg";
 import {
   claimSquireBadge,
