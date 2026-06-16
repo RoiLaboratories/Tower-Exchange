@@ -11,7 +11,7 @@ import { ARC_ADD_NETWORK_PARAMS, ARC_CHAIN_HEX } from "@/lib/arcNetwork";
 import { uploadProfilePicture, saveProfileData, loadProfileData } from "@/lib/profileService";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
-import badgeClaimedImage from "@/public/assets/badge claimed image.svg";
+import badgeClaimedImage from "@/public/assets/Squire 2.svg";
 import {
   fetchSquireBadgeStatus,
   type SquireBadgeStatus,

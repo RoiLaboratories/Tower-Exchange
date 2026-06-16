@@ -986,7 +986,6 @@ export const AIChat = () => {
           }
         }
       }
-
       // Save chat to Supabase
       const savedChatMessage = await saveChatMessageToHistory(
         walletAddress,
@@ -1022,6 +1021,7 @@ export const AIChat = () => {
         saveSessions(walletAddress, updatedSessions);
         return updatedSessions;
       });
+
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to get response";
@@ -1666,3 +1666,4 @@ export const AIChat = () => {
     </div>
   );
 };
+
