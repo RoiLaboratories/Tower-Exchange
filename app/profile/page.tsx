@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,7 +36,7 @@ const profileTabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "badges", label: "Badges" },
 ];
 
-const Profile = () => {
+const ProfileContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ProfileTab>("positions");
@@ -386,4 +386,21 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+const ProfileLoadingFallback = () => (
+  <div className="min-h-screen text-white">
+    <TokenTicker />
+    <main className="mx-auto max-w-7xl px-6 py-12">
+      <div className="mb-12 h-52 animate-pulse rounded-3xl bg-white/[0.04]" />
+      <div className="mb-8 h-16 w-fit animate-pulse rounded-xl bg-white/[0.04] px-40" />
+      <div className="h-[24rem] animate-pulse rounded-3xl bg-white/[0.04]" />
+    </main>
+  </div>
+);
+
+export default function Profile() {
+  return (
+    <Suspense fallback={<ProfileLoadingFallback />}>
+      <ProfileContent />
+    </Suspense>
+  );
+}
