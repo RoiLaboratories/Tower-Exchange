@@ -329,6 +329,7 @@ export const AIChat = () => {
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Load sessions from localStorage
   const loadSessions = (walletAddress: string): ChatSession[] => {
@@ -1063,13 +1064,27 @@ export const AIChat = () => {
     bridgeHook.resetBridgeState();
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage(message);
       setActivePrompt(null);
     }
   };
+
+  useEffect(() => {
+    const textarea = messageInputRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+    const maxHeight = 144;
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 32), maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [message]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
@@ -1632,32 +1647,35 @@ export const AIChat = () => {
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask Tower anything..."
-                  className="tower-chat-input h-8 w-full appearance-none border-0 bg-transparent pr-12 text-[0.88rem] text-white outline-none ring-0 placeholder:text-[#6d7380] focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                  style={{
-                    outline: "none",
-                    boxShadow: "none",
-                    borderRadius: 0,
-                    caretColor: "#ffffff",
-                    WebkitAppearance: "none",
-                    appearance: "none",
-                    WebkitTapHighlightColor: "transparent",
-                  }}
-                />
-                <motion.button
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => handleSendMessage(message)}
-                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black sm:right-2.5"
-                  aria-label="Send message"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </motion.button>
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={messageInputRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    placeholder="Ask Tower anything..."
+                    rows={1}
+                    className="tower-chat-input min-h-[32px] flex-1 resize-none appearance-none border-0 bg-transparent py-1 text-[0.88rem] leading-5 text-white outline-none ring-0 placeholder:text-[#6d7380] focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                    style={{
+                      outline: "none",
+                      boxShadow: "none",
+                      borderRadius: 0,
+                      caretColor: "#ffffff",
+                      WebkitAppearance: "none",
+                      appearance: "none",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => handleSendMessage(message)}
+                    className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black"
+                    aria-label="Send message"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </motion.button>
+                </div>
               </div>
             </div>
           </div>
