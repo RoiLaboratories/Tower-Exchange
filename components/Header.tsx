@@ -183,7 +183,7 @@ const Header = () => {
           </motion.div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden min-[1200px]:flex items-center gap-1">
             {navItems.map((item, index) => (
               <div key={item.name}>
                 {item.dropdown ? (
@@ -300,7 +300,7 @@ const Header = () => {
           >
             <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
               <Image
-                src="/assets/arclogo.svg"
+                src="/assets/ARCSvg.svg"
                 alt="Arc"
                 width={40}
                 height={40}
@@ -319,13 +319,13 @@ const Header = () => {
               onClick={() => setArcDropdownOpen(!arcDropdownOpen)}
             >
               <div className="w-5 h-5 rounded-full bg-primary/30 flex items-center justify-center">
-                <Image
-                  src="/assets/arclogo.svg"
-                  alt="Arc"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+                  <Image
+                    src="/assets/ARCSvg.svg"
+                    alt="Arc"
+                    width={40}
+                    height={40}
+                    className="object-contain"
+                  />
               </div>
               <span className="text-sm font-medium text-white">Arc</span>
               <ChevronDown
@@ -386,7 +386,7 @@ const Header = () => {
 
           {/* Mobile Menu Button */}
           <motion.button
-            className="lg:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
+            className="min-[1200px]:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
             whileTap={{ scale: 0.9 }}
             onClick={() =>
               setMobileMenuOpen((open) => {
@@ -420,7 +420,7 @@ const Header = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+              className="fixed inset-0 z-[60] bg-black/50 min-[1200px]:hidden"
               onClick={closeMobileMenu}
             />
 
@@ -429,7 +429,7 @@ const Header = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ duration: 0.28, ease: "easeOut" }}
-              className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-xs flex-col border-l border-border bg-card px-4 pb-6 pt-20 shadow-2xl lg:hidden"
+              className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-xs flex-col border-l border-border bg-card px-4 pb-6 pt-20 shadow-2xl min-[1200px]:hidden"
             >
               <div className="mb-5 flex items-center justify-between">
                 <span className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">

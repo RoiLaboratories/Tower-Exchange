@@ -61,7 +61,7 @@ export const FrequencyField = ({
 
   return (
     <div className="min-w-0">
-      <div className="mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
+      <div className="relative mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
         <span className="shrink-0 whitespace-nowrap text-sm font-medium leading-5 text-white">
           {label}
         </span>
@@ -71,7 +71,7 @@ export const FrequencyField = ({
           </span>
         )}
         {showInfo && (
-          <div className="relative group flex shrink-0 items-center">
+          <div className="group flex shrink-0 items-center">
             <button
               data-freq-info-button
               onClick={() => isTouchDevice && setShowTooltip(!showTooltip)}
@@ -88,11 +88,11 @@ export const FrequencyField = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 className={`absolute top-full mt-1 z-50 w-56 max-w-[calc(100vw-2rem)] rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${
-                  tooltipDirection === 'left' 
-                    ? 'left-0' 
-                    : tooltipDirection === 'right' 
-                    ? 'right-0' 
-                    : 'right-0'
+                  tooltipDirection === 'left'
+                    ? 'left-0'
+                    : tooltipDirection === 'right'
+                    ? 'right-0'
+                    : 'left-0 sm:right-0 sm:left-auto'
                 }`}
               >
                 {infoMessage}

@@ -15,7 +15,7 @@ import {
 import { supabase, type ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { getChainLogoByName } from "@/lib/chains";
-import arcLogo from "@/public/assets/arclogo.svg";
+import arcLogo from "@/public/assets/ARCSvg.svg";
 import TransactionInfoModal from "@/components/TransactionInfoModal";
 import {
   buildTransactionInfoDetails,

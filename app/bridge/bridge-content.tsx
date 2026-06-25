@@ -30,7 +30,7 @@ import TransactionStepsModal, {
 } from "@/components/TransactionStepsModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
-import arcTestnetLogo from "@/public/assets/arclogo.svg";
+import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
@@ -879,7 +879,7 @@ export default function BridgePageContent({
       <div className="flex w-full items-start justify-center">
         <div className="w-full max-w-md shrink-0">
           <motion.div
-            className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 flex flex-col"
+            className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-6 flex flex-col"
             whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -940,7 +940,7 @@ export default function BridgePageContent({
                     setToAmount("0.00");
                   }}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 180 }}
+                  whileHover={{ scale: 1.1 }}
                   transition={{ duration: 0.5 }}
                 >
                   <RefreshCw className="w-5 h-5 text-white" />
@@ -949,7 +949,7 @@ export default function BridgePageContent({
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                 >
                   <Settings className="w-5 h-5 text-white" />
