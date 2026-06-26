@@ -303,10 +303,7 @@ const Activities = ({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05, duration: 0.3 }}
-                    whileHover={{
-                      backgroundColor: "rgba(39, 39, 42, 0.3)",
-                    }}
-                    className="transition-colors"
+                    className="transition-colors hover:bg-zinc-800/30"
                     style={{
                       borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
                     }}
