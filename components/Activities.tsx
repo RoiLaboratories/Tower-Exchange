@@ -8,7 +8,7 @@ import { supabase, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
 import { getChainLogoByName } from "@/lib/chains";
-import arcLogo from "@/public/assets/arclogo.svg";
+import arcLogo from "@/public/assets/ARCSvg.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import TransactionInfoModal from "@/components/TransactionInfoModal";
 import {
@@ -304,7 +304,7 @@ const Activities = ({
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05, duration: 0.3 }}
                     whileHover={{
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                      backgroundColor: "rgba(39, 39, 42, 0.3)",
                     }}
                     className="transition-colors"
                     style={{

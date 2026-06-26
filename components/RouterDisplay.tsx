@@ -177,7 +177,7 @@ export default function RouterDisplay({
           </span>
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info
-              className="h-3.5 w-3.5 text-white/70"
+              className="h-3.5 w-3.5 text-white/70 outline-none"
               tabIndex={0}
               aria-describedby="router-quotes-info"
             />
@@ -207,7 +207,7 @@ export default function RouterDisplay({
               role="listitem"
               className={`flex h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left transition-colors ${
                 isSelected
-                  ? "border border-[#35404a] bg-[#161a20]"
+                  ? "border border-[#687d90] bg-[#161a20]"
                   : "border border-transparent"
               }`}
             >

@@ -54,7 +54,7 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
-import arcTestnetLogo from "@/public/assets/arclogo.svg";
+import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;
@@ -2246,7 +2246,7 @@ const SwapCard = ({
 
       <div className="w-full max-w-md shrink-0">
         <motion.div
-          className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 min-h-[520px] flex flex-col"
+          className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-6 flex flex-col"
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
           <div className="mb-4 flex items-center justify-between">
@@ -2303,7 +2303,7 @@ const SwapCard = ({
               <motion.button
                 onClick={() => setIsChartOpen(!isChartOpen)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
                 <BarChart3 className="w-5 h-5 text-white" />
@@ -2311,7 +2311,7 @@ const SwapCard = ({
               <motion.button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
                 <Settings className="w-5 h-5 text-white" />

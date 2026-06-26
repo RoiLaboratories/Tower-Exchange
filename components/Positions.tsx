@@ -150,7 +150,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                             duration: 0.3,
                           }}
                           whileHover={{
-                            backgroundColor: "rgba(255, 255, 255, 0.05)",
+                            backgroundColor: "rgba(39, 39, 42, 0.3)",
                           }}
                           className="transition-colors"
                           style={{

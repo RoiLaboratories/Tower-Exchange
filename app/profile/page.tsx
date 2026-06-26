@@ -49,6 +49,7 @@ const ProfileContent = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [squireBadgeStatus, setSquireBadgeStatus] =
     useState<SquireBadgeStatus | null>(null);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestedTab = searchParams.get("tab");
   const requestedBadgeId = searchParams.get("badge");
@@ -299,9 +300,18 @@ const ProfileContent = () => {
                   {authenticated ? "Connected" : "Not Connected"}
                 </p>
                 {displayAddress && (
-                  <span className="text-xs text-gray-400 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                    {displayAddress}
-                  </span>
+                  <button
+                    onClick={() => {
+                      if (user?.wallet?.address) {
+                        navigator.clipboard.writeText(user.wallet.address);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      }
+                    }}
+                    className="text-xs text-gray-400 px-2 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white active:scale-95 transition-all cursor-pointer outline-none"
+                  >
+                    {copied ? "Copied!" : displayAddress}
+                  </button>
                 )}
               </div>
 

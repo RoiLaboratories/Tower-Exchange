@@ -246,7 +246,7 @@ export const TransactionStepsModal = ({
                       <div key={step.id} className="relative flex items-center gap-3">
                         {index < steps.length - 1 ? (
                           <span
-                            className={`absolute left-3 top-6 h-7 w-px ${
+                            className={`absolute left-3 top-6 h-5 w-px ${
                               lineIsBright ? "bg-primary/70" : "bg-white/22"
                             }`}
                           />
