@@ -5,7 +5,7 @@ import { FaTelegram, FaDiscord } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
-const ANALYTICS_URL = "https://dune.com/towerexchange/tower-exchange-overview"; // Replace with your analytics URL
+const ANALYTICS_URL = "https://datastudio.google.com/u/0/reporting/214111bd-319c-42bd-ac20-89901390632b/page/1nmzF?s=tdNDN-9qBXQ"; // Replace with your analytics URL
 const DOCS_URL = "https://tower-exchange.gitbook.io/tower"; // Replace with your docs URL
 const TERMS_URL = "#"; // Replace with your terms URL
 

@@ -2295,7 +2295,7 @@ const SwapCard = ({
                   <Clock className="h-5 w-5 text-white" />
                 </motion.span>
                 {shouldShowSwapPendingIndicator ? (
-                  <span className="text-xs font-medium text-primary">
+                  <span className="text-xs font-medium text-gray-300">
                     Pending
                   </span>
                 ) : null}
@@ -2311,7 +2311,7 @@ const SwapCard = ({
               <motion.button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
               >
                 <Settings className="w-5 h-5 text-white" />

@@ -810,6 +810,7 @@ export default function BridgePageContent({
   const shouldShowBridgePendingIndicator =
     !bridgeStepsModalOpen &&
     (bridgeHook.isBridging || bridgeHook.status === "pending");
+  // const shouldShowBridgePendingIndicator = true;
   const bridgeLiveActivityItems: ActivityTabLiveItem[] = bridgeHook.isBridging
     ? [
         {
@@ -928,7 +929,7 @@ export default function BridgePageContent({
                     <Clock className="h-5 w-5 text-white" />
                   </motion.span>
                   {shouldShowBridgePendingIndicator ? (
-                    <span className="text-xs font-medium text-primary">
+                    <span className="text-xs font-medium text-gray-300">
                       Pending
                     </span>
                   ) : null}
@@ -940,7 +941,7 @@ export default function BridgePageContent({
                     setToAmount("0.00");
                   }}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1 }}
+                  whileHover={{ scale: 1.1, rotate: 90  }}
                   transition={{ duration: 0.5 }}
                 >
                   <RefreshCw className="w-5 h-5 text-white" />
@@ -949,7 +950,7 @@ export default function BridgePageContent({
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1 }}
+                  whileHover={{ scale: 1.1, rotate: 90  }}
                   whileTap={{ scale: 0.9 }}
                 >
                   <Settings className="w-5 h-5 text-white" />
