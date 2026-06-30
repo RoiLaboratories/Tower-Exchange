@@ -911,7 +911,7 @@ export default function BridgePageContent({
                   type="button"
                   aria-label="Open activity tab"
                   onClick={() => setIsActivityOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer ml-1"
                   variants={{
                     hover: { scale: 1.1 },
                     tap: { scale: 0.9 },
@@ -929,7 +929,7 @@ export default function BridgePageContent({
                     <Clock className="h-5 w-5 text-white" />
                   </motion.span>
                   {shouldShowBridgePendingIndicator ? (
-                    <span className="text-xs font-medium text-gray-300">
+                    <span className="text-xs font-medium text-gray-300 hidden min-[390px]:inline">
                       Pending
                     </span>
                   ) : null}
@@ -942,7 +942,7 @@ export default function BridgePageContent({
                   }}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
                   whileHover={{ scale: 1.1, rotate: 90  }}
-                  transition={{ duration: 0.5 }}
+                  // transition={{ duration: 0.5 }}
                 >
                   <RefreshCw className="w-5 h-5 text-white" />
                 </motion.button>
@@ -957,6 +957,8 @@ export default function BridgePageContent({
                 </motion.button>
               </div>
             </div>
+
+            {/* Bridge From */}
             <div className="bg-[#151617] rounded-xl p-4 mb-2">
               <div className="flex items-center justify-between mb-2 ">
                 <span className="text-sm text-muted-foreground">
@@ -995,7 +997,7 @@ export default function BridgePageContent({
                     current.set("side", "from");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -1055,6 +1057,7 @@ export default function BridgePageContent({
             </div>
 
             {/* ── Bridge To — mirrors SwapCard "Receive" section ── */}
+            {/* Bridge To */}
             <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Bridge to</span>
@@ -1078,7 +1081,7 @@ export default function BridgePageContent({
                     current.set("side", "to");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -1387,7 +1390,7 @@ export default function BridgePageContent({
                   )}
                   <div
                     className={
-                      bridgeTransactionUrl ? "grid grid-cols-2 gap-3" : ""
+                      bridgeTransactionUrl ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""
                     }
                   >
                     {bridgeTransactionUrl ? (

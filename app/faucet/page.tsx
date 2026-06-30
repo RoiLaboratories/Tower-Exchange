@@ -6,8 +6,8 @@ import { ExternalLink } from "lucide-react";
 
 const faucetCards = [
   {
-    title: "USDC/EURC",
-    description: "Get testnet USDC and EURC tokens",
+    title: "USDC/EURC/cirBTC",
+    description: "Get testnet USDC, EURC and cirBTC tokens",
     icon: (
       <div className="flex items-center justify-center w-12 h-12">
         <Image
@@ -22,7 +22,7 @@ const faucetCards = [
     panel: {
       title: "Circle Faucet",
       description:
-        "Official Circle faucet for USDC and EURC testnet tokens",
+        "Official Circle faucet for USDC, EURC and cirBTC testnet tokens",
       href: "https://faucet.circle.com/",
     },
   },
