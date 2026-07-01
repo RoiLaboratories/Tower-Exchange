@@ -6,6 +6,7 @@ import { Info } from "lucide-react";
 
 import quotesIcon from "@/public/assets/quotes icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
+import towerLogo from "@/public/assets/Tower Logo.svg";
 import unitflowLogo from "@/public/assets/unitflow.svg";
 import xylonetLogo from "@/public/assets/xylonetlogo.svg";
 
@@ -24,7 +25,7 @@ interface RouterDisplayProps {
 }
 
 type SupportedRouter = {
-  id: "xylonet-adapter" | "synthra" | "unitflow";
+  id: "xylonet-adapter" | "synthra" | "unitflow" | "tower-dex";
   aliases: string[];
   name: string;
   logo: StaticImageData | string;
@@ -48,6 +49,12 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
     aliases: ["unitflow", "unitflow-v3", "unitflow-finance"],
     name: "UnitFlow",
     logo: unitflowLogo,
+  },
+  {
+    id: "tower-dex",
+    aliases: ["tower-dex", "tower-amm", "tower"],
+    name: "Tower",
+    logo: towerLogo,
   },
 ];
 
