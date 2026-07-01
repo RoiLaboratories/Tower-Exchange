@@ -18,7 +18,7 @@ import {
 } from "@/lib/activityDetails";
 import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
 import usdcLogo from "@/public/assets/usdc.svg";
-import arcTestnetLogo from "@/public/assets/arclogo.svg";
+import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 import routeIcon from "@/public/assets/route icon.svg";
 import transferTimeIcon from "@/public/assets/transfertime icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
@@ -203,7 +203,7 @@ const AddAssetButton = ({
     <span className="relative inline-flex h-5 w-5 items-center justify-center">
       <SmallAsset icon={primaryIcon} />
       {badgeIcon ? (
-        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#191A1C] bg-[#191A1C]">
+        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#fff] bg-[#191A1C]">
           <Image
             src={badgeIcon}
             alt=""

@@ -54,7 +54,7 @@ import {
   getBrowserWalletProvider,
   type BrowserWalletTransactionReceipt,
 } from "@/lib/browser-wallet";
-import arcTestnetLogo from "@/public/assets/arclogo.svg";
+import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
 const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;
@@ -313,7 +313,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
     return (
       <motion.button
         onClick={onOpenModal}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
@@ -326,7 +326,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   return (
     <motion.button
       onClick={onOpenModal}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
@@ -358,9 +358,7 @@ const SwapCard = ({
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
-  const [isWalletConnected, setIsWalletConnected] = useState(
-    Boolean(authenticated && user),
-  );
+  const isWalletConnected = Boolean(authenticated && user);
   const [, setChainId] = useState<string | null>(null);
   const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(
     undefined,
@@ -793,10 +791,8 @@ const SwapCard = ({
   // Sync wallet connection state with the active browser wallet
   useEffect(() => {
     if (authenticated && user) {
-      setIsWalletConnected(true);
       fetchUserBalances();
     } else {
-      setIsWalletConnected(false);
       setTokenBalances(getEmptySwapTokenBalances());
     }
   }, [authenticated, user, fetchUserBalances]);
@@ -1057,7 +1053,6 @@ const SwapCard = ({
   // Handle wallet connection
   const handleConnectWallet = async () => {
     if (authenticated) {
-      setIsWalletConnected(true);
       setSwapState("idle");
       return;
     }
@@ -1066,7 +1061,6 @@ const SwapCard = ({
       setSwapState("loading");
       // Trigger the RainbowKit wallet modal
       await login();
-      setIsWalletConnected(true);
       setSwapState("idle");
     } catch (error) {
       console.error("Wallet connection failed:", error);
@@ -2246,7 +2240,7 @@ const SwapCard = ({
 
       <div className="w-full max-w-md shrink-0">
         <motion.div
-          className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 min-h-[520px] flex flex-col"
+          className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-6 flex flex-col"
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
           <div className="mb-4 flex items-center justify-between">
@@ -2277,7 +2271,7 @@ const SwapCard = ({
                 type="button"
                 aria-label="Open activity tab"
                 onClick={() => setIsActivityOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer"
                 variants={{
                   hover: { scale: 1.1 },
                   tap: { scale: 0.9 },
@@ -2295,7 +2289,7 @@ const SwapCard = ({
                   <Clock className="h-5 w-5 text-white" />
                 </motion.span>
                 {shouldShowSwapPendingIndicator ? (
-                  <span className="text-xs font-medium text-primary">
+                  <span className="text-xs font-medium text-gray-300">
                     Pending
                   </span>
                 ) : null}
@@ -2303,7 +2297,7 @@ const SwapCard = ({
               <motion.button
                 onClick={() => setIsChartOpen(!isChartOpen)}
                 className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
                 <BarChart3 className="w-5 h-5 text-white" />

@@ -15,7 +15,7 @@ import {
 import { supabase, type ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { getChainLogoByName } from "@/lib/chains";
-import arcLogo from "@/public/assets/arclogo.svg";
+import arcLogo from "@/public/assets/ARCSvg.svg";
 import TransactionInfoModal from "@/components/TransactionInfoModal";
 import {
   buildTransactionInfoDetails,
@@ -260,11 +260,11 @@ const ActivityCard = ({
           {item.kind === "bridge" ? (
             <span className="flex shrink-0 items-center -space-x-1.5">
               {item.sourceChainIcon ? (
-                <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191A1C]">
+                <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191a1c]">
                   <IconBubble icon={item.sourceChainIcon} size="sm" />
                 </span>
               ) : null}
-              <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191A1C]">
+              <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191a1c]">
                 <IconBubble
                   icon={item.targetChainIcon || item.sourceChainIcon}
                   size="sm"

@@ -184,7 +184,7 @@ export default function RouterDisplay({
           </span>
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info
-              className="h-3.5 w-3.5 text-white/70"
+              className="h-3.5 w-3.5 text-white/70 outline-none"
               tabIndex={0}
               aria-describedby="router-quotes-info"
             />
@@ -212,10 +212,15 @@ export default function RouterDisplay({
             <motion.div
               key={router.id}
               role="listitem"
-              className={`flex h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left transition-colors ${
+              className={`flex h-11 w-full items-center justify-between gap-3 rounded-sm px-3 text-left transition-colors ${
                 isSelected
-                  ? "border border-[#35404a] bg-[#161a20]"
-                  : "border border-transparent"
+  ? `
+    border border-[#56697c]
+    bg-[#171b22]
+    ring-1 ring-white/[0.04]
+    shadow-[inset_0_1px_0_rgba(255,255,255,.06),inset_0_-1px_0_rgba(0,0,0,.45),0_2px_6px_rgba(0,0,0,.35)]
+  `
+  : "border border-transparent"
               }`}
             >
               <span className="flex min-w-0 items-center gap-2.5">

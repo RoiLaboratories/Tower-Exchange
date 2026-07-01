@@ -47,3 +47,4 @@ next-env.d.ts
 supabase/.temp/invite-codes.generated.json
 supabase/.temp/invite-codes.generated.sql
 supabase/.temp/invite-codes.txt
+/.agents

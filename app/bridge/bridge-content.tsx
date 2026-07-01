@@ -30,7 +30,7 @@ import TransactionStepsModal, {
 } from "@/components/TransactionStepsModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
-import arcTestnetLogo from "@/public/assets/arclogo.svg";
+import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
@@ -39,7 +39,7 @@ import ethereumSepoliaLogo from "@/public/assets/EthLogo.svg";
 import lineaSepoliaLogo from "@/public/assets/Linea-Token_Round.svg";
 import polygonAmoyLogo from "@/public/assets/polygon.svg";
 import sonicTestnetLogo from "@/public/assets/S_token.svg";
-import unichainSepoliaLogo from "@/public/assets/Testnet.svg";
+import unichainSepoliaLogo from "@/public/assets/unichain.svg";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import TokenInput from "@/components/reusable/TokenInput";
 
@@ -810,6 +810,7 @@ export default function BridgePageContent({
   const shouldShowBridgePendingIndicator =
     !bridgeStepsModalOpen &&
     (bridgeHook.isBridging || bridgeHook.status === "pending");
+  // const shouldShowBridgePendingIndicator = true;
   const bridgeLiveActivityItems: ActivityTabLiveItem[] = bridgeHook.isBridging
     ? [
         {
@@ -879,7 +880,7 @@ export default function BridgePageContent({
       <div className="flex w-full items-start justify-center">
         <div className="w-full max-w-md shrink-0">
           <motion.div
-            className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-3 flex flex-col"
+            className="bg-[#191A1C] border border-border rounded-2xl px-6 pt-6 pb-6 flex flex-col"
             whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -910,7 +911,7 @@ export default function BridgePageContent({
                   type="button"
                   aria-label="Open activity tab"
                   onClick={() => setIsActivityOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer ml-1"
                   variants={{
                     hover: { scale: 1.1 },
                     tap: { scale: 0.9 },
@@ -928,7 +929,7 @@ export default function BridgePageContent({
                     <Clock className="h-5 w-5 text-white" />
                   </motion.span>
                   {shouldShowBridgePendingIndicator ? (
-                    <span className="text-xs font-medium text-primary">
+                    <span className="text-xs font-medium text-gray-300 hidden min-[390px]:inline">
                       Pending
                     </span>
                   ) : null}
@@ -940,8 +941,8 @@ export default function BridgePageContent({
                     setToAmount("0.00");
                   }}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 180 }}
-                  transition={{ duration: 0.5 }}
+                  whileHover={{ scale: 1.1, rotate: 90  }}
+                  // transition={{ duration: 0.5 }}
                 >
                   <RefreshCw className="w-5 h-5 text-white" />
                 </motion.button>
@@ -949,13 +950,15 @@ export default function BridgePageContent({
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileHover={{ scale: 1.1, rotate: 90  }}
                   whileTap={{ scale: 0.9 }}
                 >
                   <Settings className="w-5 h-5 text-white" />
                 </motion.button>
               </div>
             </div>
+
+            {/* Bridge From */}
             <div className="bg-[#151617] rounded-xl p-4 mb-2">
               <div className="flex items-center justify-between mb-2 ">
                 <span className="text-sm text-muted-foreground">
@@ -994,7 +997,7 @@ export default function BridgePageContent({
                     current.set("side", "from");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -1054,6 +1057,7 @@ export default function BridgePageContent({
             </div>
 
             {/* ── Bridge To — mirrors SwapCard "Receive" section ── */}
+            {/* Bridge To */}
             <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Bridge to</span>
@@ -1077,7 +1081,7 @@ export default function BridgePageContent({
                     current.set("side", "to");
                     router.push(`/bridge/select?${current.toString()}`);
                   }}
-                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -1386,7 +1390,7 @@ export default function BridgePageContent({
                   )}
                   <div
                     className={
-                      bridgeTransactionUrl ? "grid grid-cols-2 gap-3" : ""
+                      bridgeTransactionUrl ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""
                     }
                   >
                     {bridgeTransactionUrl ? (

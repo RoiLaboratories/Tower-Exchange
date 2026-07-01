@@ -163,12 +163,12 @@ export const TransactionConfirmation: React.FC<
 
           {transactionHash && (
             <div className="mb-3 min-w-0 overflow-hidden rounded bg-black/30 p-2 font-mono text-xs">
-              <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="flex flex-wrap min-w-0 items-center justify-between gap-x-2 gap-y-1">
                 <span className="shrink-0 text-gray-400">TX Hash:</span>
                 <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                   <span className="min-w-0 truncate text-gray-300">
-                    {transactionHash.slice(0, 10)}...
-                    {transactionHash.slice(-10)}
+                    {transactionHash.slice(0, 6)}...
+                    {transactionHash.slice(-6)}
                   </span>
                   <button
                     onClick={handleCopyHash}
