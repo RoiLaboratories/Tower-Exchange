@@ -9,12 +9,12 @@ const faucetCards = [
     title: "USDC/EURC/cirBTC",
     description: "Get testnet USDC, EURC and cirBTC tokens",
     icon: (
-      <div className="flex items-center justify-center w-12 h-12">
+      <div className="flex items-center justify-center w-25 h-12">
         <Image
-          src="/assets/USDC_EURC logo.svg"
+          src="/assets/USDC_EURC_cirBTC.svg"
           alt="USDC EURC"
-          width={48}
-          height={48}
+          width={128}
+          height={128}
           className="object-contain"
         />
       </div>
