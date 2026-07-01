@@ -129,6 +129,7 @@ const Header = () => {
       badge: "soon",
       disabled: true,
     },
+    { name: "Developer", path: "/developer" },
   ];
 
   useEffect(() => {

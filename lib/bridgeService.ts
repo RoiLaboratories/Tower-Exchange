@@ -1,4 +1,3 @@
-"use client";
 
 /**
  * Bridge Service - Arc Network Bridge Integration
