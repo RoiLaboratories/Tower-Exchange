@@ -27,7 +27,10 @@ export interface RecurringOrderExecution {
   recurring_order_id: string;
   wallet_address: string;
   execution_date: string;
-  amount: number;
+  amount: number | string;
+  source_amount_usd?: number | string | null;
+  target_amount?: number | string | null;
+  target_amount_usd?: number | string | null;
   source_token: string;
   target_token: string;
   transaction_hash?: string;
@@ -422,7 +425,12 @@ export const logOrderExecution = async (
   targetToken: string,
   status: "Pending" | "Successful" | "Failed" = "Pending",
   transactionHash?: string,
-  errorMessage?: string
+  errorMessage?: string,
+  executionAmounts?: {
+    sourceAmountUsd?: number | string | null;
+    targetAmount?: number | string | null;
+    targetAmountUsd?: number | string | null;
+  }
 ): Promise<RecurringOrderExecution> => {
   const { data, error } = await supabase
     .from("recurring_order_executions")
@@ -430,6 +438,9 @@ export const logOrderExecution = async (
       recurring_order_id: recurringOrderId,
       wallet_address: walletAddress,
       amount,
+      source_amount_usd: executionAmounts?.sourceAmountUsd ?? null,
+      target_amount: executionAmounts?.targetAmount ?? null,
+      target_amount_usd: executionAmounts?.targetAmountUsd ?? null,
       source_token: sourceToken,
       target_token: targetToken,
       status,

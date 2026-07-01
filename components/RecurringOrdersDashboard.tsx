@@ -208,6 +208,44 @@ export const RecurringOrdersDashboard = () => {
     }
   };
 
+  const formatTokenAmount = (value?: number | string | null) => {
+    if (value == null || value === "") {
+      return "-";
+    }
+
+    const numericValue =
+      typeof value === "number" ? value : Number.parseFloat(String(value));
+
+    if (!Number.isFinite(numericValue)) {
+      return "-";
+    }
+
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 8,
+    }).format(numericValue);
+  };
+
+  const formatUsdAmount = (value?: number | string | null) => {
+    if (value == null || value === "") {
+      return null;
+    }
+
+    const numericValue =
+      typeof value === "number" ? value : Number.parseFloat(String(value));
+
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  };
+
   if (isLoading) {
     return (
       <motion.div
@@ -526,9 +564,18 @@ export const RecurringOrdersDashboard = () => {
                         </div>
 
                         <div className="text-sm text-white mb-2">
-                          {execution.amount} {execution.source_token} →{" "}
-                          {execution.target_token}
+                          {formatTokenAmount(execution.amount)} {execution.source_token} →{" "}
+                          {formatTokenAmount(execution.target_amount)} {execution.target_token}
                         </div>
+
+                        {(execution.source_amount_usd != null ||
+                          execution.target_amount_usd != null) && (
+                          <div className="mb-2 text-xs text-[#7BB8FF]">
+                            {formatUsdAmount(execution.source_amount_usd) ?? "-"}
+                            {" → "}
+                            {formatUsdAmount(execution.target_amount_usd) ?? "-"}
+                          </div>
+                        )}
 
                         {execution.transaction_hash && (
                           <a
