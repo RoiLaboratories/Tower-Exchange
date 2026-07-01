@@ -313,7 +313,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
     return (
       <motion.button
         onClick={onOpenModal}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
@@ -326,7 +326,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   return (
     <motion.button
       onClick={onOpenModal}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
@@ -358,9 +358,7 @@ const SwapCard = ({
   const { getQuote, buildSwapTransaction, error: towerError } = useTowerSwap();
 
   // Wallet and transaction states
-  const [isWalletConnected, setIsWalletConnected] = useState(
-    Boolean(authenticated && user),
-  );
+  const isWalletConnected = Boolean(authenticated && user);
   const [, setChainId] = useState<string | null>(null);
   const [selectedRouterId, setSelectedRouterId] = useState<string | undefined>(
     undefined,
@@ -793,10 +791,8 @@ const SwapCard = ({
   // Sync wallet connection state with the active browser wallet
   useEffect(() => {
     if (authenticated && user) {
-      setIsWalletConnected(true);
       fetchUserBalances();
     } else {
-      setIsWalletConnected(false);
       setTokenBalances(getEmptySwapTokenBalances());
     }
   }, [authenticated, user, fetchUserBalances]);
@@ -1057,7 +1053,6 @@ const SwapCard = ({
   // Handle wallet connection
   const handleConnectWallet = async () => {
     if (authenticated) {
-      setIsWalletConnected(true);
       setSwapState("idle");
       return;
     }
@@ -1066,7 +1061,6 @@ const SwapCard = ({
       setSwapState("loading");
       // Trigger the RainbowKit wallet modal
       await login();
-      setIsWalletConnected(true);
       setSwapState("idle");
     } catch (error) {
       console.error("Wallet connection failed:", error);
@@ -2277,7 +2271,7 @@ const SwapCard = ({
                 type="button"
                 aria-label="Open activity tab"
                 onClick={() => setIsActivityOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg p-2 hover:bg-secondary transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer"
                 variants={{
                   hover: { scale: 1.1 },
                   tap: { scale: 0.9 },
