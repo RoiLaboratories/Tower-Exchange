@@ -203,7 +203,7 @@ const AddAssetButton = ({
     <span className="relative inline-flex h-5 w-5 items-center justify-center">
       <SmallAsset icon={primaryIcon} />
       {badgeIcon ? (
-        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#fff] bg-[#191A1C]">
+        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#252628] bg-[#191A1C]">
           <Image
             src={badgeIcon}
             alt=""

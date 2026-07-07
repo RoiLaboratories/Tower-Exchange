@@ -8,7 +8,7 @@ import ethereumSepoliaLogo from "@/public/assets/EthLogo.svg";
 import lineaSepoliaLogo from "@/public/assets/Linea-Token_Round.svg";
 import polygonAmoyLogo from "@/public/assets/polygon.svg";
 import sonicTestnetLogo from "@/public/assets/S_token.svg";
-import unichainSepoliaLogo from "@/public/assets/Testnet.svg";
+import unichainSepoliaLogo from "@/public/assets/Mainnet.svg";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
 
 export type AppChain = {
