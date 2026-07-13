@@ -7,10 +7,14 @@ import {
   erc20Abi,
   formatUnits,
 } from "viem";
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 
 const ARC_TESTNET_CHAIN_ID = "arc-testnet";
 const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const ARC_NATIVE_USDC_DECIMALS = 18;
+const SOLANA_DEVNET_CHAIN_ID = "solana";
+const SOLANA_DEVNET_RPC_URL = "https://api.devnet.solana.com";
+const SOLANA_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 const RPC_URL_FALLBACKS: Record<string, string[]> = {
   "421614": [
@@ -29,9 +33,7 @@ const getRpcUrlsForChain = (chainId: string, rpcUrl: string) => {
   const configuredFallbacks =
     RPC_URL_FALLBACKS[String(chainId).toLowerCase()] ?? [];
 
-  return Array.from(
-    new Set([...configuredFallbacks, rpcUrl].filter(Boolean)),
-  );
+  return Array.from(new Set([...configuredFallbacks, rpcUrl].filter(Boolean)));
 };
 
 const readWithRpcFallback = async <T,>(
@@ -60,16 +62,81 @@ const readWithRpcFallback = async <T,>(
   throw lastError ?? new Error("No RPC endpoints available");
 };
 
+const isValidSolanaAddress = (address: string) => {
+  try {
+    new PublicKey(address);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const getSolanaConnection = (rpcUrl?: string) =>
+  new Connection(rpcUrl || SOLANA_DEVNET_RPC_URL, "confirmed");
+
+const readSolanaTokenBalance = async (
+  address: string,
+  rpcUrl: string,
+  mintAddress: string,
+) => {
+  const connection = getSolanaConnection(rpcUrl);
+  const owner = new PublicKey(address);
+  const mint = new PublicKey(mintAddress);
+  const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, {
+    mint,
+  });
+
+  const total = tokenAccounts.value.reduce((sum, tokenAccount) => {
+    const parsed = tokenAccount.account.data.parsed.info.tokenAmount;
+    const uiAmount = Number(parsed.uiAmountString ?? parsed.uiAmount ?? 0);
+    return sum + uiAmount;
+  }, 0);
+
+  return total.toFixed(6);
+};
+
 export async function POST(request: NextRequest) {
   try {
-    const { address, chainId, rpcUrl, tokenAddress, balanceType } = await request.json();
+    const { address, chainId, rpcUrl, tokenAddress, balanceType } =
+      await request.json();
     const normalizedChainId = String(chainId).toLowerCase();
 
     if (!address || !chainId || !rpcUrl) {
       return NextResponse.json(
         { error: "Missing required parameters" },
-        { status: 400 }
+        { status: 400 },
       );
+    }
+
+    if (normalizedChainId === SOLANA_DEVNET_CHAIN_ID) {
+      if (!isValidSolanaAddress(address)) {
+        return NextResponse.json({ balance: "0.00" });
+      }
+
+      if (balanceType === "native") {
+        const connection = getSolanaConnection(rpcUrl);
+        const lamports = await connection.getBalance(new PublicKey(address));
+
+        return NextResponse.json({
+          balance: (lamports / LAMPORTS_PER_SOL).toFixed(6),
+        });
+      }
+
+      const mintAddress = tokenAddress || getUSDCAddressForChain(normalizedChainId);
+      if (!mintAddress) {
+        return NextResponse.json(
+          { balance: "0.00", error: "Token not supported on this chain" },
+          { status: 200 },
+        );
+      }
+
+      const formattedBalance = await readSolanaTokenBalance(
+        address,
+        rpcUrl,
+        mintAddress,
+      );
+
+      return NextResponse.json({ balance: formattedBalance });
     }
 
     if (balanceType === "native") {
@@ -92,13 +159,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Use provided token address, or default to USDC for the chain
     const contractAddress =
       tokenAddress || getUSDCAddressForChain(String(chainId));
     if (!contractAddress) {
       return NextResponse.json(
         { balance: "0.00", error: "Token not supported on this chain" },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -115,7 +181,7 @@ export async function POST(request: NextRequest) {
           });
 
           return Number(formatUnits(balance, ARC_NATIVE_USDC_DECIMALS)).toFixed(
-            6
+            6,
           );
         },
       );
@@ -129,22 +195,18 @@ export async function POST(request: NextRequest) {
       normalizedChainId,
       rpcUrl,
       async (publicClient) => {
-        // Get the contract
         const contract = getContract({
           address: contractAddress as `0x${string}`,
           abi: erc20Abi,
           client: publicClient,
         });
 
-        // Fetch balance
         const balance = (await contract.read.balanceOf([
           address as `0x${string}`,
         ])) as bigint;
 
-        // Fetch decimals
         const decimals = (await contract.read.decimals()) as number;
 
-        // Convert to readable format
         return Number(formatUnits(balance, decimals)).toFixed(6);
       },
     );
@@ -154,7 +216,7 @@ export async function POST(request: NextRequest) {
     console.error("Error fetching wallet balance:", error);
     return NextResponse.json(
       { balance: "0.00", error: "Failed to fetch balance" },
-      { status: 200 }
+      { status: 200 },
     );
   }
 }
@@ -170,6 +232,7 @@ function getUSDCAddressForChain(chainId: string): string | null {
     "linea-sepolia": "0xfece4462d57bd51a6a552365a011b95f0e16d9b7",
     "polygon-amoy": "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
     "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
+    solana: SOLANA_DEVNET_USDC_MINT,
     "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
   };
 

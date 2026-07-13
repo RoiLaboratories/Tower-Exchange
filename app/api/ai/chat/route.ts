@@ -8,6 +8,8 @@ const BACKEND_URL =
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
+const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const SOLANA_ADDRESS_IN_TEXT_PATTERN = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
 const AI_QUOTE_SYMBOLS = ["USDT", "USDC", "EURC", "CIRBTC"] as const;
 const AI_QUOTE_SYMBOL_SET = new Set<string>(AI_QUOTE_SYMBOLS);
 const AI_SWAP_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow"] as const;
@@ -113,6 +115,7 @@ const SUPPORTED_BRIDGE_CHAINS = [
   "polygon-amoy",
   "sonic-testnet",
   "unichain-sepolia",
+  "solana",
 ] as const;
 
 type SupportedBridgeChain = (typeof SUPPORTED_BRIDGE_CHAINS)[number];
@@ -128,6 +131,7 @@ const BRIDGE_CHAIN_NAMES: Record<SupportedBridgeChain, string> = {
   "polygon-amoy": "Polygon Amoy",
   "sonic-testnet": "Sonic Testnet",
   "unichain-sepolia": "Unichain Sepolia",
+  solana: "Solana Devnet",
 };
 
 const BRIDGE_CHAIN_ALIASES: Record<SupportedBridgeChain, string[]> = {
@@ -159,6 +163,7 @@ const BRIDGE_CHAIN_ALIASES: Record<SupportedBridgeChain, string[]> = {
     "unichain sepolia",
     "unichain",
   ],
+  solana: ["solana", "solana devnet", "devnet"],
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -408,11 +413,6 @@ const extractBridgeIntent = (
     asRecord(payload.bridge_intent) ||
     asRecord(payload.bridgeIntent) ||
     asRecord(payload.parameters);
-  const walletAddress = getWalletAddress(payload);
-
-  if (!walletAddress) {
-    return null;
-  }
 
   const messageLooksLikeBridge =
     /\b(bridge|bridging|cross-chain|cross chain)\b/i.test(message) ||
@@ -452,27 +452,51 @@ const extractBridgeIntent = (
     null;
   const resolvedFromChain = fromChain || fallbackFromChain;
   const resolvedToChain = toChain || fallbackToChain;
-  const explicitToAddress = getStringField(directIntent, [
-    "toAddress",
-    "recipientAddress",
-    "destinationAddress",
-  ]);
-  const messageAddresses = Array.from(
-    message.matchAll(EVM_ADDRESS_IN_TEXT_PATTERN),
-    (match) => match[0],
-  );
-  const toAddress =
-    explicitToAddress ||
-    messageAddresses.find(
-      (address) => address.toLowerCase() !== walletAddress.toLowerCase(),
-    ) ||
-    walletAddress;
 
   if (!resolvedFromChain || !resolvedToChain || resolvedFromChain === resolvedToChain) {
     return null;
   }
 
-  if (!EVM_ADDRESS_PATTERN.test(toAddress)) {
+  const sourceChainType = resolvedFromChain;
+  const destinationChainType = resolvedToChain;
+  const explicitSourceAddress = getStringField(directIntent, [
+    "sourceAddress",
+    "fromAddress",
+  ]);
+  const explicitToAddress = getStringField(directIntent, [
+    "toAddress",
+    "recipientAddress",
+    "destinationAddress",
+  ]);
+  const fallbackSourceAddress = getDefaultWalletAddressForChain(
+    payload,
+    resolvedFromChain,
+  );
+  const sourceAddress =
+    explicitSourceAddress && isBridgeAddressValid(explicitSourceAddress, sourceChainType)
+      ? explicitSourceAddress.trim()
+      : fallbackSourceAddress;
+
+  if (!sourceAddress || !isBridgeAddressValid(sourceAddress, sourceChainType)) {
+    return null;
+  }
+
+  const destinationAddressesInMessage = getMessageAddressesForChain(
+    message,
+    resolvedToChain,
+  );
+  const fallbackDestinationAddress = getDefaultWalletAddressForChain(
+    payload,
+    resolvedToChain,
+  );
+  const toAddress =
+    explicitToAddress && isBridgeAddressValid(explicitToAddress, destinationChainType)
+      ? explicitToAddress.trim()
+      : destinationAddressesInMessage.find((address) =>
+          isBridgeAddressValid(address, destinationChainType),
+        ) || fallbackDestinationAddress;
+
+  if (!toAddress || !isBridgeAddressValid(toAddress, destinationChainType)) {
     return null;
   }
 
@@ -481,13 +505,12 @@ const extractBridgeIntent = (
     toChain: resolvedToChain,
     amount,
     token: "USDC",
-    sourceAddress: walletAddress,
+    sourceAddress,
     toAddress,
     slippageTolerance:
       getNumberField(directIntent, ["slippageTolerance", "slippage"]) ?? 0.5,
   };
 };
-
 const resolveTokenAddress = (token?: string | null) => {
   const normalizedToken = token?.trim();
 
@@ -911,6 +934,49 @@ const getWalletAddress = (payload: AiChatPayload) => {
   return null;
 };
 
+const getSolanaWalletAddress = (payload: AiChatPayload) => {
+  for (const field of ["solana_wallet_address", "solanaWalletAddress"]) {
+    const value = payload[field];
+
+    if (typeof value === "string" && SOLANA_ADDRESS_PATTERN.test(value.trim())) {
+      return value.trim();
+    }
+  }
+
+  return null;
+};
+
+const isBridgeAddressValid = (
+  address: string,
+  chain: SupportedBridgeChain | null,
+) => {
+  if (chain === "solana") {
+    return SOLANA_ADDRESS_PATTERN.test(address);
+  }
+
+  return EVM_ADDRESS_PATTERN.test(address);
+};
+
+const getDefaultWalletAddressForChain = (
+  payload: AiChatPayload,
+  chain: SupportedBridgeChain | null,
+) => {
+  return chain === "solana"
+    ? getSolanaWalletAddress(payload)
+    : getWalletAddress(payload);
+};
+
+const getMessageAddressesForChain = (
+  message: string,
+  chain: SupportedBridgeChain | null,
+) => {
+  if (chain === "solana") {
+    return Array.from(message.matchAll(SOLANA_ADDRESS_IN_TEXT_PATTERN), (match) => match[0]);
+  }
+
+  return Array.from(message.matchAll(EVM_ADDRESS_IN_TEXT_PATTERN), (match) => match[0]);
+};
+
 const hasUsableSwapTransaction = (response: AiChatResponsePayload) => {
   const dataRecord = asRecord(response.data);
   const swapExecution = asRecord(dataRecord?.swap_execution);
@@ -1085,6 +1151,7 @@ const estimateBridgeTime = (toChain: string) => {
     "optimism-sepolia": "3-7 minutes",
     "avalanche-fuji": "2-5 minutes",
     "arbitrum-sepolia": "2-5 minutes",
+    solana: "2-5 minutes",
   };
 
   return timeMap[toChain] || "2-5 minutes";
@@ -1223,3 +1290,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+

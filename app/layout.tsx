@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import InviteGate from "@/components/InviteGate";
 import { PrivyProvider } from "@/components/providers/PrivyProvider";
 import { CustomRainbowKitProvider } from "@/components/providers/RainbowKitProvider";
+import { SolanaWalletProvider } from "@/components/providers/SolanaWalletProvider";
 import PromotionalSidebar from "@/components/PromotionalSidebar";
 
 const INVITE_GATE_ENABLED = process.env.NEXT_PUBLIC_INVITE_GATE_ENABLED === "true";
@@ -66,9 +67,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} ${cinzel.variable} ${inter.variable}  antialiased`} suppressHydrationWarning>
         <CustomRainbowKitProvider>
-          <PrivyProvider>
-            {INVITE_GATE_ENABLED ? <InviteGate>{appShell}</InviteGate> : appShell}
-          </PrivyProvider>
+          <SolanaWalletProvider>
+            <PrivyProvider>
+              {INVITE_GATE_ENABLED ? <InviteGate>{appShell}</InviteGate> : appShell}
+            </PrivyProvider>
+          </SolanaWalletProvider>
         </CustomRainbowKitProvider>
       </body>
     </html>

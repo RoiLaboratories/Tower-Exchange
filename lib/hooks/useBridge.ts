@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import {
   bridgeTokens,
   isBridgeRouteSupported,
@@ -25,7 +26,12 @@ export interface BridgeState {
   error: string | null;
   success: boolean;
   estimatedFee: string;
+  estimatedCircleFee: string;
+  estimatedPlatformFee: string;
+  estimatedSourceDebit: string;
+  estimatedReceivedAmount: string;
   estimatedTime: string;
+  customFeeEnabled: boolean;
   transactionHash?: string;
   status?: string; // "pending" or "completed"
   message?: string; // Additional info message for pending status
@@ -33,13 +39,21 @@ export interface BridgeState {
 }
 
 export function useBridge() {
+  const { chainId } = useAccount();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   const [state, setState] = useState<BridgeState>({
     isLoading: false,
     isBridging: false,
     error: null,
     success: false,
     estimatedFee: "0.00",
+    estimatedCircleFee: "0.00",
+    estimatedPlatformFee: "0.00",
+    estimatedSourceDebit: "0.00",
+    estimatedReceivedAmount: "0.00",
     estimatedTime: "2-5 minutes",
+    customFeeEnabled: false,
   });
 
   /**
@@ -89,8 +103,13 @@ export function useBridge() {
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          estimatedFee: fees.circleFee,
+          estimatedFee: fees.totalFee,
+          estimatedCircleFee: fees.circleFee,
+          estimatedPlatformFee: fees.platformFee,
+          estimatedSourceDebit: fees.sourceDebitTotal,
+          estimatedReceivedAmount: fees.amountReceived,
           estimatedTime: time,
+          customFeeEnabled: fees.customFeeEnabled,
         }));
       } catch (error) {
         const errorMessage =
@@ -145,6 +164,13 @@ export function useBridge() {
         const result = await bridgeTokens({
           ...request,
           amount: formattedAmount,
+          publicClient: request.publicClient ?? publicClient,
+          walletClient: request.walletClient ?? walletClient,
+          chain:
+            request.chain ??
+            walletClient?.chain ??
+            publicClient?.chain ??
+            chainId,
         });
 
         if (result.success) {
@@ -184,7 +210,7 @@ export function useBridge() {
         };
       }
     },
-    [validateBridgeInputs]
+    [chainId, publicClient, validateBridgeInputs, walletClient]
   );
 
   /**
@@ -197,7 +223,12 @@ export function useBridge() {
       error: null,
       success: false,
       estimatedFee: "0.00",
+      estimatedCircleFee: "0.00",
+      estimatedPlatformFee: "0.00",
+      estimatedSourceDebit: "0.00",
+      estimatedReceivedAmount: "0.00",
       estimatedTime: "2-5 minutes",
+      customFeeEnabled: false,
       status: undefined,
       message: undefined,
       forwarded: undefined,
@@ -225,3 +256,4 @@ export function useBridge() {
 }
 
 export default useBridge;
+
