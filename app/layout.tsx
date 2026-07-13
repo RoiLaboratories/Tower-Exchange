@@ -58,7 +58,7 @@ export default function RootLayout({
     <div className="flex flex-col min-h-screen relative">
       <Header />
       <div className="flex-1 pt-20 min-h-0">{children}</div>
-      <PromotionalSidebar />
+      {/* <PromotionalSidebar /> */}
       <Footer />
     </div>
   );

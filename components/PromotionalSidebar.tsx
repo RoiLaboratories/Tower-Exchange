@@ -111,7 +111,7 @@ export default function PromotionalSidebar() {
         
         {/* Sliding wrapper: moves the entire cards side by side */}
         <div
-          className="flex w-[200%] h-full transition-transform duration-500 ease-in-out"
+          className="flex w-[200%] h-full transition-transform duration-1000 ease-in-out"
           style={{ transform: `translateX(-${activeSlide * 50}%)` }}
         >
           {/* Card 0: Trade cirBTC */}
