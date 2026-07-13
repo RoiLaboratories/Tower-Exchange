@@ -1976,15 +1976,23 @@ export function formatBridgeAmount(amount: string, decimals: number = 6): string
 }
 
 /**
+ * Remove whitespace and invisible clipboard characters that commonly sneak into pasted wallet addresses.
+ */
+export function normalizeWalletAddress(address: string): string {
+  return address.replace(/[\s\u200B-\u200D\uFEFF]/g, "").trim();
+}
+/**
  * Validate wallet address format based on chain
  */
 export function isValidAddress(address: string, chainType: "evm" | "solana"): boolean {
+  const normalizedAddress = normalizeWalletAddress(address);
+
   if (chainType === "evm") {
     // EVM address: 0x followed by 40 hex characters
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+    return /^0x[a-fA-F0-9]{40}$/.test(normalizedAddress);
   } else if (chainType === "solana") {
-    // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 43-44 characters
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+    // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 32-44 characters
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress);
   }
   return false;
 }
@@ -1999,6 +2007,7 @@ export default {
   getBridgeFees,
   estimateBridgeTime,
   formatBridgeAmount,
+  normalizeWalletAddress,
   isValidAddress,
   getViemClient,
   createEVMPublicClient: createEVMPublicClient,

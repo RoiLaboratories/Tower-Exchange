@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
-import { SUPPORTED_CHAINS, isValidAddress } from "@/lib/bridgeService";
+import { SUPPORTED_CHAINS, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
 import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
@@ -312,7 +312,7 @@ export default function BridgePageContent({
 
   const getDestinationBridgeAddress = useCallback(
     (chainId: string | null, fallbackAddress?: string | null) => {
-      const manualAddress = receivingAddress.trim();
+      const manualAddress = normalizeWalletAddress(receivingAddress);
       const chainType = chainId === "solana" ? "solana" : "evm";
 
       if (manualAddress && isValidAddress(manualAddress, chainType)) {
@@ -374,7 +374,7 @@ export default function BridgePageContent({
 
   useEffect(() => {
     const previousToChainId = previousToChainIdRef.current;
-    const manualAddress = receivingAddress.trim();
+    const manualAddress = normalizeWalletAddress(receivingAddress);
 
     if (
       previousToChainId &&
@@ -652,7 +652,7 @@ export default function BridgePageContent({
     setFromAmount(toAmount);
     setToAmount(fromAmount);
 
-    const manualAddress = receivingAddress.trim();
+    const manualAddress = normalizeWalletAddress(receivingAddress);
     if (manualAddress && nextToChainId) {
       const chainType = nextToChainId === "solana" ? "solana" : "evm";
       if (!isValidAddress(manualAddress, chainType)) {
@@ -1539,7 +1539,7 @@ export default function BridgePageContent({
                     type="button"
                     disabled={!receivingAddress.trim()}
                     onClick={() => {
-                      saveRecentAddress(receivingAddress);
+                      saveRecentAddress(normalizeWalletAddress(receivingAddress));
                       setIsReceivingOpen(false);
                     }}
                     className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-[#1b1c1f] py-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-[#222327] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
