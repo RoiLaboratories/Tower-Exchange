@@ -41,7 +41,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1 }}
         exit={isMobile ? { y: "100%", opacity: 0 } : { opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className={isMobile ? "fixed bottom-0 left-0 right-0 z-40 w-full max-h-[70vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-b border-border/50 shadow-2xl rounded-t-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
+        className={isMobile ? "fixed bottom-0 left-0 right-0 z-40 w-full max-w-2xl mx-auto max-h-[85vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-t border-border/50 shadow-2xl rounded-t-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
         style={
           {
             scrollbarWidth: "none",
@@ -50,10 +50,10 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         }
       >
         <div className="p-4 sm:p-6 relative">
-          {/* Close button - positioned at top right corner on mobile */}
+          {/* Close button */}
           <motion.button
             onClick={onClose}
-            className="absolute top-4 right-4 lg:hidden p-2 rounded-lg hover:bg-secondary transition-colors z-10"
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-lg hover:bg-secondary transition-colors z-10"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -61,7 +61,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
           </motion.button>
 
           {/* Header */}
-          <div className="mb-4 flex flex-col items-start gap-4 sm:mb-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mb-4 flex flex-col items-start gap-4 sm:mb-6 lg:flex-row lg:items-center lg:justify-between pr-10 lg:pr-14">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
@@ -105,27 +105,17 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
                   {period}
                 </motion.button>
               ))}
-
-              {/* Close button */}
-              <motion.button
-                onClick={onClose}
-                className="p-2 rounded-lg hover:bg-secondary transition-colors shrink-0"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <X className="w-5 h-5 text-muted-foreground" />
-              </motion.button>
             </div>
           </div>
 
           {/* Mobile: Time period buttons */}
-          <div className="flex lg:hidden w-full items-center gap-1">
+          <div className="flex lg:hidden w-full items-center gap-1 mb-4">
             <div className="flex flex-1 gap-1 overflow-x-auto scrollbar-hide">
               {["24H", "7D", "1M", "3M", "6M"].map((period) => (
                 <motion.button
                   key={period}
                   onClick={() => setSelectedPeriod(period)}
-                  className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`flex-1 text-center py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     period === selectedPeriod
                       ? "bg-[#151617] text-foreground border border-gray-700"
                       : "text-muted-foreground hover:bg-secondary/50"
@@ -149,7 +139,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
               <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">
                 3200.23 USDC
               </h3>
-              <div className="flex items-end gap-6">
+              <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-8 w-full sm:w-auto">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1 whitespace-nowrap">
                     Market Cap

@@ -8,7 +8,7 @@ import eurcLogo from "@/public/assets/eurc.svg";
 import usycLogo from "@/public/assets/USYC_LOGO.svg";
 import hypeLogo from "@/public/assets/hype.png";
 import usdtLogo from "@/public/assets/usdt.svg";
-import uniLogo from "@/public/assets/unichain.svg";
+import uniLogo from "@/public/assets/Mainnet.svg";
 import qtmLogo from "@/public/assets/quantum-logo.png";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
 

@@ -32,7 +32,7 @@ const faucetCards = [
     icon: (
       <div className="flex items-center justify-center w-12 h-12">
         <Image
-          src="/assets/Sepolia ETH logo Alchemy.svg"
+          src="/assets/Sepolia ETH logo.svg"
           alt="Sepolia ETH Alchemy"
           width={48}
           height={48}

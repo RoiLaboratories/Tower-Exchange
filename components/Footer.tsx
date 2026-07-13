@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaXTwitter } from "react-icons/fa6";
 import { FaTelegram, FaDiscord } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +11,19 @@ const TERMS_URL = "#"; // Replace with your terms URL
 
 const Footer = () => {
   const [infoModalOpen, setInfoModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!infoModalOpen) return;
+
+    const handleScroll = () => {
+      setInfoModalOpen(false);
+    };
+
+    window.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll, { capture: true });
+    };
+  }, [infoModalOpen]);
 
   const socialLinks = [
     {
