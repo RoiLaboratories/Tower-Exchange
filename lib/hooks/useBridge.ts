@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import {
   bridgeTokens,
   isBridgeRouteSupported,
@@ -38,6 +39,9 @@ export interface BridgeState {
 }
 
 export function useBridge() {
+  const { chainId } = useAccount();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   const [state, setState] = useState<BridgeState>({
     isLoading: false,
     isBridging: false,
@@ -160,6 +164,13 @@ export function useBridge() {
         const result = await bridgeTokens({
           ...request,
           amount: formattedAmount,
+          publicClient: request.publicClient ?? publicClient,
+          walletClient: request.walletClient ?? walletClient,
+          chain:
+            request.chain ??
+            walletClient?.chain ??
+            publicClient?.chain ??
+            chainId,
         });
 
         if (result.success) {
@@ -199,7 +210,7 @@ export function useBridge() {
         };
       }
     },
-    [validateBridgeInputs]
+    [chainId, publicClient, validateBridgeInputs, walletClient]
   );
 
   /**

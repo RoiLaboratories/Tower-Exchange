@@ -738,8 +738,27 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
   return adapter;
 }
 
-async function getActiveWalletChainId(): Promise<string | null> {
+const getEvmRequestProvider = (
+  walletClient?: { request?: EIP1193Provider["request"]; transport?: { request?: EIP1193Provider["request"] } } | null,
+): Pick<EIP1193Provider, "request"> | null => {
+  if (walletClient?.request) {
+    return { request: walletClient.request };
+  }
+
+  if (walletClient?.transport?.request) {
+    return { request: walletClient.transport.request };
+  }
+
   const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+  if (provider?.request) {
+    return provider;
+  }
+
+  return null;
+};
+
+async function getActiveWalletChainId(walletClient?: BridgeRequest["walletClient"]): Promise<string | null> {
+  const provider = getEvmRequestProvider(walletClient);
 
   if (!provider) {
     return null;
@@ -754,8 +773,11 @@ async function getActiveWalletChainId(): Promise<string | null> {
   }
 }
 
-async function restoreActiveWalletChain(initialChainId: string | null) {
-  const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+async function restoreActiveWalletChain(
+  initialChainId: string | null,
+  walletClient?: BridgeRequest["walletClient"],
+) {
+  const provider = getEvmRequestProvider(walletClient);
 
   if (!provider || !initialChainId) {
     return;
@@ -782,7 +804,6 @@ async function restoreActiveWalletChain(initialChainId: string | null) {
     console.warn("Unable to check wallet network after bridge:", error);
   }
 }
-
 /**
  * Circle's bridge fee configuration
  * Circle automatically deducts a fee (~0.00013 USDC) from the bridge amount.
@@ -1027,17 +1048,40 @@ export async function createBridgeKitAdapterFromClients(
     throw new Error("Chain information is required.");
   }
 
-  // Create a simple adapter that directly returns the provided clients
-  // This bypasses Circle's factory and uses our already-configured wagmi clients
   const adapter = {
-    getPublicClient: async () => publicClient,
+    getPublicClient: async ({ chain: requestedChain }: { chain?: ViemChain } = {}) => {
+      if (!requestedChain || requestedChain.id === publicClient.chain?.id) {
+        return publicClient;
+      }
+
+      const supportedChainConfig = Object.values(SUPPORTED_CHAINS).find(
+        (config) => config.chainId === requestedChain.id,
+      );
+
+      if (supportedChainConfig && supportedChainConfig.chainId !== SUPPORTED_CHAINS.solana.chainId) {
+        return createEVMPublicClient(
+          supportedChainConfig.chainId,
+          supportedChainConfig.rpcUrl,
+        );
+      }
+
+      return createPublicClient({
+        chain: requestedChain,
+        transport: http(`/api/rpc/${requestedChain.id}`, {
+          retryCount: 10,
+          timeout: 180000,
+        }),
+        pollingInterval: 2000,
+      });
+    },
     getWalletClient: async () => walletClient,
-    // Metadata for Circle
     getSupportedChains: async () => [...SUPPORTED_EVM_CIRCLE_CHAINS],
   };
 
-  console.log("Bridge adapter created from RainbowKit/wagmi clients");
-  return adapter;
+  console.log("Bridge adapter created from RainbowKit/wagmi clients", {
+    chainId: walletClient.chain?.id ?? publicClient.chain?.id ?? chain?.id ?? chain,
+  });
+  return withBridgeTransactionTimeouts(adapter);
 }
 
 /**
@@ -1093,7 +1137,17 @@ async function initializeSolanaAdapter(): Promise<any> {
   }
 }
 
-async function ensureEvmBridgeAdapter(): Promise<any> {
+async function ensureEvmBridgeAdapter(
+  request?: Pick<BridgeRequest, "publicClient" | "walletClient" | "chain">,
+): Promise<any> {
+  if (request?.publicClient && request?.walletClient) {
+    return createBridgeKitAdapterFromClients(
+      request.publicClient,
+      request.walletClient,
+      request.chain,
+    );
+  }
+
   if (evmAdapter) {
     return evmAdapter;
   }
@@ -1184,7 +1238,7 @@ export async function bridgeTokens(
   (window as any).__lastBridgeProgress = bridgeProgress;
   const shouldTrackEvmWalletChain = request.fromChain !== "solana";
   const initialWalletChainId = shouldTrackEvmWalletChain
-    ? await getActiveWalletChainId()
+    ? await getActiveWalletChainId(request.walletClient)
     : null;
 
   try {
@@ -1299,7 +1353,7 @@ export async function bridgeTokens(
         };
       }
     } else {
-      fromAdapter = await ensureEvmBridgeAdapter();
+      fromAdapter = await ensureEvmBridgeAdapter(request);
       if (!fromAdapter) {
         return {
           success: false,
@@ -1318,7 +1372,7 @@ export async function bridgeTokens(
           };
         }
       } else {
-        toAdapter = await ensureEvmBridgeAdapter();
+        toAdapter = await ensureEvmBridgeAdapter(request);
         if (!toAdapter) {
           return {
             success: false,
@@ -1347,7 +1401,7 @@ export async function bridgeTokens(
 
     // Ensure wallet is properly connected by requesting accounts before bridge
     try {
-      const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+      const provider = getEvmRequestProvider(request.walletClient);
       if (request.fromChain !== "solana" && provider) {
         const accounts = (await provider.request({
           method: "eth_requestAccounts",
@@ -1743,7 +1797,7 @@ export async function bridgeTokens(
     };
   } finally {
     if (shouldTrackEvmWalletChain) {
-      await restoreActiveWalletChain(initialWalletChainId);
+      await restoreActiveWalletChain(initialWalletChainId, request.walletClient);
     }
   }
 }
