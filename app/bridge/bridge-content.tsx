@@ -1014,7 +1014,7 @@ export default function BridgePageContent({
                       )}
                     </span>
                     {fromChain?.logo && (
-                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#151617] bg-[#151617] overflow-hidden">
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#1d212b] bg-[#1d212b] overflow-hidden">
                         <Image
                           src={fromChain.logo}
                           alt={`${fromChain.name} logo`}
@@ -1098,7 +1098,7 @@ export default function BridgePageContent({
                       )}
                     </span>
                     {toChain?.logo && (
-                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#151617] bg-[#151617] overflow-hidden">
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#1d212b] bg-[#1d212b] overflow-hidden">
                         <Image
                           src={toChain.logo}
                           alt={`${toChain.name} logo`}

@@ -68,6 +68,7 @@ body {
 
   --font-family-sans: var(--font-sora);
   --font-family-cinzel: var(--font-cinzel);
+  --font-family-inter: var(--font-inter);
 }
 
 @layer base {

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Sora, Cinzel } from "next/font/google";
+import { Sora, Cinzel, Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import InviteGate from "@/components/InviteGate";
 import { PrivyProvider } from "@/components/providers/PrivyProvider";
 import { CustomRainbowKitProvider } from "@/components/providers/RainbowKitProvider";
+import PromotionalSidebar from "@/components/PromotionalSidebar";
 
 const INVITE_GATE_ENABLED = process.env.NEXT_PUBLIC_INVITE_GATE_ENABLED === "true";
 
@@ -18,6 +19,11 @@ const sora = Sora({
 const cinzel = Cinzel({
   subsets: ["latin"],
   variable: "--font-cinzel",
+  display: "swap",
+});
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -51,13 +57,14 @@ export default function RootLayout({
     <div className="flex flex-col min-h-screen relative">
       <Header />
       <div className="flex-1 pt-20 min-h-0">{children}</div>
+      <PromotionalSidebar />
       <Footer />
     </div>
   );
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${sora.variable} ${cinzel.variable}  antialiased`} suppressHydrationWarning>
+      <body className={`${sora.variable} ${cinzel.variable} ${inter.variable}  antialiased`} suppressHydrationWarning>
         <CustomRainbowKitProvider>
           <PrivyProvider>
             {INVITE_GATE_ENABLED ? <InviteGate>{appShell}</InviteGate> : appShell}

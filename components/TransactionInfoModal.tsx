@@ -198,7 +198,7 @@ const AddAssetButton = ({
   <button
     type="button"
     onClick={onClick}
-    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-primary/45 hover:bg-white/10"
+    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-primary/45 hover:bg-white/10 bg-[#252628]"
   >
     <span className="relative inline-flex h-5 w-5 items-center justify-center">
       <SmallAsset icon={primaryIcon} />
