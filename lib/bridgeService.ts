@@ -739,14 +739,27 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
 }
 
 const getEvmRequestProvider = (
-  walletClient?: { request?: EIP1193Provider["request"]; transport?: { request?: EIP1193Provider["request"] } } | null,
-): Pick<EIP1193Provider, "request"> | null => {
+  walletClient?: {
+    request?: EIP1193Provider["request"];
+    transport?: { request?: EIP1193Provider["request"] };
+    on?: EIP1193Provider["on"];
+    removeListener?: EIP1193Provider["removeListener"];
+  } | null,
+): EIP1193Provider | null => {
   if (walletClient?.request) {
-    return { request: walletClient.request };
+    return {
+      request: walletClient.request,
+      on: walletClient.on ?? (() => undefined),
+      removeListener: walletClient.removeListener ?? (() => undefined),
+    } as EIP1193Provider;
   }
 
   if (walletClient?.transport?.request) {
-    return { request: walletClient.transport.request };
+    return {
+      request: walletClient.transport.request,
+      on: walletClient.on ?? (() => undefined),
+      removeListener: walletClient.removeListener ?? (() => undefined),
+    } as EIP1193Provider;
   }
 
   const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
@@ -1048,8 +1061,14 @@ export async function createBridgeKitAdapterFromClients(
     throw new Error("Chain information is required.");
   }
 
-  const adapter = {
-    getPublicClient: async ({ chain: requestedChain }: { chain?: ViemChain } = {}) => {
+  const provider = getEvmRequestProvider(walletClient);
+  if (!provider) {
+    throw new Error("Unable to resolve the connected wallet provider from RainbowKit.");
+  }
+
+  const adapter = await createViemAdapterFromProvider({
+    provider,
+    getPublicClient: ({ chain: requestedChain }) => {
       if (!requestedChain || requestedChain.id === publicClient.chain?.id) {
         return publicClient;
       }
@@ -1074,9 +1093,11 @@ export async function createBridgeKitAdapterFromClients(
         pollingInterval: 2000,
       });
     },
-    getWalletClient: async () => walletClient,
-    getSupportedChains: async () => [...SUPPORTED_EVM_CIRCLE_CHAINS],
-  };
+    capabilities: {
+      addressContext: "user-controlled",
+      supportedChains: [...SUPPORTED_EVM_CIRCLE_CHAINS],
+    },
+  });
 
   console.log("Bridge adapter created from RainbowKit/wagmi clients", {
     chainId: walletClient.chain?.id ?? publicClient.chain?.id ?? chain?.id ?? chain,
