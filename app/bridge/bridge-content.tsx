@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
-import { SUPPORTED_CHAINS } from "@/lib/bridgeService";
-import { registerBridgeActivity } from "@/lib/supabase";
+import { SUPPORTED_CHAINS, isValidAddress } from "@/lib/bridgeService";
+import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
   type ActivityTabLiveItem,
@@ -29,8 +29,10 @@ import TransactionStepsModal, {
   type TransactionStep,
 } from "@/components/TransactionStepsModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
+import { useSolanaWallet } from "@/lib/solanaWalletStore";
 import usdcLogo from "@/public/assets/usdc.svg";
 import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
+import solanaLogo from "@/public/assets/solana.svg";
 import baseSepoliaLogo from "@/public/assets/Base Sepolia logo.svg";
 import optimismSepoliaLogo from "@/public/assets/Optimism Sepolia logo.svg";
 import avalancheFujiLogo from "@/public/assets/Avalanche Fuji logo.svg";
@@ -161,12 +163,16 @@ const getBridgeStepStatus = (
 const getBridgeTokenAddress = (
   chainConfig: SupportedChainConfig,
   tokenSymbol?: string,
-) => {
+): string | null => {
   if (tokenSymbol === "EURC" && "eurcAddress" in chainConfig) {
-    return chainConfig.eurcAddress;
+    return typeof chainConfig.eurcAddress === "string"
+      ? chainConfig.eurcAddress
+      : null;
   }
 
-  return chainConfig.usdcAddress;
+  return typeof chainConfig.usdcAddress === "string"
+    ? chainConfig.usdcAddress
+    : null;
 };
 
 const BRIDGE_TOKENS: BridgeToken[] = [
@@ -181,6 +187,7 @@ const BRIDGE_TOKENS: BridgeToken[] = [
 
 const BRIDGE_CHAINS: BridgeChain[] = [
   { id: "arc-testnet", name: "Arc Testnet", logo: arcTestnetLogo },
+  { id: "solana", name: "Solana Devnet", logo: solanaLogo },
   { id: "base-sepolia", name: "Base Sepolia", logo: baseSepoliaLogo },
   {
     id: "optimism-sepolia",
@@ -216,6 +223,12 @@ export default function BridgePageContent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, login, authenticated } = useRainbowKitAuth();
+  const {
+    address: solanaAddress,
+    connected: isSolanaConnected,
+    isConnecting: isConnectingSolana,
+    openConnectModal: openSolanaConnectModal,
+  } = useSolanaWallet();
   const bridgeHook = useBridge();
   const calculateBridgeDetails = bridgeHook.calculateBridgeDetails;
 
@@ -258,6 +271,8 @@ export default function BridgePageContent({
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
   const swapNavigationStartedRef = useRef(false);
   const latestBridgeStepRef = useRef<BridgeStepsStep>("approve");
+  const previousFromChainIdRef = useRef<string | null>(null);
+  const previousToChainIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -279,6 +294,39 @@ export default function BridgePageContent({
     setRecentAddresses(updated);
     localStorage.setItem("bridgeRecentAddresses", JSON.stringify(updated));
   };
+
+  const getBridgeAddressForChain = useCallback(
+    (chainId: string | null, fallbackAddress?: string | null) => {
+      if (!chainId) {
+        return fallbackAddress || "";
+      }
+
+      if (chainId === "solana") {
+        return solanaAddress || "";
+      }
+
+      return fallbackAddress || "";
+    },
+    [solanaAddress],
+  );
+
+  const getDestinationBridgeAddress = useCallback(
+    (chainId: string | null, fallbackAddress?: string | null) => {
+      const manualAddress = receivingAddress.trim();
+      const chainType = chainId === "solana" ? "solana" : "evm";
+
+      if (manualAddress && isValidAddress(manualAddress, chainType)) {
+        return manualAddress;
+      }
+
+      if (chainId === "solana" || fromChainId === "solana") {
+        return "";
+      }
+
+      return getBridgeAddressForChain(chainId, fallbackAddress);
+    },
+    [fromChainId, getBridgeAddressForChain, receivingAddress],
+  );
 
   useEffect(() => {
     const fromChain = searchParams.get("fromChain");
@@ -303,11 +351,67 @@ export default function BridgePageContent({
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const previousFromChainId = previousFromChainIdRef.current;
+
+    if (
+      previousFromChainId &&
+      previousFromChainId !== fromChainId &&
+      fromChainId === "solana" &&
+      !isSolanaConnected &&
+      !isConnectingSolana
+    ) {
+      openSolanaConnectModal();
+    }
+
+    previousFromChainIdRef.current = fromChainId;
+  }, [
+    fromChainId,
+    isConnectingSolana,
+    isSolanaConnected,
+    openSolanaConnectModal,
+  ]);
+
+  useEffect(() => {
+    const previousToChainId = previousToChainIdRef.current;
+    const manualAddress = receivingAddress.trim();
+
+    if (
+      previousToChainId &&
+      previousToChainId !== toChainId &&
+      manualAddress &&
+      toChainId
+    ) {
+      const chainType = toChainId === "solana" ? "solana" : "evm";
+      if (!isValidAddress(manualAddress, chainType)) {
+        setReceivingAddress("");
+      }
+    }
+
+    previousToChainIdRef.current = toChainId;
+  }, [toChainId, receivingAddress]);
+
   const fetchWalletBalance = useCallback(async () => {
-    if (!user?.wallet?.address || !fromChainId || !fromToken) {
+    if (!fromChainId || !fromToken) {
       setWalletBalance("0.00");
       return;
     }
+
+    if (fromChainId === "solana" && !isSolanaConnected) {
+      setWalletBalance("0.00");
+      return;
+    }
+
+    const sourceAddress = getBridgeAddressForChain(
+      fromChainId,
+      user?.wallet?.address,
+    );
+
+    if (!sourceAddress) {
+      setWalletBalance("0.00");
+      return;
+    }
+
     try {
       const chainConfig =
         SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
@@ -321,7 +425,7 @@ export default function BridgePageContent({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: user.wallet.address,
+          address: sourceAddress,
           chainId: fromChainId,
           rpcUrl: chainConfig.rpcUrl,
           tokenAddress,
@@ -334,17 +438,28 @@ export default function BridgePageContent({
       console.error("Error fetching wallet balance:", error);
       setWalletBalance("0.00");
     }
-  }, [user?.wallet?.address, fromChainId, fromToken]);
+  }, [getBridgeAddressForChain, isSolanaConnected, user?.wallet?.address, fromChainId, fromToken]);
 
   useEffect(() => {
     fetchWalletBalance();
   }, [fetchWalletBalance]);
 
   const fetchToChainBalance = useCallback(async () => {
-    if (!user?.wallet?.address || !toChainId || !toToken) {
+    if (!toChainId || !toToken) {
       setToChainBalance("0.00");
       return;
     }
+
+    const destinationAddress = getDestinationBridgeAddress(
+      toChainId,
+      user?.wallet?.address,
+    );
+
+    if (!destinationAddress) {
+      setToChainBalance("0.00");
+      return;
+    }
+
     try {
       const chainConfig =
         SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS];
@@ -358,7 +473,7 @@ export default function BridgePageContent({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: user.wallet.address,
+          address: destinationAddress,
           chainId: toChainId,
           rpcUrl: chainConfig.rpcUrl,
           tokenAddress,
@@ -371,7 +486,7 @@ export default function BridgePageContent({
       console.error("Error fetching destination chain balance:", error);
       setToChainBalance("0.00");
     }
-  }, [user?.wallet?.address, toChainId, toToken]);
+  }, [getDestinationBridgeAddress, user?.wallet?.address, toChainId, toToken]);
 
   useEffect(() => {
     fetchToChainBalance();
@@ -407,30 +522,42 @@ export default function BridgePageContent({
   );
 
   const fetchBridgeGasBalances = useCallback(async () => {
-    if (!user?.wallet?.address) {
-      setSourceGasBalance("0.00");
-      setDestinationGasBalance("0.00");
-      return;
-    }
-
     try {
       if (fromChainId) {
-        const balance = await fetchNativeGasBalance(
-          fromChainId,
-          user.wallet.address,
-        );
-        setSourceGasBalance(balance);
+        if (fromChainId === "solana" && !isSolanaConnected) {
+          setSourceGasBalance("0.00");
+        } else {
+          const sourceAddress = getBridgeAddressForChain(
+            fromChainId,
+            user?.wallet?.address,
+          );
+
+          if (sourceAddress) {
+            const balance = await fetchNativeGasBalance(fromChainId, sourceAddress);
+            setSourceGasBalance(balance);
+          } else {
+            setSourceGasBalance("0.00");
+          }
+        }
       } else {
         setSourceGasBalance("0.00");
       }
 
       if (toChainId) {
-        const recipientAddress = receivingAddress || user.wallet.address;
-        const balance = await fetchNativeGasBalance(
+        const destinationAddress = getDestinationBridgeAddress(
           toChainId,
-          recipientAddress,
+          user?.wallet?.address,
         );
-        setDestinationGasBalance(balance);
+
+        if (destinationAddress) {
+          const balance = await fetchNativeGasBalance(
+            toChainId,
+            destinationAddress,
+          );
+          setDestinationGasBalance(balance);
+        } else {
+          setDestinationGasBalance("0.00");
+        }
       } else {
         setDestinationGasBalance("0.00");
       }
@@ -440,10 +567,12 @@ export default function BridgePageContent({
       setDestinationGasBalance("0.00");
     }
   }, [
+    getBridgeAddressForChain,
+    getDestinationBridgeAddress,
+    isSolanaConnected,
     user?.wallet?.address,
     fromChainId,
     toChainId,
-    receivingAddress,
     fetchNativeGasBalance,
   ]);
 
@@ -466,12 +595,18 @@ export default function BridgePageContent({
   }, [calculateBridgeDetails, fromChainId, toChainId, fromAmount, feeTokenSymbol]);
 
   useEffect(() => {
-    const feeAmount = parseFloat(bridgeHook.estimatedFee);
-    const estimated = parseFloat(fromAmount) - feeAmount;
+    if (!fromAmount || parseFloat(fromAmount) <= 0) {
+      setToAmount("0.00");
+      return;
+    }
+
+    const estimatedReceivedAmount = parseFloat(bridgeHook.estimatedReceivedAmount);
     setToAmount(
-      Number.isFinite(estimated) ? Math.max(estimated, 0).toFixed(2) : "0.00",
+      Number.isFinite(estimatedReceivedAmount)
+        ? Math.max(estimatedReceivedAmount, 0).toFixed(2)
+        : "0.00",
     );
-  }, [bridgeHook.estimatedFee, fromAmount]);
+  }, [bridgeHook.estimatedReceivedAmount, fromAmount]);
 
   const handleFromAmountFocus = () => {
     if (fromAmount === "0.00") setFromAmount("");
@@ -481,19 +616,49 @@ export default function BridgePageContent({
   };
 
   const handleFiftyPercent = () => {
-    if (walletBalance && walletBalance !== "0.00")
-      setFromAmount((parseFloat(walletBalance) * 0.5).toFixed(4));
+    const availableBalance = Number.parseFloat(walletBalance);
+    const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
+    const maxTransferableAmount = Number.isFinite(availableBalance)
+      ? Math.max(
+          availableBalance - (Number.isFinite(platformFee) ? platformFee : 0),
+          0,
+        )
+      : 0;
+
+    if (maxTransferableAmount > 0) {
+      setFromAmount((maxTransferableAmount * 0.5).toFixed(4));
+    }
   };
 
   const handleMaxAmount = () => {
-    if (walletBalance && walletBalance !== "0.00") setFromAmount(walletBalance);
+    const availableBalance = Number.parseFloat(walletBalance);
+    const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
+    const maxTransferableAmount = Number.isFinite(availableBalance)
+      ? Math.max(
+          availableBalance - (Number.isFinite(platformFee) ? platformFee : 0),
+          0,
+        )
+      : 0;
+
+    setFromAmount(maxTransferableAmount > 0 ? maxTransferableAmount.toFixed(4) : "0.00");
   };
 
   const handleSwapChains = () => {
-    setFromChainId(toChainId);
-    setToChainId(fromChainId);
+    const nextFromChainId = toChainId;
+    const nextToChainId = fromChainId;
+
+    setFromChainId(nextFromChainId);
+    setToChainId(nextToChainId);
     setFromAmount(toAmount);
     setToAmount(fromAmount);
+
+    const manualAddress = receivingAddress.trim();
+    if (manualAddress && nextToChainId) {
+      const chainType = nextToChainId === "solana" ? "solana" : "evm";
+      if (!isValidAddress(manualAddress, chainType)) {
+        setReceivingAddress("");
+      }
+    }
   };
 
   const openBridgeStepsModal = useCallback(() => {
@@ -519,22 +684,40 @@ export default function BridgePageContent({
   }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
 
   const handleBridge = useCallback(async () => {
-    if (!user) {
+    if (fromChainId === "solana" && !isSolanaConnected) {
+      openSolanaConnectModal();
+      return;
+    }
+
+    if (!user && fromChainId !== "solana") {
       alert("Please connect your wallet first");
       return;
     }
+
+    const sourceAddress = getBridgeAddressForChain(
+      fromChainId,
+      user?.wallet?.address,
+    );
+    const destinationAddress = getDestinationBridgeAddress(
+      toChainId,
+      user?.wallet?.address,
+    );
     const requestedAmount = Number.parseFloat(fromAmount);
     const availableBalance = Number.parseFloat(walletBalance);
+    const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
+    const requiredSourceBalance =
+      Number.isFinite(requestedAmount) && requestedAmount > 0
+        ? requestedAmount + (Number.isFinite(platformFee) ? platformFee : 0)
+        : 0;
     if (
-      Number.isFinite(requestedAmount) &&
-      requestedAmount > 0 &&
-      requestedAmount > availableBalance
+      sourceAddress &&
+      Number.isFinite(requiredSourceBalance) &&
+      requiredSourceBalance > 0 &&
+      requiredSourceBalance > availableBalance
     ) {
       return;
     }
 
-    // Use receiving address if provided, otherwise use connected wallet
-    const destinationAddress = receivingAddress || user.wallet?.address;
     openBridgeStepsModal();
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
@@ -542,7 +725,7 @@ export default function BridgePageContent({
       amount: fromAmount,
       token: fromToken?.symbol || "USDC",
       toAddress: destinationAddress,
-      sourceAddress: user.wallet?.address,
+      sourceAddress: sourceAddress || user?.wallet?.address,
       onProgress: (progress) => {
         const progressStep =
           getBridgeStepFromProgress(progress.lastStep) ||
@@ -574,23 +757,73 @@ export default function BridgePageContent({
         setBridgeStepsPhase("success");
       }
 
-      await registerBridgeActivity({
-        walletAddress: user.wallet?.address || "",
-        fromChain:
-          SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
-            ?.name ||
-          fromChainId ||
-          "",
-        toChain:
-          SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]?.name ||
-          toChainId ||
-          "",
-        amount: fromAmount,
-        token: fromToken?.symbol || "USDC",
-        transactionHash: result.transactionHash,
-        fee: bridgeHook.estimatedFee,
-        status: isPending ? "Pending" : "Successful",
-      });
+      const activityWalletAddress =
+        user?.wallet?.address ||
+        (toChainId !== "solana" ? destinationAddress : "") ||
+        (fromChainId !== "solana" ? sourceAddress : "");
+      const fromChainName =
+        SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]?.name ||
+        fromChainId ||
+        "";
+      const toChainName =
+        SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]?.name ||
+        toChainId ||
+        "";
+      const tokenSymbol = fromToken?.symbol || "USDC";
+      const fromChainConfig = fromChainId
+        ? SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
+        : null;
+      const toChainConfig = toChainId
+        ? SUPPORTED_CHAINS[toChainId as keyof typeof SUPPORTED_CHAINS]
+        : null;
+      const sourceTokenAddress = fromChainConfig
+        ? getBridgeTokenAddress(fromChainConfig, tokenSymbol)
+        : null;
+      const destinationTokenAddress = toChainConfig
+        ? getBridgeTokenAddress(toChainConfig, tokenSymbol)
+        : null;
+      const bridgeFeeRecipientAddress = bridgeHook.customFeeEnabled
+        ? fromChainId === "solana"
+          ? process.env.NEXT_PUBLIC_BRIDGE_FEE_RECIPIENT_SOLANA?.trim() || null
+          : process.env.NEXT_PUBLIC_BRIDGE_FEE_RECIPIENT_EVM?.trim() || null
+        : null;
+
+      if (activityWalletAddress) {
+        const activityResult = await registerBridgeActivity({
+          walletAddress: activityWalletAddress,
+          fromChain: fromChainName,
+          toChain: toChainName,
+          amount: fromAmount,
+          token: tokenSymbol,
+          transactionHash: result.transactionHash,
+          fee: bridgeHook.estimatedFee,
+          status: isPending ? "Pending" : "Successful",
+        });
+
+        await registerBridgeFee({
+          walletAddress: activityWalletAddress,
+          fromChain: fromChainName,
+          toChain: toChainName,
+          sourceTokenAddress,
+          destinationTokenAddress,
+          tokenSymbol,
+          bridgeAmount: fromAmount,
+          platformFeeAmount: bridgeHook.estimatedPlatformFee,
+          platformFeeAmountUsd: bridgeHook.estimatedPlatformFee,
+          protocolFeeAmount: bridgeHook.estimatedCircleFee,
+          protocolFeeAmountUsd: bridgeHook.estimatedCircleFee,
+          totalFeeAmount: bridgeHook.estimatedFee,
+          totalFeeAmountUsd: bridgeHook.estimatedFee,
+          amountReceived: bridgeHook.estimatedReceivedAmount,
+          sourceDebitTotal: bridgeHook.estimatedSourceDebit,
+          feeType: "Flat",
+          feeRecipientAddress: bridgeFeeRecipientAddress,
+          protocolProvider: "Circle",
+          transactionHash: result.transactionHash,
+          status: isPending ? "Pending" : "Recorded",
+          activityId: activityResult.id ?? null,
+        });
+      }
 
       setTimeout(() => {
         setBridgeStepsModalOpen(false);
@@ -620,37 +853,65 @@ export default function BridgePageContent({
     toChainId,
     fromAmount,
     fromToken,
-    receivingAddress,
     walletBalance,
     fetchWalletBalance,
     fetchToChainBalance,
+    getBridgeAddressForChain,
+    getDestinationBridgeAddress,
+    isSolanaConnected,
     openBridgeStepsModal,
+    openSolanaConnectModal,
   ]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken ?? BRIDGE_TOKENS[0];
+  const sourceBridgeAddress =
+    fromChainId === "solana"
+      ? isSolanaConnected
+        ? getBridgeAddressForChain(fromChainId, user?.wallet?.address)
+        : ""
+      : getBridgeAddressForChain(fromChainId, user?.wallet?.address);
+  const destinationBridgeAddress = getDestinationBridgeAddress(
+    toChainId,
+    user?.wallet?.address,
+  );
   const requestedBridgeAmount = Number.parseFloat(fromAmount);
   const availableBridgeBalance = Number.parseFloat(walletBalance);
+  const platformFeeAmount = Number.parseFloat(bridgeHook.estimatedPlatformFee);
+  const requiredSourceBalance =
+    Number.isFinite(requestedBridgeAmount) && requestedBridgeAmount > 0
+      ? requestedBridgeAmount +
+        (Number.isFinite(platformFeeAmount) ? platformFeeAmount : 0)
+      : 0;
   const isBridgeBalanceInsufficient =
-    Boolean(user) &&
-    Number.isFinite(requestedBridgeAmount) &&
-    requestedBridgeAmount > 0 &&
-    requestedBridgeAmount > availableBridgeBalance;
+    Boolean(sourceBridgeAddress) &&
+    Number.isFinite(requiredSourceBalance) &&
+    requiredSourceBalance > 0 &&
+    requiredSourceBalance > availableBridgeBalance;
   const fromChain = fromChainId
     ? (BRIDGE_CHAINS.find((c) => c.id === fromChainId) ?? null)
     : null;
   const toChain = toChainId
     ? (BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? null)
     : null;
+  const requiresManualDestinationAddress =
+    Boolean(toChainId) && (toChainId === "solana" || fromChainId === "solana");
+  const isDestinationAddressMissing =
+    requiresManualDestinationAddress && !destinationBridgeAddress;
   const isBridgeActionDisabled =
     !fromChainId ||
     !toChainId ||
     !fromAmount ||
     parseFloat(fromAmount) <= 0 ||
+    isDestinationAddressMissing ||
     isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
-  const isBridgeButtonDisabled = user ? isBridgeActionDisabled : false;
+  const shouldPromptConnectWallet =
+    fromChainId === "solana" ? !isSolanaConnected : !user;
+  const isBridgeButtonDisabled = shouldPromptConnectWallet
+    ? false
+    : isBridgeActionDisabled;
   const destinationChainName =
     toChain?.name ??
     (toChainId === "solana" ? "Solana Devnet" : "destination chain");
@@ -664,11 +925,14 @@ export default function BridgePageContent({
     "linea-sepolia": "https://sepolia.lineascan.build/tx/",
     "polygon-amoy": "https://amoy.polygonscan.com/tx/",
     "sonic-testnet": "https://testnet.sonicscan.org/tx/",
+    solana: "https://explorer.solana.com/tx/",
     "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
   };
   const bridgeTransactionUrl =
     bridgeHook.transactionHash && toChainId && bridgeExplorerUrls[toChainId]
-      ? `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}`
+      ? toChainId === "solana"
+        ? `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}?cluster=devnet`
+        : `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}`
       : null;
   const fromUsdValueLabel = formatUsdAmount(
     fromAmount,
@@ -680,6 +944,11 @@ export default function BridgePageContent({
   );
 
   const handleConnectWallet = async () => {
+    if (fromChainId === "solana") {
+      openSolanaConnectModal();
+      return;
+    }
+
     if (authenticated) return;
     try {
       await login();
@@ -704,12 +973,21 @@ export default function BridgePageContent({
   }, [onNavigateToSwap, router]);
 
   const getBridgeButtonContent = () => {
-    if (!user) {
-      return "Connect Wallet";
+    if (shouldPromptConnectWallet) {
+      return fromChainId === "solana" && isConnectingSolana
+        ? "Connecting Wallet..."
+        : "Connect Wallet";
     }
 
     if (bridgeHook.isBridging) {
       return "Bridge";
+    }
+
+
+    if (isDestinationAddressMissing) {
+      return toChainId === "solana"
+        ? "Enter Solana Address"
+        : "Enter EVM Address";
     }
 
     if (isBridgeBalanceInsufficient) {
@@ -1040,7 +1318,7 @@ export default function BridgePageContent({
               </div>
             </div>
 
-            {/* ── Arrow swap button — mirrors SwapCard arrow ── */}
+            {/* Swap direction button */}
             <div className="flex justify-center -my-6 relative z-10">
               <motion.button
                 type="button"
@@ -1056,7 +1334,7 @@ export default function BridgePageContent({
               </motion.button>
             </div>
 
-            {/* ── Bridge To — mirrors SwapCard "Receive" section ── */}
+            {/* ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ Bridge To ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â mirrors SwapCard "Receive" section ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ */}
             {/* Bridge To */}
             <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-4">
               <div className="flex items-center justify-between mb-2">
@@ -1125,43 +1403,55 @@ export default function BridgePageContent({
             </div>
 
             {/* Add receiving wallet row */}
-            <div className="mb-4 inline-flex w-full select-none items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white/45 pointer-events-none">
+            <button
+              type="button"
+              onClick={() => setIsReceivingOpen(true)}
+              className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-border hover:text-white"
+            >
               <Plus className="h-3 w-3 text-current" />
-              <span>Add receiving wallet</span>
-            </div>
+              <span>
+                {receivingAddress.trim()
+                  ? `${receivingAddress.trim().slice(0, 6)}...${receivingAddress.trim().slice(-4)}`
+                  : toChainId === "solana"
+                    ? "Add Solana receiving wallet"
+                    : fromChainId === "solana"
+                      ? "Add EVM receiving wallet"
+                      : "Add receiving wallet"}
+              </span>
+            </button>
 
             {/* Fee + estimated time info */}
             {fromChainId && toChainId && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mb-4 text-xs text-muted-foreground space-y-1"
+                className="mb-4 space-y-1 text-xs text-muted-foreground"
               >
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#151617]">
-                  <span>Estimated Fee</span>
-                  <span className="text-foreground font-medium">
+                <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
+                  <span>Bridge Fee</span>
+                  <span className="font-medium text-foreground">
                     {bridgeHook.estimatedFee} {fromDisplayToken.symbol}
                   </span>
                 </div>
-                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#151617]">
+                <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
                   <span>Estimated Time</span>
-                  <span className="text-foreground font-medium">
+                  <span className="font-medium text-foreground">
                     {bridgeHook.estimatedTime}
                   </span>
                 </div>
               </motion.div>
             )}
 
-            {/* ── Action button — same sizing/styles as SwapCard ── */}
+
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <button
                 type="button"
-                onClick={!user ? handleConnectWallet : handleBridge}
+                onClick={shouldPromptConnectWallet ? handleConnectWallet : handleBridge}
                 disabled={isBridgeButtonDisabled}
-                className={`inline-flex w-full items-center justify-center gap-2 rounded-xl h-14 text-base font-semibold transition-all ${
+                className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold transition-all ${
                   isBridgeButtonDisabled
-                    ? "bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500"
-                    : "bg-primary hover:opacity-90 text-black"
+                    ? "cursor-not-allowed bg-[#2a2d31] text-gray-500 hover:bg-[#2a2d31]"
+                    : "bg-primary text-black hover:opacity-90"
                 }`}
               >
                 {getBridgeButtonContent()}
@@ -1169,36 +1459,32 @@ export default function BridgePageContent({
             </motion.div>
           </motion.div>
 
-          {/* ── Token pills below card — mirrors SwapCard quick-access buttons ── */}
-          <div className="flex items-center justify-center gap-4 mt-4">
+          <div className="mt-4 flex items-center justify-center gap-4">
             {[fromDisplayToken, toDisplayToken].map((token, idx) => (
               <motion.div
                 key={`${token.symbol}-${idx}`}
-                className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border"
+                className="flex items-center gap-2 rounded-full border border-border bg-[#191A1C] px-6 py-3"
                 whileHover={{ scale: 1.05 }}
               >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/30 overflow-hidden">
+                <span className="inline-flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-primary/30">
                   {token.logo ? (
                     <Image
                       src={token.logo}
                       alt={`${token.symbol} logo`}
                       width={24}
                       height={24}
-                      className="object-contain w-full h-full"
+                      className="h-full w-full object-contain"
                     />
                   ) : null}
                 </span>
-                <span className="font-medium text-foreground">
-                  {token.symbol}
-                </span>
-                <span className="text-muted-foreground text-[11px]">
+                <span className="font-medium text-foreground">{token.symbol}</span>
+                <span className="text-[11px] text-muted-foreground">
                   {token.usdValue}
                 </span>
               </motion.div>
             ))}
           </div>
 
-          {/* Settings modal */}
           <SettingsModal
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
@@ -1207,32 +1493,35 @@ export default function BridgePageContent({
             title="Bridge Settings"
           />
 
-          {/* Receiving address modal */}
           {isReceivingOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="w-full max-w-sm rounded-2xl bg-[#111214] border border-border/70 shadow-2xl overflow-hidden"
+                className="w-full max-w-sm overflow-hidden rounded-2xl border border-border/70 bg-[#111214] shadow-2xl"
               >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+                <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
                   <h2 className="text-sm font-semibold text-foreground">
                     Receiving Address
                   </h2>
                   <button
                     type="button"
                     onClick={() => setIsReceivingOpen(false)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] text-muted-foreground transition-colors"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#18191c] text-muted-foreground transition-colors hover:bg-[#202225]"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="px-5 pt-4 pb-3 space-y-3">
+                <div className="space-y-3 px-5 pb-3 pt-4">
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-2">
+                    <label className="mb-2 block text-xs text-muted-foreground">
                       Enter Destination Address{" "}
-                      {toChainId === "solana" && "(Solana)"}
+                      {toChainId === "solana"
+                        ? "(Solana)"
+                        : fromChainId === "solana"
+                          ? "(EVM)"
+                          : ""}
                     </label>
                     <input
                       type="text"
@@ -1243,7 +1532,7 @@ export default function BridgePageContent({
                           ? "Enter Solana address..."
                           : "0x..."
                       }
-                      className="w-full rounded-xl bg-[#18191c] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 border border-border/70 focus:outline-none focus:border-border"
+                      className="w-full rounded-xl border border-border/70 bg-[#18191c] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-border focus:outline-none"
                     />
                   </div>
                   <button
@@ -1253,15 +1542,15 @@ export default function BridgePageContent({
                       saveRecentAddress(receivingAddress);
                       setIsReceivingOpen(false);
                     }}
-                    className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-[#1b1c1f] py-2.5 text-xs font-semibold text-muted-foreground disabled:opacity-60 disabled:cursor-not-allowed hover:bg-[#222327] hover:text-foreground transition-colors"
+                    className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-[#1b1c1f] py-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-[#222327] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Done
                   </button>
                 </div>
-                <div className="px-5 pt-1 pb-4">
+                <div className="px-5 pb-4 pt-1">
                   {recentAddresses.length > 0 && (
                     <>
-                      <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                      <p className="mb-2 text-[11px] font-medium text-muted-foreground">
                         Recent Addresses
                       </p>
                       <div className="space-y-2">
@@ -1269,14 +1558,14 @@ export default function BridgePageContent({
                           <button
                             key={address}
                             type="button"
-                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs hover:bg-[#18191c] transition-colors"
+                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs transition-colors hover:bg-[#18191c]"
                             onClick={() => setReceivingAddress(address)}
                           >
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#232428] flex-shrink-0">
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                              <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#232428]">
                                 <Wallet className="h-3.5 w-3.5 text-foreground" />
                               </span>
-                              <span className="text-xs font-medium text-foreground truncate">
+                              <span className="truncate text-xs font-medium text-foreground">
                                 {address.length > 20
                                   ? `${address.slice(0, 6)}...${address.slice(-4)}`
                                   : address}
@@ -1291,7 +1580,6 @@ export default function BridgePageContent({
               </motion.div>
             </div>
           )}
-
           {/* Bridge success modal */}
           {showSuccessModal && !bridgeStepsModalOpen && (
             <>
@@ -1345,7 +1633,7 @@ export default function BridgePageContent({
                     </p>
                     {bridgeHook.status === "pending" && (
                       <p className="mt-2 text-sm text-[#f59e0b]">
-                        ⏳{" "}
+                        Pending:{" "}
                         {bridgeHook.message ||
                           "Your transaction is being settled on-chain. Please wait..."}
                       </p>
@@ -1421,3 +1709,4 @@ export default function BridgePageContent({
     </>
   );
 }
+

@@ -114,6 +114,65 @@ export interface BridgeActivityParams {
   status?: "Successful" | "Failed" | "Pending";
 }
 
+// Interface for bridge fee recording
+export interface BridgeFeeParams {
+  walletAddress: string;
+  fromChain: string;
+  toChain: string;
+  sourceTokenAddress?: string | null;
+  destinationTokenAddress?: string | null;
+  tokenSymbol: string;
+  bridgeAmount: string;
+  platformFeeAmount: string;
+  platformFeeAmountUsd?: string | null;
+  protocolFeeAmount: string;
+  protocolFeeAmountUsd?: string | null;
+  totalFeeAmount: string;
+  totalFeeAmountUsd?: string | null;
+  amountReceived?: string | null;
+  sourceDebitTotal?: string | null;
+  feeType?: "Flat" | "BasisPoints" | "Mixed";
+  feeBasisPoints?: number | null;
+  feeRecipientAddress?: string | null;
+  protocolProvider?: string;
+  transactionHash?: string;
+  blockNumber?: number;
+  status?: "Pending" | "Recorded" | "Confirmed" | "Failed";
+  errorMessage?: string;
+  activityId?: string | null;
+}
+
+// Bridge fee row type from database
+export interface BridgeFeeRow {
+  id: string;
+  wallet_address: string;
+  bridge_activity_id: string | null;
+  from_chain: string;
+  to_chain: string;
+  source_token_address: string | null;
+  destination_token_address: string | null;
+  token_symbol: string;
+  bridge_amount: number;
+  platform_fee_amount: number;
+  platform_fee_amount_usd: number | null;
+  protocol_fee_amount: number;
+  protocol_fee_amount_usd: number | null;
+  total_fee_amount: number;
+  total_fee_amount_usd: number | null;
+  amount_received: number | null;
+  source_debit_total: number | null;
+  fee_type: "Flat" | "BasisPoints" | "Mixed";
+  fee_basis_points: number | null;
+  fee_recipient_address: string | null;
+  protocol_provider: string | null;
+  transaction_hash: string | null;
+  block_number: number | null;
+  status: "Pending" | "Recorded" | "Confirmed" | "Failed";
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Interface for swap fee recording
 export interface SwapFeeParams {
   walletAddress: string;
@@ -154,33 +213,38 @@ export interface SwapFeeRow {
  */
 export async function registerBridgeActivity(
   params: BridgeActivityParams
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
-    const { data, error } = await supabase.from("activities").insert([
-      {
-        wallet_address: params.walletAddress.toLowerCase(),
-        type: "Bridge",
-        source_currency_ticker: params.token,
-        source_network_name: params.fromChain,
-        destination_currency_ticker: params.token,
-        destination_network_name: params.toChain,
-        amount: parseFloat(params.amount),
-        amount_usd: parseFloat(params.amount), // USDC is 1:1 with USD
-        transaction_hash: params.transactionHash || null,
-        fee: params.fee ? parseFloat(params.fee) : null,
-        fee_currency_ticker: params.fee ? params.token : null,
-        status: params.status || "Successful",
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    const { data, error } = await supabase
+      .from("activities")
+      .insert([
+        {
+          wallet_address: params.walletAddress.toLowerCase(),
+          type: "Bridge",
+          source_currency_ticker: params.token,
+          source_network_name: params.fromChain,
+          destination_currency_ticker: params.token,
+          destination_network_name: params.toChain,
+          amount: parseFloat(params.amount),
+          amount_usd: parseFloat(params.amount), // USDC is 1:1 with USD
+          transaction_hash: params.transactionHash || null,
+          fee: params.fee ? parseFloat(params.fee) : null,
+          fee_currency_ticker: params.fee ? params.token : null,
+          status: params.status || "Successful",
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      .select("id")
+      .single();
 
     if (error) {
       console.error("Error registering bridge activity:", error);
       return { success: false, error: error.message };
     }
 
+    const activityId = data?.id;
     console.log("Bridge activity registered:", data);
-    return { success: true };
+    return { success: true, id: activityId };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -188,7 +252,97 @@ export async function registerBridgeActivity(
     return { success: false, error: errorMessage };
   }
 }
+/**
+ * Register a bridge fee in the bridge_fees table
+ * Records bridge platform and protocol fees for tracking and analytics
+ */
+export async function registerBridgeFee(
+  params: BridgeFeeParams
+): Promise<{ success: boolean; error?: string; id?: string }> {
+  const parseRequiredNumber = (value: string): number => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
 
+  const parseOptionalNumber = (value?: string | null): number | null => {
+    if (!value) {
+      return null;
+    }
+
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  try {
+    const bridgeAmount = parseRequiredNumber(params.bridgeAmount);
+    const platformFeeAmount = parseRequiredNumber(params.platformFeeAmount);
+    const protocolFeeAmount = parseRequiredNumber(params.protocolFeeAmount);
+    const totalFeeAmount = parseRequiredNumber(params.totalFeeAmount);
+    const platformFeeAmountUsd =
+      parseOptionalNumber(params.platformFeeAmountUsd) ??
+      (params.tokenSymbol === "USDC" ? platformFeeAmount : null);
+    const protocolFeeAmountUsd =
+      parseOptionalNumber(params.protocolFeeAmountUsd) ??
+      (params.tokenSymbol === "USDC" ? protocolFeeAmount : null);
+    const totalFeeAmountUsd =
+      parseOptionalNumber(params.totalFeeAmountUsd) ??
+      (params.tokenSymbol === "USDC" ? totalFeeAmount : null);
+
+    const { data, error } = await supabase
+      .from("bridge_fees")
+      .insert([
+        {
+          wallet_address: params.walletAddress.toLowerCase(),
+          bridge_activity_id: params.activityId || null,
+          from_chain: params.fromChain,
+          to_chain: params.toChain,
+          source_token_address: params.sourceTokenAddress || null,
+          destination_token_address: params.destinationTokenAddress || null,
+          token_symbol: params.tokenSymbol,
+          bridge_amount: bridgeAmount,
+          platform_fee_amount: platformFeeAmount,
+          platform_fee_amount_usd: platformFeeAmountUsd,
+          protocol_fee_amount: protocolFeeAmount,
+          protocol_fee_amount_usd: protocolFeeAmountUsd,
+          total_fee_amount: totalFeeAmount,
+          total_fee_amount_usd: totalFeeAmountUsd,
+          amount_received: parseOptionalNumber(params.amountReceived),
+          source_debit_total: parseOptionalNumber(params.sourceDebitTotal),
+          fee_type: params.feeType || "Flat",
+          fee_basis_points: params.feeBasisPoints ?? null,
+          fee_recipient_address: params.feeRecipientAddress || null,
+          protocol_provider: params.protocolProvider || "Circle",
+          transaction_hash: params.transactionHash || null,
+          block_number: params.blockNumber || null,
+          status: params.status || "Recorded",
+          error_message: params.errorMessage || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error registering bridge fee:", error);
+      return { success: false, error: error.message };
+    }
+
+    const feeId = data?.id;
+    console.log("Bridge fee registered successfully:", {
+      id: feeId,
+      token: params.tokenSymbol,
+      totalFeeAmount,
+      transactionHash: params.transactionHash,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+    });
+    return { success: true, id: feeId };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error registering bridge fee:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
 /**
  * Register a swap fee in the swap_fees table
  * Records platform fees collected from swap transactions for tracking and analytics
@@ -328,3 +482,4 @@ export async function updateSwapFeeConfirmation(
     return { success: false, error: errorMessage };
   }
 }
+

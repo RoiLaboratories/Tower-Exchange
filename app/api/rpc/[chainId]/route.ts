@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const splitRpcEnv = (value?: string) =>
+  (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const uniqueRpcEndpoints = (...lists: string[][]) =>
+  Array.from(new Set(lists.flat().filter(Boolean)));
+
+const SOLANA_RPC_ENDPOINTS = uniqueRpcEndpoints(
+  splitRpcEnv(process.env.SOLANA_DEVNET_RPC_URLS),
+  splitRpcEnv(process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URLS),
+  splitRpcEnv(process.env.SOLANA_RPC_URLS),
+  splitRpcEnv(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS),
+  [
+    process.env.SOLANA_DEVNET_RPC_URL,
+    process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL,
+    process.env.SOLANA_RPC_URL,
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL,
+  ].filter((value): value is string => Boolean(value && value.trim())),
+  ["https://api.devnet.solana.com"],
+);
+
 const RPC_ENDPOINTS: Record<string, string[]> = {
   "1": [
     "https://ethereum-rpc.publicnode.com",
@@ -30,6 +53,7 @@ const RPC_ENDPOINTS: Record<string, string[]> = {
     "https://rpc.blockdaemon.testnet.arc.network",
     "https://rpc.testnet.arc.network",
   ],
+  solana: SOLANA_RPC_ENDPOINTS,
   "11155111": ["https://sepolia.drpc.org"],
   "11155420": ["https://sepolia.optimism.io"],
 };

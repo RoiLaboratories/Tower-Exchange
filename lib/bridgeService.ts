@@ -12,7 +12,6 @@
 import {
   PublicClient,
   createPublicClient,
-  createWalletClient,
   http,
   Chain as ViemChain,
   type EIP1193Provider,
@@ -27,7 +26,9 @@ import {
 // Bridge Kit adapters and chain definitions
 import { AppKit } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
-import { createSolanaKitAdapterFromProvider } from "@circle-fin/adapter-solana-kit";
+import { createSolanaAdapterFromProvider } from "@circle-fin/adapter-solana";
+import { Buffer } from "buffer";
+import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 import {
   ArcTestnet,
   ArbitrumSepolia,
@@ -41,6 +42,11 @@ import {
   UnichainSepolia,
   SolanaDevnet,
 } from "@circle-fin/bridge-kit/chains";
+import {
+  getConnectedSolanaAddress,
+  getConnectedSolanaProvider,
+  type SolanaWalletProvider,
+} from "@/lib/solanaWalletStore";
 
 // Chain mapping for viem
 const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
@@ -110,6 +116,9 @@ const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
     },
   } as ViemChain,
 };
+
+const SOLANA_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const SOLANA_RPC_PROXY_PATH = "/api/rpc/solana";
 
 // Chain configurations for supported networks
 export const SUPPORTED_CHAINS = {
@@ -194,7 +203,30 @@ export const SUPPORTED_CHAINS = {
     circleChain: "Unichain_Sepolia" as const,
     usdcAddress: "0x31d0220469e10c4E71834a79b1f276d740d3768F",
   },
+  solana: {
+    name: "Solana Devnet",
+    chainId: 103,
+    rpcUrl: "https://api.devnet.solana.com",
+    nativeTokenSymbol: "SOL",
+    circleChain: "Solana_Devnet" as const,
+    usdcAddress: SOLANA_DEVNET_USDC_MINT,
+  },
 };
+
+const getSolanaBridgeRpcUrl = () => {
+  if (typeof window === "undefined") {
+    return SUPPORTED_CHAINS.solana.rpcUrl;
+  }
+
+  return new URL(SOLANA_RPC_PROXY_PATH, window.location.origin).toString();
+};
+
+const createSolanaBridgeConnection = (rpcUrl: string) =>
+  new Connection(rpcUrl, {
+    commitment: "confirmed",
+    confirmTransactionInitialTimeout: 120000,
+    disableRetryOnRateLimit: false,
+  });
 
 const SUPPORTED_EVM_CIRCLE_CHAINS = [
   ArcTestnet,
@@ -208,6 +240,363 @@ const SUPPORTED_EVM_CIRCLE_CHAINS = [
   SonicTestnet,
   UnichainSepolia,
 ] as const;
+
+
+type CircleSolanaProvider = SolanaWalletProvider;
+
+type SolanaSignableTransaction = Transaction | VersionedTransaction;
+
+const decodeBase64Value = (value: string) => Uint8Array.from(Buffer.from(value, "base64"));
+
+const encodeBase64Value = (value: Uint8Array) =>
+  Buffer.from(value).toString("base64");
+
+const getSolanaProviderAddress = (
+  provider: SolanaWalletProvider | null | undefined,
+  fallbackAddress?: string,
+) => provider?.publicKey?.toString?.() ?? provider?.address ?? fallbackAddress ?? "";
+
+const setSolanaProviderAddress = (
+  provider: SolanaWalletProvider | null | undefined,
+  address: string,
+) => {
+  if (!provider) {
+    return;
+  }
+
+  try {
+    provider.address = address;
+  } catch {
+    // Some injected providers expose a read-only shape; the wrapper getter
+    // still resolves from publicKey, so treat address assignment as best-effort.
+  }
+};
+
+const decodeSolanaWireTransaction = (
+  wireTransaction: string,
+): SolanaSignableTransaction => {
+  const bytes = decodeBase64Value(wireTransaction);
+
+  try {
+    return VersionedTransaction.deserialize(bytes);
+  } catch {
+    return Transaction.from(Buffer.from(bytes));
+  }
+};
+
+const encodeSignedSolanaTransaction = (signedTransaction: unknown) => {
+  if (typeof signedTransaction === "string") {
+    return signedTransaction;
+  }
+
+  if (signedTransaction instanceof Uint8Array) {
+    return encodeBase64Value(signedTransaction);
+  }
+
+  if (
+    signedTransaction &&
+    typeof signedTransaction === "object" &&
+    "serialize" in signedTransaction &&
+    typeof (signedTransaction as { serialize: () => Uint8Array }).serialize ===
+      "function"
+  ) {
+    return encodeBase64Value(
+      (signedTransaction as { serialize: () => Uint8Array }).serialize(),
+    );
+  }
+
+  throw new Error(
+    "Unsupported signed transaction response from Solana wallet provider.",
+  );
+};
+
+const getSolanaConnectResultAddress = (
+  result: unknown,
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+) =>
+  result && typeof result === "object" && "publicKey" in result
+    ? (result as { publicKey?: { toString?: () => string } | null }).publicKey?.toString?.() ??
+      getSolanaProviderAddress(provider, fallbackAddress)
+    : result && typeof result === "object" && "address" in result
+      ? ((result as { address?: string }).address ??
+          getSolanaProviderAddress(provider, fallbackAddress))
+      : getSolanaProviderAddress(provider, fallbackAddress);
+
+const refreshTrustedPhantomSession = async (
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+) => {
+  if (!provider.isPhantom) {
+    return null;
+  }
+
+  try {
+    const result = await provider.connect({ onlyIfTrusted: true });
+    const address = getSolanaConnectResultAddress(result, provider, fallbackAddress);
+
+    if (!address) {
+      return null;
+    }
+
+    setSolanaProviderAddress(provider, address);
+    return address;
+  } catch (error) {
+    console.warn("Unable to silently refresh Phantom session before signing:", error);
+    return null;
+  }
+};
+
+const ensureConnectedSolanaProvider = async (
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+  forceReconnect = false,
+) => {
+  const existingAddress = getSolanaProviderAddress(provider, fallbackAddress);
+
+  if (!forceReconnect && provider.isConnected && existingAddress) {
+    const refreshedPhantomAddress = await refreshTrustedPhantomSession(
+      provider,
+      existingAddress,
+    );
+
+    const addressToUse = refreshedPhantomAddress ?? existingAddress;
+    setSolanaProviderAddress(provider, addressToUse);
+    return addressToUse;
+  }
+
+  const result = await provider.connect();
+  const address = getSolanaConnectResultAddress(result, provider, fallbackAddress);
+
+  if (!address) {
+    throw new Error("Wallet connection did not return an address");
+  }
+
+  setSolanaProviderAddress(provider, address);
+  return address;
+};
+
+const isSolanaProviderConnectionError = (error: unknown) => {
+  const normalizedMessage = getBridgeErrorMessage(error).toLowerCase();
+
+  return (
+    normalizedMessage.includes("disconnected port") ||
+    normalizedMessage.includes("failed to send message") ||
+    normalizedMessage.includes("service worker") ||
+    normalizedMessage.includes("wallet disconnected")
+  );
+};
+
+const withSolanaProviderConnectionRetry = async <T>(
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+  operation: () => Promise<T>,
+) => {
+  await ensureConnectedSolanaProvider(provider, fallbackAddress);
+
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isSolanaProviderConnectionError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      "Solana wallet provider lost connection during signing. Retrying after reconnect.",
+      error,
+    );
+
+    await ensureConnectedSolanaProvider(provider, fallbackAddress, true);
+    return await operation();
+  }
+};
+
+const createCircleCompatibleSolanaProvider = (
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+): CircleSolanaProvider => {
+  let knownAddress = fallbackAddress;
+  const resolveAddress = () => getSolanaProviderAddress(provider, knownAddress);
+  const rememberAddress = (address: string) => {
+    knownAddress = address;
+    setSolanaProviderAddress(provider, address);
+    return address;
+  };
+
+  return {
+    get address() {
+      return resolveAddress();
+    },
+    get isConnected() {
+      return Boolean(provider.isConnected && resolveAddress());
+    },
+    connect: async () => {
+      const address = rememberAddress(
+        await ensureConnectedSolanaProvider(provider, knownAddress, true),
+      );
+      return { address };
+    },
+    disconnect: async () => {
+      knownAddress = "";
+      setSolanaProviderAddress(provider, "");
+      await provider.disconnect();
+    },
+    signTransaction: async (wireTransaction: unknown) => {
+      if (typeof wireTransaction !== "string") {
+        throw new Error("Expected a base64-encoded Solana transaction payload.");
+      }
+
+      const decodedTransaction = decodeSolanaWireTransaction(wireTransaction);
+      console.log("Solana provider signTransaction requested", {
+        wallet: provider.isPhantom
+          ? "phantom"
+          : provider.isSolflare
+            ? "solflare"
+            : provider.isBackpack
+              ? "backpack"
+              : "unknown",
+        isConnected: provider.isConnected,
+        address: resolveAddress(),
+        transactionType:
+          decodedTransaction instanceof VersionedTransaction ? "versioned" : "legacy",
+      });
+      const signedTransaction = await withSolanaProviderConnectionRetry(
+        provider,
+        knownAddress,
+        async () => provider.signTransaction(decodedTransaction),
+      );
+      const latestAddress = resolveAddress();
+      if (latestAddress) {
+        rememberAddress(latestAddress);
+      }
+      console.log("Solana provider signTransaction completed", {
+        address: latestAddress || resolveAddress(),
+      });
+      return encodeSignedSolanaTransaction(signedTransaction);
+    },
+    ...(provider.signAllTransactions
+      ? {
+          signAllTransactions: async (wireTransactions: unknown[]) => {
+            const decodedTransactions = wireTransactions.map((wireTransaction) => {
+              if (typeof wireTransaction !== "string") {
+                throw new Error(
+                  "Expected base64-encoded Solana transaction payloads.",
+                );
+              }
+
+              return decodeSolanaWireTransaction(wireTransaction);
+            });
+            console.log("Solana provider signAllTransactions requested", {
+              wallet: provider.isPhantom
+                ? "phantom"
+                : provider.isSolflare
+                  ? "solflare"
+                  : provider.isBackpack
+                    ? "backpack"
+                    : "unknown",
+              count: decodedTransactions.length,
+              isConnected: provider.isConnected,
+              address: resolveAddress(),
+            });
+            const signedTransactions = await withSolanaProviderConnectionRetry(
+              provider,
+              knownAddress,
+              async () => provider.signAllTransactions!(decodedTransactions),
+            );
+            const latestAddress = resolveAddress();
+            if (latestAddress) {
+              rememberAddress(latestAddress);
+            }
+            console.log("Solana provider signAllTransactions completed", {
+              count: signedTransactions.length,
+              address: latestAddress || resolveAddress(),
+            });
+            return signedTransactions.map(encodeSignedSolanaTransaction);
+          },
+        }
+      : {}),
+  };
+};
+
+const withSolanaMessageSigning = (
+  adapter: any,
+  provider: SolanaWalletProvider,
+  fallbackAddress: string,
+) => {
+  if (!adapter || typeof adapter.getSigner !== "function" || !provider.signMessage) {
+    return adapter;
+  }
+
+  const originalGetSigner = adapter.getSigner.bind(adapter);
+
+  adapter.getSigner = async (...args: unknown[]) => {
+    const signer = await originalGetSigner(...args);
+
+    if (!signer || typeof signer !== "object" || "signMessages" in signer) {
+      return signer;
+    }
+
+    return {
+      ...signer,
+      signMessages: async (
+        messages: Array<{
+          content: Uint8Array;
+          signatures?: Record<string, Uint8Array>;
+        }>,
+      ) => {
+        const results = [];
+
+        for (const message of messages) {
+          const address = await ensureConnectedSolanaProvider(
+            provider,
+            fallbackAddress,
+          );
+          console.log("Solana provider signMessage requested", {
+            wallet: provider.isPhantom
+              ? "phantom"
+              : provider.isSolflare
+                ? "solflare"
+                : provider.isBackpack
+                  ? "backpack"
+                  : "unknown",
+            isConnected: provider.isConnected,
+            address,
+            messageBytes: message.content.length,
+          });
+          const signedMessage = await withSolanaProviderConnectionRetry(
+            provider,
+            address,
+            async () => provider.signMessage!(message.content),
+          );
+          const signature =
+            signedMessage &&
+            typeof signedMessage === "object" &&
+            "signature" in signedMessage &&
+            signedMessage.signature instanceof Uint8Array
+              ? signedMessage.signature
+              : signedMessage instanceof Uint8Array
+                ? signedMessage
+                : null;
+
+          if (!signature) {
+            throw new Error(
+              "Unsupported Solana message signature response from wallet provider.",
+            );
+          }
+
+          results.push({
+            ...(message.signatures ?? {}),
+            [address]: signature,
+          });
+        }
+
+        return results;
+      },
+    };
+  };
+
+  return adapter;
+};
 
 const BRIDGE_STEP_RECEIPT_TIMEOUT_MS = 5 * 60 * 1000;
 const BRIDGE_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000;
@@ -230,6 +619,36 @@ export type BridgeProgressSnapshot = {
     explorerUrl?: string;
   }>;
 };
+
+function getBridgeErrorDiagnostics(error: unknown, depth = 0): unknown {
+  if (depth > 3 || error == null) {
+    return error;
+  }
+
+  if (typeof error !== "object") {
+    return error;
+  }
+
+  const record = error as Record<string, unknown>;
+  const cause =
+    "cause" in record ? getBridgeErrorDiagnostics(record.cause, depth + 1) : undefined;
+  const trace =
+    record.cause &&
+    typeof record.cause === "object" &&
+    "trace" in (record.cause as Record<string, unknown>)
+      ? (record.cause as Record<string, unknown>).trace
+      : undefined;
+
+  return {
+    name: typeof record.name === "string" ? record.name : undefined,
+    message: typeof record.message === "string" ? record.message : undefined,
+    code: record.code,
+    type: record.type,
+    recoverability: record.recoverability,
+    trace,
+    cause,
+  };
+}
 
 function getBridgeErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -366,13 +785,103 @@ async function restoreActiveWalletChain(initialChainId: string | null) {
 
 /**
  * Circle's bridge fee configuration
- * Circle automatically deducts a fee (~0.00013 USDC) from the bridge amount
- * This is mandatory and cannot be avoided
- * Platform custom fees have been disabled
+ * Circle automatically deducts a fee (~0.00013 USDC) from the bridge amount.
+ * This is mandatory and cannot be avoided.
  */
 export const BRIDGE_FEE_CONFIG: Record<string, string> = {
   // Circle's fee per bridge (varies by chain pair, approximate)
   USDC: "0.00013",
+};
+
+const BRIDGE_CUSTOM_FEE_AMOUNT_USDC =
+  process.env.NEXT_PUBLIC_BRIDGE_CUSTOM_FEE_USDC?.trim() ?? "0";
+const BRIDGE_CUSTOM_FEE_RECIPIENT_EVM =
+  process.env.NEXT_PUBLIC_BRIDGE_FEE_RECIPIENT_EVM?.trim() ??
+  process.env.NEXT_PUBLIC_BRIDGE_FEE_RECIPIENT?.trim() ??
+  "";
+const BRIDGE_CUSTOM_FEE_RECIPIENT_SOLANA =
+  process.env.NEXT_PUBLIC_BRIDGE_FEE_RECIPIENT_SOLANA?.trim() ?? "";
+
+type BridgeCustomFeeConfig = {
+  value: string;
+  recipientAddress: string;
+};
+
+type BridgeFeeQuote = {
+  circleFee: string;
+  platformFee: string;
+  totalFee: string;
+  totalWithFees: string;
+  amountReceived: string;
+  sourceDebitTotal: string;
+  customFeeEnabled: boolean;
+};
+
+const formatBridgeFeeAmount = (value: number) => value.toFixed(6);
+
+const formatBridgeCustomFeeValue = (value: number) =>
+  value.toFixed(6).replace(/\.?0+$/, "");
+
+const getBridgeProtocolFee = (tokenSymbol: string = "USDC") => {
+  const feeKey = tokenSymbol?.toUpperCase?.() ?? "USDC";
+  const configuredFee = Number.parseFloat(
+    BRIDGE_FEE_CONFIG[feeKey] ?? BRIDGE_FEE_CONFIG.USDC,
+  );
+
+  return Number.isFinite(configuredFee) && configuredFee > 0
+    ? configuredFee
+    : 0;
+};
+
+const getConfiguredCustomBridgeFee = (
+  sourceChain: string,
+): BridgeCustomFeeConfig | null => {
+  const customFeeValue = Number.parseFloat(BRIDGE_CUSTOM_FEE_AMOUNT_USDC);
+
+  if (!Number.isFinite(customFeeValue) || customFeeValue <= 0) {
+    return null;
+  }
+
+  const recipientAddress =
+    sourceChain === "solana"
+      ? BRIDGE_CUSTOM_FEE_RECIPIENT_SOLANA
+      : BRIDGE_CUSTOM_FEE_RECIPIENT_EVM;
+  const recipientChainType = sourceChain === "solana" ? "solana" : "evm";
+
+  if (!recipientAddress || !isValidAddress(recipientAddress, recipientChainType)) {
+    return null;
+  }
+
+  return {
+    value: formatBridgeCustomFeeValue(customFeeValue),
+    recipientAddress,
+  };
+};
+
+const getBridgeFeeQuote = (
+  fromChain: string,
+  amount: string,
+  tokenSymbol: string = "USDC",
+): BridgeFeeQuote => {
+  const transferAmount = Number.parseFloat(amount);
+  const safeTransferAmount =
+    Number.isFinite(transferAmount) && transferAmount > 0 ? transferAmount : 0;
+  const circleFee = getBridgeProtocolFee(tokenSymbol);
+  const customFee = getConfiguredCustomBridgeFee(fromChain);
+  const platformFee = customFee ? Number.parseFloat(customFee.value) : 0;
+  const amountReceived = Math.max(safeTransferAmount - circleFee, 0);
+  const sourceDebitTotal = safeTransferAmount + platformFee;
+  const totalFee = circleFee + platformFee;
+
+  return {
+    circleFee: formatBridgeFeeAmount(circleFee),
+    platformFee: formatBridgeFeeAmount(platformFee),
+    totalFee: formatBridgeFeeAmount(totalFee),
+    totalWithFees: formatBridgeFeeAmount(amountReceived),
+    amountReceived: formatBridgeFeeAmount(amountReceived),
+    sourceDebitTotal: formatBridgeFeeAmount(sourceDebitTotal),
+    customFeeEnabled: platformFee > 0,
+  };
 };
 
 // Bridge request parameters
@@ -421,9 +930,7 @@ export interface SupportedToken {
  * 
  * Works with both Privy and RainbowKit/wagmi
  */
-async function createBridgeKitAdapter(): Promise<
-  Awaited<ReturnType<typeof createViemAdapterFromProvider>>
-> {
+async function createBridgeKitAdapter(): Promise<any> {
   // Get the EIP1193 provider from the browser window
   let provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
   
@@ -540,56 +1047,92 @@ export async function createBridgeKitAdapterFromClients(
 let appKitInstance: AppKit | null = null;
 let evmAdapter: any = null;
 let solanaAdapter: any = null;
+let solanaAdapterProvider: SolanaWalletProvider | null = null;
+let solanaAdapterAddress: string | null = null;
 
 /**
- * Helper function to initialize Solana adapter from wallet provider
- * Returns null if Solana wallet is not available
+ * Helper function to initialize Solana adapter from the shared wallet store
+ * Returns null if a supported Solana wallet is not connected
  */
 async function initializeSolanaAdapter(): Promise<any> {
   try {
-    const solanaWindow = (window as any).solana;
-    if (!solanaWindow) {
-      console.warn("Solana wallet not found - Phantom not installed");
+    const rawProvider = getConnectedSolanaProvider();
+    const connectedAddress = getConnectedSolanaAddress();
+    const address = getSolanaProviderAddress(rawProvider, connectedAddress);
+
+    if (!rawProvider || !address) {
+      console.warn("No connected Solana wallet found in shared wallet store");
       return null;
     }
 
-    // Request connection to Phantom wallet
-    try {
-      await solanaWindow.connect();
-      console.log("Connected to Phantom wallet");
-    } catch (connectError) {
-      console.warn("User rejected Phantom connection or already connected:", connectError);
-      // Continue anyway - wallet might already be connected
-    }
-
-    // Create adapter with connected wallet
-    const adapter = await createSolanaKitAdapterFromProvider({
-      provider: solanaWindow,
+    setSolanaProviderAddress(rawProvider, address);
+    const solanaRpcUrl = getSolanaBridgeRpcUrl();
+    const provider =
+      rawProvider as Parameters<typeof createSolanaAdapterFromProvider>[0]["provider"];
+    const adapter = await createSolanaAdapterFromProvider({
+      provider,
+      connection: createSolanaBridgeConnection(solanaRpcUrl),
+      capabilities: {
+        addressContext: "user-controlled",
+        supportedChains: [SolanaDevnet],
+      },
     });
-    console.log("Solana adapter initialized successfully");
+    console.log("Solana adapter initialized successfully", {
+      address,
+      rpcUrl: solanaRpcUrl,
+      supportsMessageSigning: Boolean(rawProvider.signMessage),
+    });
     return adapter;
   } catch (error) {
     console.warn("Failed to initialize Solana adapter:", error);
+    console.warn(
+      "Solana adapter initialization diagnostics:",
+      getBridgeErrorDiagnostics(error),
+    );
     return null;
   }
 }
 
+async function ensureEvmBridgeAdapter(): Promise<any> {
+  if (evmAdapter) {
+    return evmAdapter;
+  }
+
+  evmAdapter = await createBridgeKitAdapter();
+  return evmAdapter;
+}
+
+async function ensureSolanaBridgeAdapter(): Promise<any> {
+  const provider = getConnectedSolanaProvider();
+  const currentAddress = getSolanaProviderAddress(
+    provider,
+    getConnectedSolanaAddress(),
+  );
+
+  if (!provider || !currentAddress) {
+    solanaAdapter = null;
+    solanaAdapterProvider = null;
+    solanaAdapterAddress = null;
+    return null;
+  }
+
+  solanaAdapter = await initializeSolanaAdapter();
+  solanaAdapterProvider = solanaAdapter ? provider : null;
+  solanaAdapterAddress = solanaAdapter ? currentAddress : null;
+  return solanaAdapter;
+}
+
 async function initializeCircleSDK(): Promise<any> {
-  if (appKitInstance && evmAdapter) {
+  if (appKitInstance) {
     return appKitInstance;
   }
 
   try {
-    // Create the EVM adapter from the browser wallet provider
-    evmAdapter = await createBridgeKitAdapter();
+    appKitInstance = new AppKit({
+      disableErrorReporting: true,
+    });
 
-    // Initialize Solana adapter if Solana wallet is available
-    solanaAdapter = await initializeSolanaAdapter();
-
-    // Initialize AppKit (which includes Bridge capability)
-    appKitInstance = new AppKit();
-
-    console.log("Circle AppKit initialized successfully with EVM adapter");
+    console.log("Circle AppKit initialized successfully");
     return appKitInstance;
   } catch (error) {
     console.error("Failed to initialize Circle SDK:", error);
@@ -639,7 +1182,10 @@ export async function bridgeTokens(
 ): Promise<BridgeResponse> {
   const bridgeProgress: BridgeProgressSnapshot = { events: [] };
   (window as any).__lastBridgeProgress = bridgeProgress;
-  const initialWalletChainId = await getActiveWalletChainId();
+  const shouldTrackEvmWalletChain = request.fromChain !== "solana";
+  const initialWalletChainId = shouldTrackEvmWalletChain
+    ? await getActiveWalletChainId()
+    : null;
 
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
@@ -732,74 +1278,54 @@ export async function bridgeTokens(
     }
 
     const useForwarder = request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
+    const requiresDestinationAdapter = !(useForwarder && request.toAddress);
 
-    // Determine adapters based on chain types
-    let fromAdapter = evmAdapter;
-    let toAdapter = evmAdapter;
-
-    // For cross-chain bridges (EVM → Solana), only use EVM adapter
-    // The destination address is provided by the user, not from a connected wallet
-    const isEVMtoSolana = request.fromChain !== "solana" && request.toChain === "solana";
-    const isSolanatoEVM = request.fromChain === "solana" && request.toChain !== "solana";
-
-    // Check for cross-chain type transfers (not currently supported by Circle)
-    if (isEVMtoSolana || isSolanatoEVM) {
+    if (!request.toAddress) {
       return {
         success: false,
-        error: "Cross-chain transfers between EVM and Solana are not yet supported by Circle's Bridge Kit. Circle currently only supports EVM-to-EVM or Solana-to-Solana transfers.",
+        error: "Destination address is required",
       };
     }
 
-    // For EVM → EVM: Only EVM adapter needed, destination address is manual
-    if (!isEVMtoSolana && request.toChain !== "solana") {
-      if (!request.toAddress) {
-        return {
-          success: false,
-          error: "Destination address is required",
-        };
-      }
-    }
+    let fromAdapter: any = null;
+    let toAdapter: any = null;
 
-    // For Solana → EVM or Solana → Solana: Need Solana adapter
     if (request.fromChain === "solana") {
-      if (!solanaAdapter) {
-        solanaAdapter = await initializeSolanaAdapter();
-      }
-      if (!solanaAdapter) {
+      fromAdapter = await ensureSolanaBridgeAdapter();
+      if (!fromAdapter) {
         return {
           success: false,
-          error: "Phantom wallet not connected. Please connect Phantom to Solana Devnet.",
+          error: "Solana wallet not connected. Please connect a supported Solana wallet to Solana Devnet.",
         };
       }
-      fromAdapter = solanaAdapter;
-    }
-
-    if (request.toChain === "solana" && request.fromChain === "solana") {
-      if (!solanaAdapter) {
-        solanaAdapter = await initializeSolanaAdapter();
-      }
-      if (!solanaAdapter) {
+    } else {
+      fromAdapter = await ensureEvmBridgeAdapter();
+      if (!fromAdapter) {
         return {
           success: false,
-          error: "Phantom wallet not connected. Please connect Phantom to Solana Devnet.",
+          error: "Bridge adapter not initialized. Please connect your wallet.",
         };
       }
-      toAdapter = solanaAdapter;
     }
 
-    // Validate that adapters are initialized
-    if (!fromAdapter) {
-      return {
-        success: false,
-        error: "Bridge adapter not initialized. Please connect your wallet.",
-      };
-    }
-
-    if (!toAdapter) {
-      return {
-        success: false,
-        error: "Destination adapter not initialized. Please ensure required wallet is connected.",
-      };
+    if (requiresDestinationAdapter) {
+      if (request.toChain === "solana") {
+        toAdapter = await ensureSolanaBridgeAdapter();
+        if (!toAdapter) {
+          return {
+            success: false,
+            error: "Solana wallet not connected. Please connect a supported Solana wallet to Solana Devnet.",
+          };
+        }
+      } else {
+        toAdapter = await ensureEvmBridgeAdapter();
+        if (!toAdapter) {
+          return {
+            success: false,
+            error: "Destination adapter not initialized. Please ensure required wallet is connected.",
+          };
+        }
+      }
     }
 
     console.log("Executing bridge with adapter:", { 
@@ -822,10 +1348,10 @@ export async function bridgeTokens(
     // Ensure wallet is properly connected by requesting accounts before bridge
     try {
       const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
-      if (provider) {
-        const accounts = await provider.request({
+      if (request.fromChain !== "solana" && provider) {
+        const accounts = (await provider.request({
           method: "eth_requestAccounts",
-        }) as string[];
+        })) as string[];
         console.log("Wallet accounts confirmed before bridge:", accounts[0]);
       }
     } catch (e) {
@@ -833,7 +1359,21 @@ export async function bridgeTokens(
       // Continue anyway - wallet might still be connected from adapter
     }
 
-    // Fee collection disabled - execute bridge without custom fees
+    const customFee = getConfiguredCustomBridgeFee(request.fromChain);
+
+    if (!customFee) {
+      const configuredCustomFeeAmount = Number.parseFloat(
+        BRIDGE_CUSTOM_FEE_AMOUNT_USDC,
+      );
+
+      if (Number.isFinite(configuredCustomFeeAmount) && configuredCustomFeeAmount > 0) {
+        console.warn(
+          "Custom bridge fee is configured but disabled for this source chain because the recipient is missing or invalid.",
+          { sourceChain: request.fromChain },
+        );
+      }
+    }
+
     console.log("Starting bridge execution...");
     console.log("Bridge adapter info:", {
       fromChain: (fromChainObj as any).name,
@@ -903,6 +1443,13 @@ export async function bridgeTokens(
         to: bridgeDestination as any,
         amount: request.amount,
         token: "USDC",
+        ...(customFee
+          ? {
+              config: {
+                customFee,
+              },
+            }
+          : {}),
       });
 
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -945,6 +1492,9 @@ export async function bridgeTokens(
         if (step.txHash) stepDetails.txHash = step.txHash;
         if (step.forwarded !== undefined) stepDetails.forwarded = step.forwarded;
         if (step.error) stepDetails.error = String(step.error);
+        if (step.error) {
+          stepDetails.errorDiagnostics = getBridgeErrorDiagnostics(step.error);
+        }
         console.log(`Step ${index} (${step.name}):`, stepDetails);
       });
     }
@@ -1139,6 +1689,7 @@ export async function bridgeTokens(
     }
   } catch (error) {
     console.error("Bridge error:", error);
+    console.error("Bridge error diagnostics:", getBridgeErrorDiagnostics(error));
 
     const rawErrorMessage = getBridgeErrorMessage(error);
 
@@ -1191,7 +1742,9 @@ export async function bridgeTokens(
       error: errorMessage,
     };
   } finally {
-    await restoreActiveWalletChain(initialWalletChainId);
+    if (shouldTrackEvmWalletChain) {
+      await restoreActiveWalletChain(initialWalletChainId);
+    }
   }
 }
 
@@ -1201,7 +1754,7 @@ export async function bridgeTokens(
  */
 export function getViemClient(chainId: string): PublicClient | null {
   const chainConfig = SUPPORTED_CHAINS[chainId as keyof typeof SUPPORTED_CHAINS];
-  if (!chainConfig) return null;
+  if (!chainConfig || chainId === "solana") return null;
   
   return createEVMPublicClient(chainConfig.chainId, chainConfig.rpcUrl);
 }
@@ -1253,31 +1806,17 @@ export function getSupportedBridgeRoutes(): Array<{
 }
 
 /**
- * Get bridge fees for a specific route and amount
- * Returns only Circle's mandatory fee (platform custom fees have been disabled)
+ * Get bridge fees for a specific route and amount.
+ * Circle's protocol fee is deducted from the bridged amount, while Tower's
+ * custom fee is added on top of the source-chain wallet debit when configured.
  */
 export async function getBridgeFees(
-  _fromChain: string,
+  fromChain: string,
   _toChain: string,
-  _amount: string,
-  tokenSymbol: string = "USDC"
-): Promise<{
-  circleFee: string;
-  platformFee: string;
-  totalFee: string;
-  totalWithFees: string;
-}> {
-  // Only Circle's mandatory fee applies
-  const feeKey = tokenSymbol?.toUpperCase?.() ?? "USDC";
-  const circleFee = parseFloat(BRIDGE_FEE_CONFIG[feeKey] ?? BRIDGE_FEE_CONFIG.USDC);
-  const userAmount = parseFloat(_amount) - circleFee;
-  
-  return {
-    circleFee: circleFee.toFixed(6),
-    platformFee: "0.00",
-    totalFee: circleFee.toFixed(6),
-    totalWithFees: userAmount.toFixed(6),
-  };
+  amount: string,
+  tokenSymbol: string = "USDC",
+): Promise<BridgeFeeQuote> {
+  return getBridgeFeeQuote(fromChain, amount, tokenSymbol);
 }
 
 /**
@@ -1301,6 +1840,7 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy",
         "sonic-testnet",
         "unichain-sepolia",
+        "solana",
       ],
       chainAddresses: {
         "arc-testnet": "0x3600000000000000000000000000000000000000",
@@ -1313,6 +1853,7 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
         "polygon-amoy": "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
         "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
         "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
+        solana: SOLANA_DEVNET_USDC_MINT,
       },
       logo: "/assets/usdc.svg",
     },
@@ -1389,7 +1930,7 @@ export function isValidAddress(address: string, chainType: "evm" | "solana"): bo
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   } else if (chainType === "solana") {
     // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 43-44 characters
-    return /^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(address);
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
   }
   return false;
 }
@@ -1411,3 +1952,4 @@ export default {
   SUPPORTED_CHAINS,
   VIEM_CHAIN_MAP,
 };
+

@@ -9,6 +9,8 @@ export interface AIAgentRequest {
   userid: string;
   session_id: string;
   wallet_address?: string;
+  solana_wallet_address?: string;
+  solanaWalletAddress?: string;
   chain_id?: number;
   enable_wallet_access?: boolean;
   enable_swap_execution?: boolean;
@@ -308,3 +310,4 @@ function generateUUID(): string {
     return v.toString(16);
   });
 }
+

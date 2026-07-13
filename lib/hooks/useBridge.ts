@@ -25,7 +25,12 @@ export interface BridgeState {
   error: string | null;
   success: boolean;
   estimatedFee: string;
+  estimatedCircleFee: string;
+  estimatedPlatformFee: string;
+  estimatedSourceDebit: string;
+  estimatedReceivedAmount: string;
   estimatedTime: string;
+  customFeeEnabled: boolean;
   transactionHash?: string;
   status?: string; // "pending" or "completed"
   message?: string; // Additional info message for pending status
@@ -39,7 +44,12 @@ export function useBridge() {
     error: null,
     success: false,
     estimatedFee: "0.00",
+    estimatedCircleFee: "0.00",
+    estimatedPlatformFee: "0.00",
+    estimatedSourceDebit: "0.00",
+    estimatedReceivedAmount: "0.00",
     estimatedTime: "2-5 minutes",
+    customFeeEnabled: false,
   });
 
   /**
@@ -89,8 +99,13 @@ export function useBridge() {
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          estimatedFee: fees.circleFee,
+          estimatedFee: fees.totalFee,
+          estimatedCircleFee: fees.circleFee,
+          estimatedPlatformFee: fees.platformFee,
+          estimatedSourceDebit: fees.sourceDebitTotal,
+          estimatedReceivedAmount: fees.amountReceived,
           estimatedTime: time,
+          customFeeEnabled: fees.customFeeEnabled,
         }));
       } catch (error) {
         const errorMessage =
@@ -197,7 +212,12 @@ export function useBridge() {
       error: null,
       success: false,
       estimatedFee: "0.00",
+      estimatedCircleFee: "0.00",
+      estimatedPlatformFee: "0.00",
+      estimatedSourceDebit: "0.00",
+      estimatedReceivedAmount: "0.00",
       estimatedTime: "2-5 minutes",
+      customFeeEnabled: false,
       status: undefined,
       message: undefined,
       forwarded: undefined,
@@ -225,3 +245,4 @@ export function useBridge() {
 }
 
 export default useBridge;
+
