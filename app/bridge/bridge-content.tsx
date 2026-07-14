@@ -273,6 +273,9 @@ export default function BridgePageContent({
   const latestBridgeStepRef = useRef<BridgeStepsStep>("approve");
   const previousFromChainIdRef = useRef<string | null>(null);
   const previousToChainIdRef = useRef<string | null>(null);
+  const previousBridgeStatusRef = useRef<string | undefined>(undefined);
+  const bridgeCompletionResetTimeoutRef =
+    useRef<number | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -867,6 +870,45 @@ export default function BridgePageContent({
     openSolanaConnectModal,
   ]);
 
+  useEffect(() => {
+    return () => {
+      if (bridgeCompletionResetTimeoutRef.current) {
+        window.clearTimeout(bridgeCompletionResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousBridgeStatus = previousBridgeStatusRef.current;
+
+    if (bridgeHook.status === "completed" && previousBridgeStatus === "pending") {
+      setBridgeStepsFailureMessage(null);
+      setBridgeStepsPhase("success");
+      setBridgeStepsModalOpen(false);
+      setShowSuccessModal(true);
+      void fetchWalletBalance();
+      void fetchToChainBalance();
+
+      if (bridgeCompletionResetTimeoutRef.current) {
+        window.clearTimeout(bridgeCompletionResetTimeoutRef.current);
+      }
+
+      bridgeCompletionResetTimeoutRef.current = window.setTimeout(() => {
+        bridgeHook.resetBridgeState();
+        setFromAmount("0.00");
+        setToAmount("0.00");
+        setShowSuccessModal(false);
+        setBridgeStepsModalOpen(false);
+      }, BRIDGE_SUCCESS_MODAL_DURATION_MS);
+    }
+
+    previousBridgeStatusRef.current = bridgeHook.status;
+  }, [
+    bridgeHook,
+    fetchToChainBalance,
+    fetchWalletBalance,
+  ]);
+
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken ?? BRIDGE_TOKENS[0];
   const sourceBridgeAddress =
@@ -935,11 +977,15 @@ export default function BridgePageContent({
     solana: "https://explorer.solana.com/tx/",
     "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
   };
+  const bridgeTransactionChainId =
+    bridgeHook.status === "completed" ? toChainId : fromChainId;
   const bridgeTransactionUrl =
-    bridgeHook.transactionHash && toChainId && bridgeExplorerUrls[toChainId]
-      ? toChainId === "solana"
-        ? `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}?cluster=devnet`
-        : `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}`
+    bridgeHook.transactionHash &&
+    bridgeTransactionChainId &&
+    bridgeExplorerUrls[bridgeTransactionChainId]
+      ? bridgeTransactionChainId === "solana"
+        ? `${bridgeExplorerUrls[bridgeTransactionChainId]}${bridgeHook.transactionHash}?cluster=devnet`
+        : `${bridgeExplorerUrls[bridgeTransactionChainId]}${bridgeHook.transactionHash}`
       : null;
   const fromUsdValueLabel = formatUsdAmount(
     fromAmount,
@@ -1098,6 +1144,7 @@ export default function BridgePageContent({
     success: 100,
     failed: 100,
   };
+  const isBridgeSettlementCompleted = bridgeHook.status === "completed";
   const shouldShowBridgePendingIndicator =
     !bridgeStepsModalOpen &&
     (bridgeHook.isBridging || bridgeHook.status === "pending");
@@ -1620,7 +1667,9 @@ export default function BridgePageContent({
                         />
                       </div>
                       <h2 className="text-[1.05rem] font-medium text-white">
-                        Bridge Initiated!
+                        {isBridgeSettlementCompleted
+                          ? "Bridge Completed!"
+                          : "Bridge Initiated!"}
                       </h2>
                     </div>
                     <button
@@ -1632,24 +1681,41 @@ export default function BridgePageContent({
                     </button>
                   </div>
                   <div className="mb-3 text-[0.95rem] leading-6 text-[#e4e4e6]">
-                    <p>
-                      Your tokens are being bridged to{" "}
-                      <span className="font-semibold text-white">
-                        {destinationChainName}
-                      </span>
-                    </p>
-                    <p className="text-sm text-[#a3a4a8]">
-                      Estimated time:{" "}
-                      <span className="font-semibold text-white">
-                        {bridgeHook.estimatedTime}
-                      </span>
-                    </p>
-                    {bridgeHook.status === "pending" && (
-                      <p className="mt-2 text-sm text-[#f59e0b]">
-                        Pending:{" "}
-                        {bridgeHook.message ||
-                          "Your transaction is being settled on-chain. Please wait..."}
-                      </p>
+                    {isBridgeSettlementCompleted ? (
+                      <>
+                        <p>
+                          Your tokens have been bridged to{" "}
+                          <span className="font-semibold text-white">
+                            {destinationChainName}
+                          </span>
+                        </p>
+                        <p className="text-sm text-[#7dd3a8]">
+                          {bridgeHook.message ||
+                            "Circle Forwarder confirmed the destination mint."}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p>
+                          Your tokens are being bridged to{" "}
+                          <span className="font-semibold text-white">
+                            {destinationChainName}
+                          </span>
+                        </p>
+                        <p className="text-sm text-[#a3a4a8]">
+                          Estimated time:{" "}
+                          <span className="font-semibold text-white">
+                            {bridgeHook.estimatedTime}
+                          </span>
+                        </p>
+                        {bridgeHook.status === "pending" && (
+                          <p className="mt-2 text-sm text-[#f59e0b]">
+                            Pending:{" "}
+                            {bridgeHook.message ||
+                              "Your transaction is being settled on-chain. Please wait..."}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="mb-4 flex items-center gap-1.5 text-xs text-[#a3a4a8]">

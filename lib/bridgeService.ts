@@ -608,6 +608,10 @@ const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
   "fetchAttestation",
   "mint",
 ]);
+
+function isBridgeSourceTransactionStep(stepName?: string): boolean {
+  return stepName === "burn" || stepName === "depositForBurn";
+}
 const CHAIN_SWITCH_RESTORE_DELAY_MS = 350;
 
 export type BridgeProgressSnapshot = {
@@ -877,6 +881,7 @@ export async function waitForForwardedBridgeCompletion(
         status: "pending",
         forwarded: true,
         transactionHash: request.burnTxHash,
+        sourceTransactionHash: request.burnTxHash,
         message: createPendingBridgeMessage({
           lastStep: "mint",
           lastTxHash: request.burnTxHash,
@@ -890,6 +895,7 @@ export async function waitForForwardedBridgeCompletion(
       status: "completed",
       forwarded: true,
       transactionHash,
+      sourceTransactionHash: request.burnTxHash,
       message: "Circle Forwarder confirmed the destination mint.",
     };
   } catch (error) {
@@ -899,6 +905,7 @@ export async function waitForForwardedBridgeCompletion(
         status: "pending",
         forwarded: true,
         transactionHash: request.burnTxHash,
+        sourceTransactionHash: request.burnTxHash,
         message: createPendingBridgeMessage({
           lastStep: "mint",
           lastTxHash: request.burnTxHash,
@@ -1147,6 +1154,7 @@ export interface BridgeRequest {
 export interface BridgeResponse {
   success: boolean;
   transactionHash?: string;
+  sourceTransactionHash?: string;
   status?: string;
   error?: string;
   estimatedTime?: string;
@@ -1817,6 +1825,7 @@ export async function bridgeTokens(
 
     // Extract transaction hash and check result status
     let txHash: string | undefined;
+    let sourceTxHash: string | undefined;
     let errorMessage: string | undefined;
     let pendingMessage: string | undefined;
     let shouldTreatAsPending = false;
@@ -1837,27 +1846,37 @@ export async function bridgeTokens(
       }
 
       // If no tx hash at root level, check steps array
-      if (!txHash && Array.isArray(resultObj.steps)) {
+      if (Array.isArray(resultObj.steps)) {
         // Prioritize the "mint" step (final transaction), otherwise take the last step with a txHash
         let lastTxHash: string | undefined;
         for (const step of resultObj.steps) {
-          if (step.txHash && typeof step.txHash === "string") {
-            lastTxHash = step.txHash;
-            // If this is the mint step, use it and break
-            if (step.name === "mint") {
-              txHash = lastTxHash;
-              break;
-            }
+          const stepTxHash =
+            typeof step.txHash === "string"
+              ? step.txHash
+              : typeof step.transactionHash === "string"
+                ? step.transactionHash
+                : undefined;
+
+          if (
+            !sourceTxHash &&
+            isBridgeSourceTransactionStep(step.name) &&
+            stepTxHash
+          ) {
+            sourceTxHash = stepTxHash;
           }
-          if (!txHash && step.transactionHash && typeof step.transactionHash === "string") {
-            lastTxHash = step.transactionHash;
-            if (step.name === "mint") {
-              txHash = lastTxHash;
-              break;
-            }
+
+          if (!stepTxHash) {
+            continue;
+          }
+
+          lastTxHash = stepTxHash;
+
+          if (!txHash && step.name === "mint") {
+            txHash = stepTxHash;
+            break;
           }
         }
-        // If no mint step found, use the last txHash we found
+
         if (!txHash && lastTxHash) {
           txHash = lastTxHash;
         }
@@ -1947,6 +1966,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash ?? txHash,
         forwarded: wasForwarded,
         message:
           pendingMessage ||
@@ -1964,6 +1984,7 @@ export async function bridgeTokens(
         status: "completed",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash,
         forwarded: wasForwarded,
       };
     } else if (isSuccess) {
@@ -1973,6 +1994,7 @@ export async function bridgeTokens(
         status: wasForwarded ? "completed" : "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash,
         forwarded: wasForwarded,
         message: wasForwarded
           ? "Circle Forwarder confirmed the destination mint."
@@ -1991,6 +2013,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash ?? txHash,
         forwarded: wasForwarded,
         message: `Bridge is in progress. Waiting for ${pendingSteps} to complete on-chain. This typically takes 2-5 minutes.`,
       };
@@ -2013,6 +2036,14 @@ export async function bridgeTokens(
         isBridgeNetworkError(rawErrorMessage) ||
         isBridgeRelayerFailureMessage(rawErrorMessage))
     ) {
+      const sourceBridgeTxHash = [...bridgeProgress.events]
+        .reverse()
+        .find(
+          (event) =>
+            isBridgeSourceTransactionStep(event.step) &&
+            typeof event.txHash === "string",
+        )?.txHash;
+
       console.warn(
         "Treating bridge error as pending because a bridge transaction was already submitted",
         {
@@ -2027,6 +2058,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: bridgeProgress.lastTxHash,
+        sourceTransactionHash: sourceBridgeTxHash ?? bridgeProgress.lastTxHash,
         forwarded: resolvedUseForwarder,
         message: createPendingBridgeMessage(bridgeProgress),
       };
