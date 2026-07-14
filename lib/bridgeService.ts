@@ -24,7 +24,7 @@ import {
 } from "viem/chains";
 
 // Bridge Kit adapters and chain definitions
-import { AppKit } from "@circle-fin/app-kit";
+import { AppKit, isRetryableError } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { createSolanaAdapterFromProvider } from "@circle-fin/adapter-solana";
 import { Buffer } from "buffer";
@@ -705,6 +705,103 @@ function createPendingBridgeMessage(progress: BridgeProgressSnapshot): string {
   }
 }
 
+const BRIDGE_RETRY_ATTEMPTS = 2;
+const BRIDGE_RETRY_DELAY_MS = 1500;
+const RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS = [
+  "circle relayer failed to forward the mint transaction",
+  "relayer failed to forward the mint transaction",
+  "mint may still have succeeded",
+  "retry using the attestation data",
+  "rpc error on solana devnet",
+  "relayer_forward_failed",
+  "onchain_unknown_blockchain_error",
+  "unknown blockchain error",
+];
+
+function isBridgeRelayerFailureMessage(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS.some((pattern) =>
+    normalizedMessage.includes(pattern)
+  );
+}
+
+function isBridgeRetryableFailure(error: unknown): boolean {
+  if (isRetryableError(error)) {
+    return true;
+  }
+
+  const diagnostics = getBridgeErrorDiagnostics(error);
+  if (
+    diagnostics &&
+    typeof diagnostics === "object" &&
+    "recoverability" in diagnostics
+  ) {
+    const recoverability = (diagnostics as { recoverability?: unknown })
+      .recoverability;
+    if (recoverability === "RETRYABLE" || recoverability === "RESUMABLE") {
+      return true;
+    }
+  }
+
+  const message = getBridgeErrorMessage(error);
+  return (
+    isBridgeRelayerFailureMessage(message) ||
+    isBridgeTimeoutError(message) ||
+    isBridgeNetworkError(message)
+  );
+}
+
+function getRetryableFailedBridgeStep(result: unknown): any | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const steps = (result as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) {
+    return null;
+  }
+
+  return (
+    steps.find((step) => {
+      if (!step || typeof step !== "object" || (step as any).state !== "error") {
+        return false;
+      }
+
+      const stepError = (step as any).error;
+      const stepErrorMessage =
+        typeof (step as any).errorMessage === "string"
+          ? (step as any).errorMessage
+          : getBridgeErrorMessage(stepError);
+
+      return (
+        isBridgeRetryableFailure(stepError) ||
+        isBridgeRelayerFailureMessage(stepErrorMessage)
+      );
+    }) ?? null
+  );
+}
+
+function getBridgeRetryContext(
+  fromAdapter: any,
+  toAdapter: any,
+  useForwarder: boolean,
+) {
+  if (useForwarder) {
+    return { from: fromAdapter };
+  }
+
+  return {
+    from: fromAdapter,
+    to: toAdapter,
+  };
+}
+
+function waitForBridgeRetryDelay(attemptNumber: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, BRIDGE_RETRY_DELAY_MS * attemptNumber);
+  });
+}
+
 function withBridgeTransactionTimeouts<T>(adapter: T): T {
   const candidate = adapter as T & {
     waitForTransaction?: (
@@ -1261,9 +1358,8 @@ export async function bridgeTokens(
   const initialWalletChainId = shouldTrackEvmWalletChain
     ? await getActiveWalletChainId(request.walletClient)
     : null;
-  const defaultUseForwarder =
-    request.toChain === "solana" ? false : DEFAULT_USE_CIRCLE_FORWARDER;
-  const resolvedUseForwarder = request.useForwarder ?? defaultUseForwarder;
+  const resolvedUseForwarder =
+    request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
 
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
@@ -1494,7 +1590,6 @@ export async function bridgeTokens(
       console.log(`Bridge event [${step}]`, { txHash, explorerUrl, values });
     };
 
-    let timeoutId: number | undefined;
     let result: unknown;
 
     kit.on("*", bridgeEventHandler);
@@ -1515,8 +1610,7 @@ export async function bridgeTokens(
         bridgeDestination.useForwarder = useForwarder;
       }
 
-      // Add a longer execution timeout so slow attestations do not fail too early.
-      const bridgePromise = kit.bridge({
+      const buildBridgeParams = () => ({
         from: { adapter: fromAdapter, chain: fromChainObj },
         to: bridgeDestination as any,
         amount: request.amount,
@@ -1530,24 +1624,69 @@ export async function bridgeTokens(
           : {}),
       });
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => {
-          reject(
-            new Error(
-              `Bridge timeout: Execution exceeded ${
-                BRIDGE_EXECUTION_TIMEOUT_MS / 60000
-              } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
-            )
-          );
-        }, BRIDGE_EXECUTION_TIMEOUT_MS);
-      });
+      const executeBridgeAttemptWithTimeout = async (
+        actionLabel: string,
+        operation: () => Promise<unknown>,
+      ) => {
+        let attemptTimeoutId: number | undefined;
 
-      // Race between bridge execution and timeout
-      result = await Promise.race([bridgePromise, timeoutPromise]);
-    } finally {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
+        try {
+          return await Promise.race([
+            operation(),
+            new Promise<never>((_, reject) => {
+              attemptTimeoutId = window.setTimeout(() => {
+                reject(
+                  new Error(
+                    `${actionLabel} timeout: Execution exceeded ${
+                      BRIDGE_EXECUTION_TIMEOUT_MS / 60000
+                    } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
+                  )
+                );
+              }, BRIDGE_EXECUTION_TIMEOUT_MS);
+            }),
+          ]);
+        } finally {
+          if (attemptTimeoutId) {
+            window.clearTimeout(attemptTimeoutId);
+          }
+        }
+      };
+
+      result = await executeBridgeAttemptWithTimeout("Bridge", () =>
+        kit.bridge(buildBridgeParams())
+      );
+
+      let retryableFailedStep = getRetryableFailedBridgeStep(result);
+
+      for (
+        let retryAttempt = 1;
+        retryableFailedStep && retryAttempt <= BRIDGE_RETRY_ATTEMPTS;
+        retryAttempt += 1
+      ) {
+        const retryMessage =
+          retryableFailedStep.errorMessage ||
+          getBridgeErrorMessage(retryableFailedStep.error);
+
+        console.warn("Retrying bridge after transient bridge-step failure", {
+          retryAttempt,
+          step: retryableFailedStep.name,
+          message: retryMessage,
+        });
+
+        await waitForBridgeRetryDelay(retryAttempt);
+
+        result = await executeBridgeAttemptWithTimeout(
+          `Bridge retry ${retryAttempt}`,
+          () =>
+            kit.retryBridge(
+              result as any,
+              getBridgeRetryContext(fromAdapter, toAdapter, useForwarder),
+            ),
+        );
+
+        retryableFailedStep = getRetryableFailedBridgeStep(result);
       }
+    } finally {
       kit.off("*", bridgeEventHandler);
     }
 
@@ -1684,7 +1823,8 @@ export async function bridgeTokens(
         if (
           submittedBridgeStep?.txHash &&
           (isBridgeTimeoutError(actionableFailedStepMessage) ||
-            isBridgeNetworkError(actionableFailedStepMessage))
+            isBridgeNetworkError(actionableFailedStepMessage) ||
+            isBridgeRelayerFailureMessage(actionableFailedStepMessage))
         ) {
           shouldTreatAsPending = true;
           txHash = txHash || submittedBridgeStep.txHash;
@@ -1775,7 +1915,8 @@ export async function bridgeTokens(
       bridgeProgress.lastTxHash &&
       hasActionableBridgeProgress(bridgeProgress) &&
       (isBridgeTimeoutError(rawErrorMessage) ||
-        isBridgeNetworkError(rawErrorMessage))
+        isBridgeNetworkError(rawErrorMessage) ||
+        isBridgeRelayerFailureMessage(rawErrorMessage))
     ) {
       console.warn(
         "Treating bridge error as pending because a bridge transaction was already submitted",
@@ -1805,6 +1946,9 @@ export async function bridgeTokens(
     } else if (isBridgeNetworkError(rawErrorMessage)) {
       errorMessage =
         "Network connection error during bridge. The RPC endpoint may be unavailable. Check your connection and try again.";
+    } else if (isBridgeRelayerFailureMessage(rawErrorMessage)) {
+      errorMessage =
+        "Circle is still finalizing the destination mint for this bridge. Check the recipient wallet balance before trying again.";
     } else if (
       rawErrorMessage.toLowerCase().includes("user rejected") ||
       rawErrorMessage.toLowerCase().includes("rejected")

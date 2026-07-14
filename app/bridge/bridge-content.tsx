@@ -320,7 +320,7 @@ export default function BridgePageContent({
       }
 
       if (chainId === "solana") {
-        return solanaAddress || "";
+        return "";
       }
 
       if (fromChainId === "solana") {
@@ -693,7 +693,7 @@ export default function BridgePageContent({
       return;
     }
 
-    if ((fromChainId === "solana" || toChainId === "solana") && !isSolanaConnected) {
+    if (fromChainId === "solana" && !isSolanaConnected) {
       openSolanaConnectModal();
       return;
     }
@@ -730,7 +730,6 @@ export default function BridgePageContent({
       token: fromToken?.symbol || "USDC",
       toAddress: destinationAddress,
       sourceAddress: sourceAddress || user?.wallet?.address,
-      useForwarder: toChainId !== "solana",
       onProgress: (progress) => {
         const progressStep =
           getBridgeStepFromProgress(progress.lastStep) ||
@@ -914,11 +913,9 @@ export default function BridgePageContent({
     bridgeHook.isLoading;
   const needsSourceEvmWallet = fromChainId !== "solana" && !user;
   const needsSourceSolanaWallet = fromChainId === "solana" && !isSolanaConnected;
-  const needsDestinationSolanaWallet = toChainId === "solana" && !isSolanaConnected;
   const shouldPromptConnectWallet =
     needsSourceEvmWallet ||
-    needsSourceSolanaWallet ||
-    needsDestinationSolanaWallet;
+    needsSourceSolanaWallet;
   const isBridgeButtonDisabled = shouldPromptConnectWallet
     ? false
     : isBridgeActionDisabled;
@@ -964,7 +961,7 @@ export default function BridgePageContent({
       return;
     }
 
-    if (needsSourceSolanaWallet || needsDestinationSolanaWallet) {
+    if (needsSourceSolanaWallet) {
       openSolanaConnectModal();
     }
   };
@@ -986,11 +983,11 @@ export default function BridgePageContent({
 
   const getBridgeButtonContent = () => {
     if (shouldPromptConnectWallet) {
-      if ((needsSourceSolanaWallet || needsDestinationSolanaWallet) && isConnectingSolana) {
+      if (needsSourceSolanaWallet && isConnectingSolana) {
         return "Connecting Wallet...";
       }
 
-      return needsSourceSolanaWallet || needsDestinationSolanaWallet
+      return needsSourceSolanaWallet
         ? "Connect Solana Wallet"
         : "Connect Wallet";
     }
