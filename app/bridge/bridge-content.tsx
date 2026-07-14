@@ -319,13 +319,17 @@ export default function BridgePageContent({
         return manualAddress;
       }
 
-      if (chainId === "solana" || fromChainId === "solana") {
+      if (chainId === "solana") {
+        return solanaAddress || "";
+      }
+
+      if (fromChainId === "solana") {
         return "";
       }
 
       return getBridgeAddressForChain(chainId, fallbackAddress);
     },
-    [fromChainId, getBridgeAddressForChain, receivingAddress],
+    [fromChainId, getBridgeAddressForChain, receivingAddress, solanaAddress],
   );
 
   useEffect(() => {
@@ -684,13 +688,13 @@ export default function BridgePageContent({
   }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
 
   const handleBridge = useCallback(async () => {
-    if (fromChainId === "solana" && !isSolanaConnected) {
-      openSolanaConnectModal();
+    if (!user && fromChainId !== "solana") {
+      alert("Please connect your wallet first");
       return;
     }
 
-    if (!user && fromChainId !== "solana") {
-      alert("Please connect your wallet first");
+    if ((fromChainId === "solana" || toChainId === "solana") && !isSolanaConnected) {
+      openSolanaConnectModal();
       return;
     }
 
@@ -726,6 +730,7 @@ export default function BridgePageContent({
       token: fromToken?.symbol || "USDC",
       toAddress: destinationAddress,
       sourceAddress: sourceAddress || user?.wallet?.address,
+      useForwarder: toChainId !== "solana",
       onProgress: (progress) => {
         const progressStep =
           getBridgeStepFromProgress(progress.lastStep) ||
@@ -907,8 +912,13 @@ export default function BridgePageContent({
     isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
+  const needsSourceEvmWallet = fromChainId !== "solana" && !user;
+  const needsSourceSolanaWallet = fromChainId === "solana" && !isSolanaConnected;
+  const needsDestinationSolanaWallet = toChainId === "solana" && !isSolanaConnected;
   const shouldPromptConnectWallet =
-    fromChainId === "solana" ? !isSolanaConnected : !user;
+    needsSourceEvmWallet ||
+    needsSourceSolanaWallet ||
+    needsDestinationSolanaWallet;
   const isBridgeButtonDisabled = shouldPromptConnectWallet
     ? false
     : isBridgeActionDisabled;
@@ -944,16 +954,18 @@ export default function BridgePageContent({
   );
 
   const handleConnectWallet = async () => {
-    if (fromChainId === "solana") {
-      openSolanaConnectModal();
+    if (needsSourceEvmWallet) {
+      if (authenticated) return;
+      try {
+        await login();
+      } catch (error) {
+        console.error("Wallet connection failed:", error);
+      }
       return;
     }
 
-    if (authenticated) return;
-    try {
-      await login();
-    } catch (error) {
-      console.error("Wallet connection failed:", error);
+    if (needsSourceSolanaWallet || needsDestinationSolanaWallet) {
+      openSolanaConnectModal();
     }
   };
 
@@ -974,8 +986,12 @@ export default function BridgePageContent({
 
   const getBridgeButtonContent = () => {
     if (shouldPromptConnectWallet) {
-      return fromChainId === "solana" && isConnectingSolana
-        ? "Connecting Wallet..."
+      if ((needsSourceSolanaWallet || needsDestinationSolanaWallet) && isConnectingSolana) {
+        return "Connecting Wallet...";
+      }
+
+      return needsSourceSolanaWallet || needsDestinationSolanaWallet
+        ? "Connect Solana Wallet"
         : "Connect Wallet";
     }
 

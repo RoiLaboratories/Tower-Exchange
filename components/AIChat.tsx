@@ -963,9 +963,13 @@ export const AIChat = () => {
         });
         setShowBridgeConfirmation(true);
 
-        if (isSolanaSourceChain && !isSolanaConnected) {
+        if ((isSolanaSourceChain || isSolanaDestinationChain) && !isSolanaConnected) {
           openSolanaConnectModal();
-          setError("Please connect your Solana wallet first.");
+          setError(
+            isSolanaSourceChain
+              ? "Please connect your Solana wallet first."
+              : "Please connect your Solana wallet to complete the destination mint.",
+          );
         } else {
           const connectedSourceAddress = isSolanaSourceChain
             ? solanaAddress || ""
@@ -989,6 +993,7 @@ export const AIChat = () => {
                 token: bridgeRequest.token || "USDC",
                 sourceAddress: connectedSourceAddress,
                 toAddress,
+                useForwarder: !isSolanaDestinationChain,
               });
 
               if (result.success) {

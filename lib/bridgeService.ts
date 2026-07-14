@@ -1261,6 +1261,9 @@ export async function bridgeTokens(
   const initialWalletChainId = shouldTrackEvmWalletChain
     ? await getActiveWalletChainId(request.walletClient)
     : null;
+  const defaultUseForwarder =
+    request.toChain === "solana" ? false : DEFAULT_USE_CIRCLE_FORWARDER;
+  const resolvedUseForwarder = request.useForwarder ?? defaultUseForwarder;
 
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
@@ -1307,7 +1310,7 @@ export async function bridgeTokens(
       sourceChainId: fromChainConfig.chainId,
       destChainId: toChainConfig.chainId,
       hasCustomClients: !!request.publicClient,
-      useForwarder: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
+      useForwarder: resolvedUseForwarder,
     });
 
     // Use Circle's recommended client-side bridge with browser wallet
@@ -1352,7 +1355,7 @@ export async function bridgeTokens(
       };
     }
 
-    const useForwarder = request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
+    const useForwarder = resolvedUseForwarder;
     const requiresDestinationAdapter = !(useForwarder && request.toAddress);
 
     if (!request.toAddress) {
@@ -1788,7 +1791,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: bridgeProgress.lastTxHash,
-        forwarded: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
+        forwarded: resolvedUseForwarder,
         message: createPendingBridgeMessage(bridgeProgress),
       };
     }
