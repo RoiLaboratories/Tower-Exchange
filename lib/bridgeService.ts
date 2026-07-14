@@ -27,6 +27,7 @@ import {
 import { AppKit, isRetryableError } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { createSolanaAdapterFromProvider } from "@circle-fin/adapter-solana";
+import { CCTPV2BridgingProvider } from "@circle-fin/provider-cctp-v2";
 import { Buffer } from "buffer";
 import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 import {
@@ -707,6 +708,22 @@ function createPendingBridgeMessage(progress: BridgeProgressSnapshot): string {
 
 const BRIDGE_RETRY_ATTEMPTS = 2;
 const BRIDGE_RETRY_DELAY_MS = 1500;
+const FORWARDED_BRIDGE_COMPLETION_TIMEOUT_MS = 15000;
+const FORWARDED_BRIDGE_COMPLETION_RETRIES = 15;
+const FORWARDED_BRIDGE_COMPLETION_RETRY_DELAY_MS = 2000;
+const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
+  "arc-testnet": ArcTestnet,
+  "base-sepolia": BaseSepolia,
+  "optimism-sepolia": OptimismSepolia,
+  "avalanche-fuji": AvalancheFuji,
+  "arbitrum-sepolia": ArbitrumSepolia,
+  "ethereum-sepolia": EthereumSepolia,
+  "linea-sepolia": LineaSepolia,
+  "polygon-amoy": PolygonAmoy,
+  "sonic-testnet": SonicTestnet,
+  "unichain-sepolia": UnichainSepolia,
+  solana: SolanaDevnet,
+};
 const RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS = [
   "circle relayer failed to forward the mint transaction",
   "relayer failed to forward the mint transaction",
@@ -800,6 +817,101 @@ function waitForBridgeRetryDelay(attemptNumber: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, BRIDGE_RETRY_DELAY_MS * attemptNumber);
   });
+}
+
+export async function waitForForwardedBridgeCompletion(
+  request: Pick<
+    BridgeRequest,
+    "fromChain" | "sourceAddress" | "publicClient" | "walletClient" | "chain"
+  > & {
+    burnTxHash: string;
+  },
+): Promise<BridgeResponse> {
+  const fromChainObj = CIRCLE_CHAIN_OBJECTS[request.fromChain];
+
+  if (!fromChainObj) {
+    return {
+      success: false,
+      error: `Chain object not found for ${request.fromChain}`,
+    };
+  }
+
+  const sourceAdapter =
+    request.fromChain === "solana"
+      ? await ensureSolanaBridgeAdapter()
+      : await ensureEvmBridgeAdapter(request);
+
+  if (!sourceAdapter) {
+    return {
+      success: false,
+      error: "Bridge source adapter not initialized.",
+    };
+  }
+
+  const provider = new CCTPV2BridgingProvider();
+
+  try {
+    const attestation = await provider.fetchRelayerMint(
+      {
+        adapter: sourceAdapter,
+        chain: fromChainObj,
+        ...(request.sourceAddress
+          ? {
+              address: request.sourceAddress,
+            }
+          : {}),
+      } as any,
+      request.burnTxHash,
+      {
+        timeout: FORWARDED_BRIDGE_COMPLETION_TIMEOUT_MS,
+        maxRetries: FORWARDED_BRIDGE_COMPLETION_RETRIES,
+        retryDelay: FORWARDED_BRIDGE_COMPLETION_RETRY_DELAY_MS,
+      },
+    );
+
+    const transactionHash = (attestation as { forwardTxHash?: string }).forwardTxHash;
+
+    if (!transactionHash) {
+      return {
+        success: true,
+        status: "pending",
+        forwarded: true,
+        transactionHash: request.burnTxHash,
+        message: createPendingBridgeMessage({
+          lastStep: "mint",
+          lastTxHash: request.burnTxHash,
+          events: [],
+        }),
+      };
+    }
+
+    return {
+      success: true,
+      status: "completed",
+      forwarded: true,
+      transactionHash,
+      message: "Circle Forwarder confirmed the destination mint.",
+    };
+  } catch (error) {
+    if (isBridgeRetryableFailure(error)) {
+      return {
+        success: true,
+        status: "pending",
+        forwarded: true,
+        transactionHash: request.burnTxHash,
+        message: createPendingBridgeMessage({
+          lastStep: "mint",
+          lastTxHash: request.burnTxHash,
+          events: [],
+        }),
+      };
+    }
+
+    return {
+      success: false,
+      error: getBridgeErrorMessage(error),
+    };
+  }
 }
 
 function withBridgeTransactionTimeouts<T>(adapter: T): T {
@@ -1424,23 +1536,6 @@ export async function bridgeTokens(
         error: `Unsupported token: ${request.token}`,
       };
     }
-
-    // Map to Circle's chain objects
-    const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
-      // Testnet chains
-      "arc-testnet": ArcTestnet,
-      "base-sepolia": BaseSepolia,
-      "optimism-sepolia": OptimismSepolia,
-      "avalanche-fuji": AvalancheFuji,
-      "arbitrum-sepolia": ArbitrumSepolia,
-      "ethereum-sepolia": EthereumSepolia,
-      "linea-sepolia": LineaSepolia,
-      "polygon-amoy": PolygonAmoy,
-      "sonic-testnet": SonicTestnet,
-      "unichain-sepolia": UnichainSepolia,
-      "solana": SolanaDevnet,
-    };
-
     const fromChainObj = CIRCLE_CHAIN_OBJECTS[request.fromChain];
     const toChainObj = CIRCLE_CHAIN_OBJECTS[request.toChain];
 

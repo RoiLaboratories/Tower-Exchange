@@ -13,6 +13,7 @@ import {
   isBridgeRouteSupported,
   estimateBridgeTime,
   getBridgeFees,
+  waitForForwardedBridgeCompletion,
   BridgeRequest,
   BridgeResponse,
   SUPPORTED_CHAINS,
@@ -184,6 +185,60 @@ export function useBridge() {
             forwarded: result.forwarded,
             error: null,
           }));
+
+          if (
+            result.status === "pending" &&
+            result.forwarded &&
+            result.transactionHash
+          ) {
+            const pendingBurnTxHash = result.transactionHash;
+
+            void waitForForwardedBridgeCompletion({
+              fromChain: request.fromChain,
+              sourceAddress: request.sourceAddress,
+              publicClient: request.publicClient ?? publicClient,
+              walletClient: request.walletClient ?? walletClient,
+              chain:
+                request.chain ??
+                walletClient?.chain ??
+                publicClient?.chain ??
+                chainId,
+              burnTxHash: pendingBurnTxHash,
+            })
+              .then((completion) => {
+                if (!completion.success || completion.status !== "completed") {
+                  return;
+                }
+
+                setState((prev) => {
+                  if (
+                    prev.status !== "pending" ||
+                    prev.transactionHash !== pendingBurnTxHash
+                  ) {
+                    return prev;
+                  }
+
+                  return {
+                    ...prev,
+                    success: true,
+                    status: "completed",
+                    message:
+                      completion.message ??
+                      "Circle Forwarder confirmed the destination mint.",
+                    transactionHash:
+                      completion.transactionHash ?? prev.transactionHash,
+                    forwarded: true,
+                    error: null,
+                  };
+                });
+              })
+              .catch((completionError) => {
+                console.warn(
+                  "Unable to finalize pending forwarded bridge status:",
+                  completionError,
+                );
+              });
+          }
         } else {
           setState((prev) => ({
             ...prev,
