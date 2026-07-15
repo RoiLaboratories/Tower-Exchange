@@ -21,6 +21,7 @@ import { useSwapExecution } from "@/lib/useSwapExecution";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS, getBridgeFees } from "@/lib/bridgeService";
+import { ensureSolanaUsdcRecipientReady } from "@/lib/solanaUsdcRecipient";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -307,6 +308,7 @@ export const AIChat = () => {
   const {
     address: solanaAddress,
     connected: isSolanaConnected,
+    provider: solanaProvider,
     openConnectModal: openSolanaConnectModal,
   } = useSolanaWallet();
   const swapExecution = useSwapExecution();
@@ -953,7 +955,7 @@ export const AIChat = () => {
           (isSolanaSourceChain ? solanaAddress || "" : walletAddress);
         const toAddress =
           bridgeRequest.toAddress ||
-          (isSolanaDestinationChain ? solanaAddress || "" : walletAddress);
+          (isSolanaDestinationChain ? "" : walletAddress);
 
         console.log("Bridge execution data detected:", bridgeRequest);
         setActiveBridgeRequest({
@@ -963,13 +965,9 @@ export const AIChat = () => {
         });
         setShowBridgeConfirmation(true);
 
-        if ((isSolanaSourceChain || isSolanaDestinationChain) && !isSolanaConnected) {
+        if (isSolanaSourceChain && !isSolanaConnected) {
           openSolanaConnectModal();
-          setError(
-            isSolanaSourceChain
-              ? "Please connect your Solana wallet first."
-              : "Please connect your Solana wallet to complete the destination mint.",
-          );
+          setError("Please connect your Solana wallet first.");
         } else {
           const connectedSourceAddress = isSolanaSourceChain
             ? solanaAddress || ""
@@ -986,6 +984,22 @@ export const AIChat = () => {
             );
           } else {
             try {
+              if (bridgeRequest.toChain === "solana" && toAddress) {
+                const solanaRecipientStatus = await ensureSolanaUsdcRecipientReady({
+                  recipientAddress: toAddress,
+                  connectedWalletAddress: solanaAddress,
+                  provider: solanaProvider,
+                });
+
+                if (!solanaRecipientStatus.ready) {
+                  setError(
+                    solanaRecipientStatus.error ||
+                      "This Solana address is not ready to receive devnet USDC yet.",
+                  );
+                  return;
+                }
+              }
+
               const result = await bridgeHook.executeBridge({
                 fromChain: bridgeRequest.fromChain,
                 toChain: bridgeRequest.toChain,
@@ -993,7 +1007,6 @@ export const AIChat = () => {
                 token: bridgeRequest.token || "USDC",
                 sourceAddress: connectedSourceAddress,
                 toAddress,
-                useForwarder: !isSolanaDestinationChain,
               });
 
               if (result.success) {
@@ -1202,13 +1215,18 @@ export const AIChat = () => {
       : bridgeHook.success
         ? "confirmed"
         : "idle";
+  const bridgeExplorerChain = activeBridgeRequest
+    ? bridgeHook.status === "completed"
+      ? activeBridgeRequest.toChain
+      : activeBridgeRequest.fromChain
+    : null;
   const bridgeExplorerUrl =
     bridgeHook.transactionHash &&
-    activeBridgeRequest?.toChain &&
-    BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]
-      ? activeBridgeRequest.toChain === "solana"
-        ? `${BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]}${bridgeHook.transactionHash}?cluster=devnet`
-        : `${BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]}${bridgeHook.transactionHash}`
+    bridgeExplorerChain &&
+    BRIDGE_EXPLORER_URLS[bridgeExplorerChain]
+      ? bridgeExplorerChain === "solana"
+        ? `${BRIDGE_EXPLORER_URLS[bridgeExplorerChain]}${bridgeHook.transactionHash}?cluster=devnet`
+        : `${BRIDGE_EXPLORER_URLS[bridgeExplorerChain]}${bridgeHook.transactionHash}`
       : undefined;
   const bridgeStatusMessage = bridgeHook.isBridging
     ? "Follow the wallet prompts to submit the bridge transaction."

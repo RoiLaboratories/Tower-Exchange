@@ -1829,7 +1829,7 @@ export async function bridgeTokens(
     let errorMessage: string | undefined;
     let pendingMessage: string | undefined;
     let shouldTreatAsPending = false;
-    let wasForwarded = false;
+    let wasForwarded = resolvedUseForwarder;
 
     if (typeof result === "string") {
       // If result is just a string, it's the transaction hash
@@ -1884,9 +1884,9 @@ export async function bridgeTokens(
 
       // Check steps array for any errors or stuck pending steps
       if (Array.isArray(resultObj.steps)) {
-        wasForwarded = resultObj.steps.some(
-          (step: any) => step?.forwarded === true
-        );
+        wasForwarded =
+          resolvedUseForwarder ||
+          resultObj.steps.some((step: any) => step?.forwarded === true);
 
         // First check for explicit errors
         const failedStep = resultObj.steps.find((step: any) => step.state === "error");
