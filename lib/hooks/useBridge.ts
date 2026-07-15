@@ -39,10 +39,29 @@ export interface BridgeState {
   forwarded?: boolean;
 }
 
+export interface UseBridgeResult extends BridgeState {
+  executeBridge: (request: BridgeRequest) => Promise<BridgeResponse>;
+  validateBridgeInputs: (
+    fromChain: string | null,
+    toChain: string | null,
+    amount: string,
+    toAddress: string,
+  ) => string | null;
+  calculateBridgeDetails: (
+    fromChain: string,
+    toChain: string,
+    amount: string,
+    tokenSymbol?: string,
+  ) => Promise<void>;
+  resetBridgeState: () => void;
+  clearError: () => void;
+  reportError: (errorMessage: string) => void;
+}
+
 const FORWARDED_BRIDGE_POLL_INTERVAL_MS = 10000;
 const FORWARDED_BRIDGE_POLL_MAX_DURATION_MS = 15 * 60 * 1000;
 
-export function useBridge() {
+export function useBridge(): UseBridgeResult {
   const { chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
@@ -378,6 +397,20 @@ export function useBridge() {
     }));
   }, []);
 
+  const reportError = useCallback(
+    (errorMessage: string) => {
+      clearForwardedBridgePolling();
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        isBridging: false,
+        success: false,
+        error: errorMessage,
+      }));
+    },
+    [clearForwardedBridgePolling],
+  );
+
   return {
     ...state,
     executeBridge,
@@ -385,6 +418,7 @@ export function useBridge() {
     calculateBridgeDetails,
     resetBridgeState,
     clearError,
+    reportError,
   };
 }
 
