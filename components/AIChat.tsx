@@ -955,7 +955,7 @@ export const AIChat = () => {
           (isSolanaSourceChain ? solanaAddress || "" : walletAddress);
         const toAddress =
           bridgeRequest.toAddress ||
-          (isSolanaDestinationChain ? "" : walletAddress);
+          (isSolanaDestinationChain ? solanaAddress || "" : walletAddress);
 
         console.log("Bridge execution data detected:", bridgeRequest);
         setActiveBridgeRequest({
@@ -984,6 +984,16 @@ export const AIChat = () => {
             );
           } else {
             try {
+              if (bridgeRequest.toChain === "solana" && !toAddress) {
+                if (!isSolanaConnected) {
+                  openSolanaConnectModal();
+                }
+                setError(
+                  "Connect your Solana wallet or include a Solana receiving address in your message to continue.",
+                );
+                return;
+              }
+
               if (bridgeRequest.toChain === "solana" && toAddress) {
                 const solanaRecipientStatus = await ensureSolanaUsdcRecipientReady({
                   recipientAddress: toAddress,

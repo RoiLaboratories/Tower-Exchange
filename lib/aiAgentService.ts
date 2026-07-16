@@ -25,8 +25,8 @@ export interface AIAgentBridgeRequest {
   toChain: string;
   amount: string;
   token: string;
-  sourceAddress: string;
-  toAddress: string;
+  sourceAddress?: string;
+  toAddress?: string;
   slippageTolerance?: number;
 }
 
