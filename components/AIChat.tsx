@@ -21,7 +21,6 @@ import { useSwapExecution } from "@/lib/useSwapExecution";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS, getBridgeFees } from "@/lib/bridgeService";
-import { ensureSolanaUsdcRecipientReady } from "@/lib/solanaUsdcRecipient";
 import { TransactionConfirmation } from "./TransactionConfirmation";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
@@ -308,7 +307,6 @@ export const AIChat = () => {
   const {
     address: solanaAddress,
     connected: isSolanaConnected,
-    provider: solanaProvider,
     openConnectModal: openSolanaConnectModal,
   } = useSolanaWallet();
   const swapExecution = useSwapExecution();
@@ -992,22 +990,6 @@ export const AIChat = () => {
                   "Connect your Solana wallet or include a Solana receiving address in your message to continue.",
                 );
                 return;
-              }
-
-              if (bridgeRequest.toChain === "solana" && toAddress) {
-                const solanaRecipientStatus = await ensureSolanaUsdcRecipientReady({
-                  recipientAddress: toAddress,
-                  connectedWalletAddress: solanaAddress,
-                  provider: solanaProvider,
-                });
-
-                if (!solanaRecipientStatus.ready) {
-                  setError(
-                    solanaRecipientStatus.error ||
-                      "This Solana address is not ready to receive devnet USDC yet.",
-                  );
-                  return;
-                }
               }
 
               const result = await bridgeHook.executeBridge({

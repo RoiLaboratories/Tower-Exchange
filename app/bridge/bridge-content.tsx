@@ -20,7 +20,6 @@ import {
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
 import { SUPPORTED_CHAINS, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
-import { ensureSolanaUsdcRecipientReady } from "@/lib/solanaUsdcRecipient";
 import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
@@ -228,7 +227,6 @@ export default function BridgePageContent({
     address: solanaAddress,
     connected: isSolanaConnected,
     isConnecting: isConnectingSolana,
-    provider: solanaProvider,
     openConnectModal: openSolanaConnectModal,
   } = useSolanaWallet();
   const bridgeHook = useBridge();
@@ -253,8 +251,6 @@ export default function BridgePageContent({
   const [bridgeStepsFailedPhase, setBridgeStepsFailedPhase] =
     useState<BridgeStepsStep>("approve");
   const [bridgeStepsFailureMessage, setBridgeStepsFailureMessage] =
-    useState<string | null>(null);
-  const [bridgeRecipientError, setBridgeRecipientError] =
     useState<string | null>(null);
   const [bridgeStepsDetails, setBridgeStepsDetails] = useState({
     amount: "0.00",
@@ -695,8 +691,6 @@ export default function BridgePageContent({
   }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
 
   const handleBridge = useCallback(async () => {
-    setBridgeRecipientError(null);
-
     if (!user && fromChainId !== "solana") {
       alert("Please connect your wallet first");
       return;
@@ -715,22 +709,6 @@ export default function BridgePageContent({
       toChainId,
       user?.wallet?.address,
     );
-    if (toChainId === "solana" && destinationAddress) {
-      const solanaRecipientStatus = await ensureSolanaUsdcRecipientReady({
-        recipientAddress: destinationAddress,
-        connectedWalletAddress: solanaAddress,
-        provider: solanaProvider,
-      });
-
-      if (!solanaRecipientStatus.ready) {
-        setBridgeRecipientError(
-          solanaRecipientStatus.error ||
-            "This Solana address is not ready to receive devnet USDC yet.",
-        );
-        return;
-      }
-    }
-
     const requestedAmount = Number.parseFloat(fromAmount);
     const availableBalance = Number.parseFloat(walletBalance);
     const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
@@ -891,7 +869,6 @@ export default function BridgePageContent({
     openBridgeStepsModal,
     openSolanaConnectModal,
     solanaAddress,
-    solanaProvider,
   ]);
 
   useEffect(() => {
@@ -1217,11 +1194,8 @@ export default function BridgePageContent({
 
       {!bridgeStepsModalOpen && (
         <BridgeErrorModal
-          error={bridgeRecipientError || bridgeHook.error}
-          onClose={() => {
-            setBridgeRecipientError(null);
-            bridgeHook.clearError();
-          }}
+          error={bridgeHook.error}
+          onClose={bridgeHook.clearError}
           onRetry={handleBridge}
           fromChainName={fromChain?.name}
           toChainName={toChain?.name}

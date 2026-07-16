@@ -89,8 +89,8 @@ type BridgeExecutionRequest = {
   toChain: string;
   amount: string;
   token: "USDC";
-  sourceAddress: string;
-  toAddress: string;
+  sourceAddress?: string;
+  toAddress?: string;
   slippageTolerance?: number;
 };
 
@@ -423,22 +423,36 @@ const extractBridgeIntent = (
   }
 
   const amountFromIntent = getStringField(directIntent, ["amount", "inputAmount"]);
-  const amountFromMessage = message.match(
-    /\b(\d[\d,]*(?:\.\d+)?)\s*(USDC)\b/i,
-  )?.[1];
-  const amount = (amountFromIntent || amountFromMessage || "")
+  const amountFromExplicitTokenMatch = message.match(
+    /\b\$?(\d[\d,]*(?:\.\d+)?)\s*(USDC)\b/i,
+  );
+  const amountFromBridgeVerbMatch = message.match(
+    /\b(?:bridge|bridging|send|transfer|move)\s+\$?(\d[\d,]*(?:\.\d+)?)(?:\s*(USDC))?\b/i,
+  );
+  const amountBeforeRouteMatch = message.match(
+    /\b\$?(\d[\d,]*(?:\.\d+)?)(?:\s*(USDC))?\s+(?:from|to|into|onto)\b/i,
+  );
+  const amount = (
+    amountFromIntent ||
+    amountFromExplicitTokenMatch?.[1] ||
+    amountFromBridgeVerbMatch?.[1] ||
+    amountBeforeRouteMatch?.[1] ||
+    ""
+  )
     .replace(/,/g, "")
     .trim();
   const token = (
     getStringField(directIntent, ["token", "tokenSymbol"]) ||
+    amountFromExplicitTokenMatch?.[2] ||
+    amountFromBridgeVerbMatch?.[2] ||
+    amountBeforeRouteMatch?.[2] ||
     message.match(/\b(USDC)\b/i)?.[1] ||
-    ""
+    (messageLooksLikeBridge ? "USDC" : "")
   ).toUpperCase();
 
   if (!amount || !/^\d+(\.\d+)?$/.test(amount) || token !== "USDC") {
     return null;
   }
-
   const fromChain =
     normalizeBridgeChain(getStringField(directIntent, ["fromChain", "sourceChain"])) ||
     extractBridgeChainAfterKeyword(message, "from");
@@ -475,11 +489,9 @@ const extractBridgeIntent = (
   const sourceAddress =
     explicitSourceAddress && isBridgeAddressValid(explicitSourceAddress, sourceChainType)
       ? explicitSourceAddress.trim()
-      : fallbackSourceAddress;
-
-  if (!sourceAddress || !isBridgeAddressValid(sourceAddress, sourceChainType)) {
-    return null;
-  }
+      : fallbackSourceAddress && isBridgeAddressValid(fallbackSourceAddress, sourceChainType)
+        ? fallbackSourceAddress
+        : "";
 
   const destinationAddressesInMessage = getMessageAddressesForChain(
     message,
@@ -494,11 +506,11 @@ const extractBridgeIntent = (
       ? explicitToAddress.trim()
       : destinationAddressesInMessage.find((address) =>
           isBridgeAddressValid(address, destinationChainType),
-        ) || fallbackDestinationAddress;
-
-  if (!toAddress || !isBridgeAddressValid(toAddress, destinationChainType)) {
-    return null;
-  }
+        ) ||
+        (fallbackDestinationAddress &&
+        isBridgeAddressValid(fallbackDestinationAddress, destinationChainType)
+          ? fallbackDestinationAddress
+          : "");
 
   return {
     fromChain: resolvedFromChain,
@@ -1165,6 +1177,30 @@ const buildBridgeReadyReply = (bridgeRequest: BridgeExecutionRequest) => {
     BRIDGE_CHAIN_NAMES[bridgeRequest.toChain as SupportedBridgeChain] ||
     bridgeRequest.toChain;
 
+  if (bridgeRequest.fromChain === "solana" && !bridgeRequest.sourceAddress) {
+    return [
+      `I can prepare the bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName}.`,
+      "Connect your Solana wallet to continue with the source-side signing flow.",
+      `Estimated completion time: ${estimateBridgeTime(bridgeRequest.toChain)}.`,
+    ].join("\n");
+  }
+
+  if (bridgeRequest.toChain === "solana" && !bridgeRequest.toAddress) {
+    return [
+      `I can prepare the bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName}.`,
+      "Connect your Solana wallet or include a Solana receiving address in your message to continue.",
+      `Estimated completion time: ${estimateBridgeTime(bridgeRequest.toChain)}.`,
+    ].join("\n");
+  }
+
+  if (!bridgeRequest.toAddress) {
+    return [
+      `I can prepare the bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName}.`,
+      "Please include the destination wallet address to continue.",
+      `Estimated completion time: ${estimateBridgeTime(bridgeRequest.toChain)}.`,
+    ].join("\n");
+  }
+
   return [
     `The bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName} is ready.`,
     "Please sign the wallet prompts to submit the bridge transaction.",
@@ -1172,6 +1208,87 @@ const buildBridgeReadyReply = (bridgeRequest: BridgeExecutionRequest) => {
   ].join("\n");
 };
 
+
+const buildBridgeExecutionPayload = (bridgeRequest: BridgeExecutionRequest) => ({
+  request: bridgeRequest,
+  estimatedFee: "0.000130",
+  estimatedTime: estimateBridgeTime(bridgeRequest.toChain),
+  message:
+    bridgeRequest.toChain === "solana" && !bridgeRequest.toAddress
+      ? "Bridge request prepared. A Solana receiving address or connected Solana wallet is still needed before signing."
+      : bridgeRequest.fromChain === "solana" && !bridgeRequest.sourceAddress
+        ? "Bridge request prepared. Connect your Solana wallet to continue signing the source transaction."
+        : "Bridge request prepared for wallet signing.",
+});
+
+const messageMentionsArcSolanaBridge = (message: string) => {
+  if (!/\b(bridge|bridging|cross-chain|cross chain|send|transfer|move)\b/i.test(message)) {
+    return false;
+  }
+
+  const mentions = findBridgeChainMentions(message);
+  const hasArc =
+    mentions.some((mention) => mention.chain === "arc-testnet") ||
+    /\barc(?:\s+testnet)?\b/i.test(message);
+  const hasSolana =
+    mentions.some((mention) => mention.chain === "solana") ||
+    /\bsolana\b|\bdevnet\b/i.test(message);
+
+  return hasArc && hasSolana;
+};
+
+const replyClaimsSolanaUnsupported = (reply: string) =>
+  [
+    /solana[^\n.]{0,120}not supported/i,
+    /solana isn't supported/i,
+    /solana is not supported/i,
+    /available bridge routes[^\n.]{0,160}(base|optimism|evm)/i,
+  ].some((pattern) => pattern.test(reply));
+
+const buildSupportedSolanaBridgeReply = (bridgeRequest: BridgeExecutionRequest | null) => {
+  if (bridgeRequest) {
+    return buildBridgeReadyReply(bridgeRequest);
+  }
+
+  return [
+    "Tower supports USDC bridging between Arc Testnet and Solana Devnet.",
+    "Tell me the amount of USDC to bridge and I will prepare it.",
+    "If you are bridging to Solana, connect your Solana wallet or include the receiving Solana address.",
+  ].join("\n");
+};
+
+const overrideUnsupportedSolanaBridgeReply = (
+  payload: AiChatPayload,
+  response: AiChatResponsePayload,
+): AiChatResponsePayload => {
+  const message = typeof payload.message === "string" ? payload.message : "";
+  const reply = typeof response.reply === "string" ? response.reply : "";
+
+  if (!messageMentionsArcSolanaBridge(message) || !replyClaimsSolanaUnsupported(reply)) {
+    return response;
+  }
+
+  const bridgeRequest = extractBridgeIntent(payload);
+
+  if (!bridgeRequest) {
+    return {
+      ...response,
+      reply: buildSupportedSolanaBridgeReply(null),
+    };
+  }
+
+  const dataRecord = asRecord(response.data);
+
+  return {
+    ...response,
+    reply: buildBridgeReadyReply(bridgeRequest),
+    data: {
+      ...(dataRecord ?? {}),
+      action: "bridge",
+      bridge_execution: buildBridgeExecutionPayload(bridgeRequest),
+    },
+  };
+};
 const enrichBridgeExecution = (
   payload: AiChatPayload,
   response: AiChatResponsePayload,
@@ -1182,8 +1299,9 @@ const enrichBridgeExecution = (
 
   const dataRecord = asRecord(response.data);
   const existingBridgeExecution = asRecord(dataRecord?.bridge_execution);
+  const existingBridgeRequest = asRecord(existingBridgeExecution?.request);
 
-  if (existingBridgeExecution) {
+  if (existingBridgeRequest) {
     return response;
   }
 
@@ -1199,16 +1317,10 @@ const enrichBridgeExecution = (
     data: {
       ...(dataRecord ?? {}),
       action: "bridge",
-      bridge_execution: {
-        request: bridgeRequest,
-        estimatedFee: "0.000130",
-        estimatedTime: estimateBridgeTime(bridgeRequest.toChain),
-        message: "Bridge request prepared for wallet signing.",
-      },
+      bridge_execution: buildBridgeExecutionPayload(bridgeRequest),
     },
   };
 };
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as AiChatPayload;
@@ -1276,7 +1388,8 @@ export async function POST(request: NextRequest) {
 
     try {
       const enrichedSwapData = await enrichStableSwapQuote(request, body, data);
-      enrichedData = enrichBridgeExecution(body, enrichedSwapData);
+      const enrichedBridgeData = enrichBridgeExecution(body, enrichedSwapData);
+      enrichedData = overrideUnsupportedSolanaBridgeReply(body, enrichedBridgeData);
     } catch (enrichmentError) {
       console.error("[ai/chat] Response enrichment failed:", enrichmentError);
     }
