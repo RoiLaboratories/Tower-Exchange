@@ -2,7 +2,7 @@
 import { X } from "lucide-react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 import usdcLogo from "@/public/assets/usdc.svg";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
@@ -14,11 +14,6 @@ interface ChartModalProps {
 
 const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState("24H");
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   if (!isOpen) return null;
 

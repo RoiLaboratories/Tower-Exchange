@@ -1353,7 +1353,7 @@ export default function BridgePageContent({
                       )}
                     </span>
                     {fromChain?.logo && (
-                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#151617] bg-[#151617] overflow-hidden">
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#1d212b] bg-[#1d212b] overflow-hidden">
                         <Image
                           src={fromChain.logo}
                           alt={`${fromChain.name} logo`}
@@ -1437,7 +1437,7 @@ export default function BridgePageContent({
                       )}
                     </span>
                     {toChain?.logo && (
-                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#151617] bg-[#151617] overflow-hidden">
+                      <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#1d212b] bg-[#1d212b] overflow-hidden">
                         <Image
                           src={toChain.logo}
                           alt={`${toChain.name} logo`}
@@ -1467,7 +1467,7 @@ export default function BridgePageContent({
             <button
               type="button"
               onClick={() => setIsReceivingOpen(true)}
-              className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-border/70 bg-transparent px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-border hover:text-white"
+              className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-[#ffffff91] px-3 py-2 text-xs font-medium text-white/90 transition-colors hover:border-[#ffffff91] hover:text-white"
             >
               <Plus className="h-3 w-3 text-current" />
               <span>
@@ -1603,7 +1603,11 @@ export default function BridgePageContent({
                       saveRecentAddress(normalizeWalletAddress(receivingAddress));
                       setIsReceivingOpen(false);
                     }}
-                    className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-[#1b1c1f] py-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-[#222327] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    className={`mt-1 inline-flex w-full items-center justify-center rounded-full py-2.5 text-xs font-semibold transition-all ${
+                      !receivingAddress.trim()
+                        ? "bg-[#1b1c1f] text-muted-foreground cursor-not-allowed opacity-60"
+                        : "bg-primary text-black hover:opacity-90"
+                    }`}
                   >
                     Done
                   </button>
