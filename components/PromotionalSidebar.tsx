@@ -67,7 +67,7 @@ export default function PromotionalSidebar() {
       description: "You can now automate $cirBTC purchases with Recurring Orders on Tower.",
       ctaText: "Try it Now",
       action: () => {
-        window.location.href = "/recurring-orders";
+        router.push("/recurring-orders?tab=create-buy&payToken=cirBTC");
       }
     }
   ];
@@ -102,39 +102,47 @@ export default function PromotionalSidebar() {
       aria-label="cirBTC Promotions"
     >
       {/* Cards Viewport: masks the horizontal sliding wrapper */}
-      <div className="relative w-full h-[335px] overflow-hidden rounded-2xl">
+      <div className="relative w-full h-[195px] xl:h-[335px] overflow-hidden rounded-2xl">
         
         {/* Sliding wrapper: moves the entire cards side by side */}
         <div
-          className="flex w-[200%] h-full transition-transform duration-1000 ease-in-out"
-          style={{ transform: `translateX(-${activeSlide * 50}%)` }}
+          className="flex h-full transition-transform duration-1000 ease-in-out"
+          style={{ transform: `translateX(-${activeSlide * 100}%)` }}
         >
           {/* Card 0: Trade cirBTC */}
           <div
-            className="w-1/2 h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+            className="w-full h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
             style={cardStyle}
           >
-            {/* Hero Image Container */}
-            <div className="w-full h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04]">
-              <img
-                src={slides[0].heroImage}
-                alt={slides[0].title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {/* Content text */}
-            <div className="flex flex-col gap-1.5 mt-2 flex-1">
-              <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 mt-1 tracking-tight">
-                {slides[0].title}
-              </h3>
-              <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-2 font-light">
-                {slides[0].description}
-              </p>
+            {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
+            <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
+              {/* Hero Image Container */}
+              <div className="w-[100px] h-[100px] xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0">
+                <img
+                  src={slides[0].heroImage}
+                  alt={slides[0].title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {/* Content text */}
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
+                <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
+                  {slides[0].title}
+                </h3>
+                <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
+                  {slides[0].description}
+                </p>
+              </div>
             </div>
             {/* Button */}
             <button
-              onClick={slides[0].action}
-              className="w-full h-10 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
+              onClick={() => {
+                slides[0].action();
+                if (window.innerWidth < 1280) {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
             >
               {slides[0].ctaText}
             </button>
@@ -142,30 +150,38 @@ export default function PromotionalSidebar() {
 
           {/* Card 1: DCA with cirBTC */}
           <div
-            className="w-1/2 h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+            className="w-full h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
             style={cardStyle}
           >
-            {/* Hero Image Container */}
-            <div className="w-full h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04]">
-              <img
-                src={slides[1].heroImage}
-                alt={slides[1].title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {/* Content text */}
-            <div className="flex flex-col gap-1.5 mt-2 flex-1">
-              <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 mt-1 tracking-tight">
-                {slides[1].title}
-              </h3>
-              <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-2 font-light">
-                {slides[1].description}
-              </p>
+            {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
+            <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
+              {/* Hero Image Container */}
+              <div className="w-[125px] h-[100px] xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0">
+                <img
+                  src={slides[1].heroImage}
+                  alt={slides[1].title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {/* Content text */}
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
+                <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
+                  {slides[1].title}
+                </h3>
+                <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
+                  {slides[1].description}
+                </p>
+              </div>
             </div>
             {/* Button */}
             <button
-              onClick={slides[1].action}
-              className="w-full h-10 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
+              onClick={() => {
+                slides[1].action();
+                if (window.innerWidth < 1280) {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
             >
               {slides[1].ctaText}
             </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { tokens } from "@/mockData/token";
 import { TokenDropdown } from "./TokenDropdown";
@@ -53,6 +53,17 @@ export const RecurringBuys = () => {
     targetToken: string;
     frequency: string;
   } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payTokenSymbol = params.get("payToken");
+    if (payTokenSymbol) {
+      const foundToken = recurringTokens.find((t) => t.symbol === payTokenSymbol);
+      if (foundToken) {
+        setSelectedPayToken(foundToken);
+      }
+    }
+  }, []);
 
   const availableTokensForBuy = recurringTokens.filter(
     (token) => token.symbol !== selectedPayToken.symbol,
