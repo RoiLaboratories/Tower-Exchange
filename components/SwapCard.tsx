@@ -569,6 +569,45 @@ const SwapCard = ({
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
   const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
+
+  // Listen for external cirBTC selection events or URL parameters
+  useEffect(() => {
+    const handleSelectTokenEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.symbol === "cirBTC") {
+        const cirbtcToken = SWAP_TOKENS.find(t => t.symbol === "cirBTC");
+        if (cirbtcToken) {
+          setSellToken(cirbtcToken);
+          // Clean URL params if present
+          const url = new URL(window.location.href);
+          if (url.searchParams.has("select")) {
+            url.searchParams.delete("select");
+            window.history.replaceState({}, "", url.pathname + url.search);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("select-sell-token", handleSelectTokenEvent);
+
+    // Check URL parameters on mount
+    const params = new URLSearchParams(window.location.search);
+    const selectToken = params.get("select");
+    if (selectToken === "cirBTC") {
+      const cirbtcToken = SWAP_TOKENS.find(t => t.symbol === "cirBTC");
+      if (cirbtcToken) {
+        setSellToken(cirbtcToken);
+        // Clean URL params
+        const url = new URL(window.location.href);
+        url.searchParams.delete("select");
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    }
+
+    return () => {
+      window.removeEventListener("select-sell-token", handleSelectTokenEvent);
+    };
+  }, []);
   const quoteRequestIdRef = useRef(0);
 
   const resetSwapQuote = useCallback(() => {
