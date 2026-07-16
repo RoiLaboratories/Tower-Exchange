@@ -78,19 +78,17 @@ export default function PromotionalSidebar() {
 
   // Build CSS classes dynamically for the outer fixed positioning wrapper
   const outerWrapperClasses = [
-    // Base/Mobile layout: Bottom-aligned layout with side padding
-    "fixed bottom-0 left-0 right-0 w-full z-[9999] p-4 flex flex-col font-inter transition-all duration-300 ease-out select-none",
+    "promotional-sidebar",
+    // Base/Mobile/Tablet layout: Inline/relative layout positioned below main page content
+    "relative w-full max-w-md mx-auto z-[9999] p-4 flex flex-col font-inter transition-all duration-300 ease-out select-none",
     
-    // Tablet layout: fixed on the bottom-right, 240px wide, floating above the footer
-    "sm:bottom-24 sm:top-auto sm:right-6 sm:left-auto sm:w-[240px] sm:p-0",
-    
-    // Desktop layout: 301px wide
-    "lg:w-[301px]",
+    // Desktop layout: fixed on the bottom-right, 301px wide, floating above the footer
+    "xl:fixed xl:bottom-24 xl:top-auto xl:right-6 xl:left-auto xl:w-[301px] xl:p-0 xl:max-w-none xl:mx-0",
     
     // Animation/Transition states for mount and dismiss
     active
-      ? "opacity-100 translate-y-0 sm:translate-x-0"
-      : "opacity-0 translate-y-4 sm:translate-x-5 max-sm:translate-y-full"
+      ? "opacity-100 translate-y-0 xl:translate-x-0"
+      : "opacity-0 translate-y-4 xl:translate-x-5 max-xl:translate-y-full"
   ].join(" ");
 
   const cardStyle = {
@@ -103,9 +101,6 @@ export default function PromotionalSidebar() {
       role="complementary"
       aria-label="cirBTC Promotions"
     >
-      {/* Mobile-only swipe/drag indicator bar sitting above the cards */}
-      <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-2 block sm:hidden" />
-
       {/* Cards Viewport: masks the horizontal sliding wrapper */}
       <div className="relative w-full h-[335px] overflow-hidden rounded-2xl">
         
