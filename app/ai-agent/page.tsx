@@ -109,7 +109,7 @@ const AIAgentPage = () => {
                     </div>
                   )}
 
-                  <div className="shrink-0 rounded-[10px] border border-white/[0.04] bg-[#1E1E1F] p-1.5 lg:p-1">
+                  <div className="shrink-0 rounded-[10px] border border-white/[0.04] bg-[#111214] p-1.5 lg:p-1">
                     <div className="grid w-full grid-cols-[0.92fr_0.92fr_1.16fr] gap-1.5 lg:gap-1 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
                       {tabs.map((tab) => (
                         <motion.button
@@ -119,7 +119,7 @@ const AIAgentPage = () => {
                           onClick={() => setActiveTab(tab.id)}
                           className={`min-w-0 whitespace-nowrap rounded-[4px] px-1.5 py-2.5 text-center text-[0.72rem] font-semibold tracking-[-0.01em] transition-all lg:px-2 lg:py-2 lg:text-[0.76rem] xl:px-3 xl:py-2.25 xl:text-[0.82rem] ${
                             activeTab === tab.id
-                              ? "bg-[#363639] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                              ? "bg-[#1f2125] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                               : "text-[#8a909c] hover:text-white"
                           }`}
                         >

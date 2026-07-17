@@ -102,7 +102,7 @@ export default function PromotionalSidebar() {
       aria-label="cirBTC Promotions"
     >
       {/* Cards Viewport: masks the horizontal sliding wrapper */}
-      <div className="relative w-full h-[195px] xl:h-[335px] overflow-hidden rounded-2xl">
+      <div className="relative w-full h-[1N95px] xl:h-[335px] overflow-hidden rounded-2xl">
         
         {/* Sliding wrapper: moves the entire cards side by side */}
         <div
@@ -111,7 +111,7 @@ export default function PromotionalSidebar() {
         >
           {/* Card 0: Trade cirBTC */}
           <div
-            className="w-full h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+            className="w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
             style={cardStyle}
           >
             {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
@@ -150,7 +150,7 @@ export default function PromotionalSidebar() {
 
           {/* Card 1: DCA with cirBTC */}
           <div
-            className="w-full h-full bg-[#171513] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+            className="w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
             style={cardStyle}
           >
             {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
@@ -191,7 +191,7 @@ export default function PromotionalSidebar() {
         {/* Static Close Button - overlays on top-right of active card's hero container */}
         <button
           onClick={handleClose}
-          className="absolute top-[26px] right-[26px] w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+          className="absolute top-[10px] right-[10px] w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Close promotion"
         >
           <X size={16} />
