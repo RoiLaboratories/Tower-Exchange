@@ -62,11 +62,11 @@ export const FrequencyField = ({
   return (
     <div className="min-w-0">
       <div className="relative mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
-        <span className="shrink-0 whitespace-nowrap text-sm font-medium leading-5 text-white">
+        <span className="shrink-0 whitespace-nowrap text-sm font-medium leading-5 text-muted-foreground">
           {label}
         </span>
         {optional && (
-          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-gray-600">
+          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-muted-foreground/60">
             (Optional)
           </span>
         )}
@@ -105,7 +105,7 @@ export const FrequencyField = ({
       <Button
         variant="ghost"
         onClick={onClick}
-        className={`h-auto w-full cursor-pointer rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4 ${
+        className={`h-auto w-full cursor-pointer rounded-xl border border-white/[0.04] bg-[#151617] px-4 py-3.5 text-sm transition-colors hover:bg-[#1f2125] sm:rounded-xl sm:py-4 ${
           centerValue ? "justify-center text-center" : "justify-start text-left"
         }`}
       >

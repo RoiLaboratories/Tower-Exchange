@@ -481,7 +481,7 @@ const Badges = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="overflow-hidden rounded-2xl border border-white/5 bg-[#191A1C] px-6 py-8 sm:px-11 lg:min-h-[296px] lg:px-11 lg:py-12"
+        className="overflow-hidden rounded-2xl border border-white/5 bg-[#14181f] px-6 py-8 sm:px-11 lg:min-h-[296px] lg:px-11 lg:py-12"
       >
         <div className="grid items-center gap-10 lg:grid-cols-[minmax(280px,1fr)_minmax(440px,0.95fr)]">
           <div className="max-w-[490px]">

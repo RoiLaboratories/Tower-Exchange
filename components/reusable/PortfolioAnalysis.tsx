@@ -58,9 +58,9 @@ export const PortfolioAnalysis = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="space-y-4 rounded-[24px] border border-[#243046] bg-[#151517] p-4 sm:space-y-6 sm:rounded-[28px] sm:p-6 lg:space-y-4 lg:p-4 xl:space-y-6 xl:p-6"
+      className="space-y-4 rounded-2xl border border-border bg-[#191A1C] p-4 sm:space-y-6 sm:rounded-2xl sm:p-6 lg:space-y-4 lg:p-4 xl:space-y-6 xl:p-6"
     >
-      <div className="rounded-xl bg-black p-3 sm:p-4 lg:p-3 xl:p-4">
+      <div className="rounded-xl bg-[#151617] p-3 sm:p-4 lg:p-3 xl:p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 lg:flex-nowrap lg:gap-1.5">
           <div className="flex items-center gap-3 sm:gap-4 lg:gap-2 xl:gap-3">
             <button className="whitespace-nowrap text-sm font-medium text-white sm:text-base lg:text-[0.9rem] xl:text-base">
@@ -120,7 +120,7 @@ export const PortfolioAnalysis = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
               whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
-              className="flex items-center justify-between rounded-xl bg-zinc-950 p-3 sm:p-4"
+              className="flex items-center justify-between rounded-xl bg-[#151617] p-3 sm:p-4"
             >
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full sm:h-8 sm:w-8">
@@ -161,7 +161,7 @@ export const PortfolioAnalysis = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
               whileHover={{ scale: 1.02 }}
-              className="min-w-0 flex-1 rounded-xl border border-zinc-800 bg-zinc-950 p-3 sm:p-4 lg:p-3 xl:p-4"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-[#151617] p-3 sm:p-4 lg:p-3 xl:p-4"
             >
               <div className="mb-2 flex items-center gap-2">
                 <div className="flex -space-x-2">
