@@ -983,11 +983,8 @@ export const AIChat = () => {
           } else {
             try {
               if (bridgeRequest.toChain === "solana" && !toAddress) {
-                if (!isSolanaConnected) {
-                  openSolanaConnectModal();
-                }
                 setError(
-                  "Connect your Solana wallet or include a Solana receiving address in your message to continue.",
+                  "Please include a Solana receiving address to continue.",
                 );
                 return;
               }

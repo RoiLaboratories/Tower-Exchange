@@ -1188,7 +1188,7 @@ const buildBridgeReadyReply = (bridgeRequest: BridgeExecutionRequest) => {
   if (bridgeRequest.toChain === "solana" && !bridgeRequest.toAddress) {
     return [
       `I can prepare the bridge of ${bridgeRequest.amount} ${bridgeRequest.token} from ${fromName} to ${toName}.`,
-      "Connect your Solana wallet or include a Solana receiving address in your message to continue.",
+      "Include a Solana receiving address in your message to continue.",
       `Estimated completion time: ${estimateBridgeTime(bridgeRequest.toChain)}.`,
     ].join("\n");
   }
@@ -1215,7 +1215,7 @@ const buildBridgeExecutionPayload = (bridgeRequest: BridgeExecutionRequest) => (
   estimatedTime: estimateBridgeTime(bridgeRequest.toChain),
   message:
     bridgeRequest.toChain === "solana" && !bridgeRequest.toAddress
-      ? "Bridge request prepared. A Solana receiving address or connected Solana wallet is still needed before signing."
+      ? "Bridge request prepared. A Solana receiving address is still needed before signing."
       : bridgeRequest.fromChain === "solana" && !bridgeRequest.sourceAddress
         ? "Bridge request prepared. Connect your Solana wallet to continue signing the source transaction."
         : "Bridge request prepared for wallet signing.",
@@ -1253,7 +1253,7 @@ const buildSupportedSolanaBridgeReply = (bridgeRequest: BridgeExecutionRequest |
   return [
     "Tower supports USDC bridging between Arc Testnet and Solana Devnet.",
     "Tell me the amount of USDC to bridge and I will prepare it.",
-    "If you are bridging to Solana, connect your Solana wallet or include the receiving Solana address.",
+    "If you are bridging to Solana, include the receiving Solana address.",
   ].join("\n");
 };
 
