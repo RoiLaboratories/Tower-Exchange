@@ -1134,13 +1134,59 @@ const getBridgeFeeQuote = (
   };
 };
 
+type PreparedSolanaRecipient = {
+  ownerAddress: string;
+  ataAddress: string;
+  created: boolean;
+  sponsored: boolean;
+};
+
+const prepareSolanaBridgeRecipient = async (
+  walletAddress: string,
+): Promise<PreparedSolanaRecipient> => {
+  const response = await fetch("/api/bridge/prepare-solana-recipient", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      walletAddress,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        success?: boolean;
+        error?: string;
+        ownerAddress?: string;
+        ataAddress?: string;
+        created?: boolean;
+        sponsored?: boolean;
+      }
+    | null;
+
+  if (!response.ok || !payload?.success || !payload.ataAddress || !payload.ownerAddress) {
+    throw new Error(
+      payload?.error ||
+        "Unable to prepare the Solana receiving wallet right now.",
+    );
+  }
+
+  return {
+    ownerAddress: payload.ownerAddress,
+    ataAddress: payload.ataAddress,
+    created: Boolean(payload.created),
+    sponsored: Boolean(payload.sponsored),
+  };
+};
+
 // Bridge request parameters
 export interface BridgeRequest {
   fromChain: string;
   toChain: string;
   amount: string; // In token units (e.g., "1.00" for USDC)
   token: string; // Token symbol, usually "USDC"
-  toAddress?: string; // Destination wallet address
+  toAddress?: string; // Destination wallet address (Solana owner wallet when bridging to Solana)
   sourceAddress?: string; // Source wallet address
   // Optional: For RainbowKit/wagmi integration - provide pre-configured viem clients
   publicClient?: any; // PublicClient from usePublicClient();
@@ -1492,6 +1538,10 @@ export async function bridgeTokens(
       };
     }
 
+    const requestedDestinationAddress = request.toAddress
+      ? normalizeWalletAddress(request.toAddress)
+      : "";
+
     // Determine if destination is cross-chain type (EVM <-> Solana)
     const isFromEVM = request.fromChain !== "solana";
     const isToEVM = request.toChain !== "solana";
@@ -1499,7 +1549,7 @@ export async function bridgeTokens(
 
     // Validate destination address for cross-chain type transitions
     if (isChainTypeCrossover) {
-      if (!request.toAddress) {
+      if (!requestedDestinationAddress) {
         const chainType = isToEVM ? "EVM" : "Solana";
         return {
           success: false,
@@ -1509,10 +1559,34 @@ export async function bridgeTokens(
 
       // Validate address format matches destination chain type
       const addressType = isToEVM ? "evm" : "solana";
-      if (!isValidAddress(request.toAddress, addressType)) {
+      if (!isValidAddress(requestedDestinationAddress, addressType)) {
         return {
           success: false,
           error: `Invalid ${addressType.toUpperCase()} address format for destination chain`,
+        };
+      }
+    }
+
+    let resolvedDestinationAddress = requestedDestinationAddress;
+    let preparedSolanaRecipient: PreparedSolanaRecipient | null = null;
+
+    if (request.toChain === "solana") {
+      if (!requestedDestinationAddress) {
+        return {
+          success: false,
+          error: "Destination Solana address is required.",
+        };
+      }
+
+      try {
+        preparedSolanaRecipient = await prepareSolanaBridgeRecipient(
+          requestedDestinationAddress,
+        );
+        resolvedDestinationAddress = preparedSolanaRecipient.ataAddress;
+      } catch (error) {
+        return {
+          success: false,
+          error: getBridgeErrorMessage(error),
         };
       }
     }
@@ -1522,11 +1596,13 @@ export async function bridgeTokens(
       to: toChainConfig.name,
       amount: request.amount,
       token: request.token,
-      destination: request.toAddress,
+      destination: requestedDestinationAddress,
+      resolvedDestination: resolvedDestinationAddress,
       sourceChainId: fromChainConfig.chainId,
       destChainId: toChainConfig.chainId,
       hasCustomClients: !!request.publicClient,
       useForwarder: resolvedUseForwarder,
+      solanaRecipientPrepared: Boolean(preparedSolanaRecipient),
     });
 
     // Use Circle's recommended client-side bridge with browser wallet
@@ -1555,9 +1631,9 @@ export async function bridgeTokens(
     }
 
     const useForwarder = resolvedUseForwarder;
-    const requiresDestinationAdapter = !(useForwarder && request.toAddress);
+    const requiresDestinationAdapter = !(useForwarder && resolvedDestinationAddress);
 
-    if (!request.toAddress) {
+    if (!resolvedDestinationAddress) {
       return {
         success: false,
         error: "Destination address is required",
@@ -1702,11 +1778,11 @@ export async function bridgeTokens(
         chain: toChainObj,
       };
 
-      if (request.toAddress) {
-        bridgeDestination.recipientAddress = request.toAddress;
+      if (resolvedDestinationAddress) {
+        bridgeDestination.recipientAddress = resolvedDestinationAddress;
       }
 
-      if (useForwarder && request.toAddress) {
+      if (useForwarder && resolvedDestinationAddress) {
         bridgeDestination.useForwarder = true;
       } else {
         bridgeDestination.adapter = toAdapter;
