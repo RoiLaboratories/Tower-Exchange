@@ -11,44 +11,13 @@ export default function PromotionalSidebar() {
   const [active, setActive] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isDismissing, setIsDismissing] = useState(false);
-
-  useEffect(() => {
-    // Check if the user has already dismissed this promotion
-    const isDismissed = localStorage.getItem("tower-cirbtc-promo-dismissed");
-    if (!isDismissed) {
-      setIsVisible(true);
-      // Trigger the slide-in and fade-in transition after the element mounts
-      const timer = setTimeout(() => {
-        setActive(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  // Autoplay slideshow: changes slide every 5 seconds.
-  // Re-creating the interval when activeSlide/isVisible changes resets the 5s timer upon manual interaction.
-  useEffect(() => {
-    if (!isVisible || isDismissing) return;
-    const interval = setInterval(() => {
-      setActiveSlide((prev) => (prev === 0 ? 1 : 0));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isVisible, isDismissing, activeSlide]);
-
-  const handleClose = () => {
-    setActive(false);
-    setIsDismissing(true);
-    // Wait for the transition to finish before removing from the DOM
-    setTimeout(() => {
-      setIsVisible(false);
-      localStorage.setItem("tower-cirbtc-promo-dismissed", "true");
-    }, 300);
-  };
+  const [dismissedSlides, setDismissedSlides] = useState<string[]>([]);
 
   const slides = [
     {
       id: "cirbtc-trade",
       heroImage: "/assets/TradecircBTC.svg",
+      imageWidthClass: "w-[100px]",
       title: "Trade $cirBTC on Tower",
       description: "cirBTC, Circle's wrapped Bitcoin backed 1:1 by real BTC, is now available for trading on Tower.",
       ctaText: "Trade cirBTC",
@@ -63,6 +32,7 @@ export default function PromotionalSidebar() {
     {
       id: "cirbtc-dca",
       heroImage: "/assets/DCAwithcirBTC.svg",
+      imageWidthClass: "w-[125px]",
       title: "DCA with $cirBTC",
       description: "You can now automate $cirBTC purchases with Recurring Orders on Tower.",
       ctaText: "Try it Now",
@@ -72,9 +42,93 @@ export default function PromotionalSidebar() {
     }
   ];
 
+  const visibleSlides = slides.filter((slide) => !dismissedSlides.includes(slide.id));
+
+  useEffect(() => {
+    // Check if the user has already dismissed this promotion
+    const legacyDismissed = localStorage.getItem("tower-cirbtc-promo-dismissed") === "true";
+    if (legacyDismissed) {
+      setDismissedSlides(slides.map((s) => s.id));
+      return;
+    }
+
+    const dismissed: string[] = [];
+    slides.forEach((slide) => {
+      if (localStorage.getItem(`tower-promo-dismissed-${slide.id}`) === "true") {
+        dismissed.push(slide.id);
+      }
+    });
+    setDismissedSlides(dismissed);
+
+    const allDismissed = slides.every((slide) => dismissed.includes(slide.id));
+    if (!allDismissed) {
+      setIsVisible(true);
+      // Trigger the slide-in and fade-in transition after the element mounts
+      const timer = setTimeout(() => {
+        setActive(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Autoplay slideshow: changes slide every 5 seconds.
+  // Re-creating the interval when activeSlide/isVisible changes resets the 5s timer upon manual interaction.
+  useEffect(() => {
+    if (!isVisible || isDismissing || visibleSlides.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % visibleSlides.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isVisible, isDismissing, activeSlide, visibleSlides.length]);
+
+  // Adjust active slide if it's out of bounds
+  useEffect(() => {
+    if (activeSlide >= visibleSlides.length && visibleSlides.length > 0) {
+      setActiveSlide(visibleSlides.length - 1);
+    }
+  }, [activeSlide, visibleSlides.length]);
+
+  const handleCloseSlide = (slideId: string) => {
+    const remainingSlides = slides.filter(
+      (slide) => !dismissedSlides.includes(slide.id) && slide.id !== slideId
+    );
+
+    if (remainingSlides.length === 0) {
+      // Last slide closed: trigger whole-sidebar dismissal animation
+      setActive(false);
+      setIsDismissing(true);
+      setTimeout(() => {
+        setIsVisible(false);
+        setDismissedSlides((prev) => {
+          const next = [...prev, slideId];
+          localStorage.setItem(`tower-promo-dismissed-${slideId}`, "true");
+          return next;
+        });
+      }, 300);
+    } else {
+      // Just close this slide, update active slide if needed
+      setDismissedSlides((prev) => {
+        const next = [...prev, slideId];
+        localStorage.setItem(`tower-promo-dismissed-${slideId}`, "true");
+        return next;
+      });
+
+      const currentVisible = slides.filter((slide) => !dismissedSlides.includes(slide.id));
+      const dismissedIndexInVisible = currentVisible.findIndex((s) => s.id === slideId);
+
+      if (activeSlide >= remainingSlides.length) {
+        setActiveSlide(remainingSlides.length - 1);
+      } else if (activeSlide === dismissedIndexInVisible) {
+        if (activeSlide > 0) {
+          setActiveSlide(activeSlide - 1);
+        }
+      }
+    }
+  };
+
   const isTradePage = pathname === "/" || pathname === "/swap" || pathname === "/bridge";
 
-  if (!isVisible || !isTradePage) return null;
+  if (!isVisible || !isTradePage || visibleSlides.length === 0) return null;
 
   // Build CSS classes dynamically for the outer fixed positioning wrapper
   const outerWrapperClasses = [
@@ -102,121 +156,84 @@ export default function PromotionalSidebar() {
       aria-label="cirBTC Promotions"
     >
       {/* Cards Viewport: masks the horizontal sliding wrapper */}
-      <div className="relative w-full h-[1N95px] xl:h-[335px] overflow-hidden rounded-2xl">
+      <div className="relative w-full h-[195px] xl:h-[335px] overflow-hidden rounded-2xl">
         
         {/* Sliding wrapper: moves the entire cards side by side */}
         <div
           className="flex h-full transition-transform duration-1000 ease-in-out"
           style={{ transform: `translateX(-${activeSlide * 100}%)` }}
         >
-          {/* Card 0: Trade cirBTC */}
-          <div
-            className="w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
-            style={cardStyle}
-          >
-            {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
-            <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
-              {/* Hero Image Container */}
-              <div className="w-[100px] h-[100px] xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0">
-                <img
-                  src={slides[0].heroImage}
-                  alt={slides[0].title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              {/* Content text */}
-              <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
-                <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
-                  {slides[0].title}
-                </h3>
-                <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
-                  {slides[0].description}
-                </p>
-              </div>
-            </div>
-            {/* Button */}
-            <button
-              onClick={() => {
-                slides[0].action();
-                if (window.innerWidth < 1280) {
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }
-              }}
-              className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
+          {visibleSlides.map((slide) => (
+            <div
+              key={slide.id}
+              className="relative w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+              style={cardStyle}
             >
-              {slides[0].ctaText}
-            </button>
-          </div>
+              {/* Close Button - specific to this card */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseSlide(slide.id);
+                }}
+                className="absolute top-[10px] right-[10px] w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white z-10"
+                aria-label="Close promotion"
+              >
+                <X size={16} />
+              </button>
 
-          {/* Card 1: DCA with cirBTC */}
-          <div
-            className="w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
-            style={cardStyle}
-          >
-            {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
-            <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
-              {/* Hero Image Container */}
-              <div className="w-[125px] h-[100px] xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0">
-                <img
-                  src={slides[1].heroImage}
-                  alt={slides[1].title}
-                  className="w-full h-full object-cover"
-                />
+              {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
+              <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
+                {/* Hero Image Container */}
+                <div className={`h-[100px] ${slide.imageWidthClass} xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0`}>
+                  <img
+                    src={slide.heroImage}
+                    alt={slide.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {/* Content text */}
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
+                  <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
+                    {slide.title}
+                  </h3>
+                  <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
+                    {slide.description}
+                  </p>
+                </div>
               </div>
-              {/* Content text */}
-              <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
-                <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
-                  {slides[1].title}
-                </h3>
-                <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
-                  {slides[1].description}
-                </p>
-              </div>
+              {/* Button */}
+              <button
+                onClick={() => {
+                  slide.action();
+                  if (window.innerWidth < 1280) {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
+                className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
+              >
+                {slide.ctaText}
+              </button>
             </div>
-            {/* Button */}
-            <button
-              onClick={() => {
-                slides[1].action();
-                if (window.innerWidth < 1280) {
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }
-              }}
-              className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
-            >
-              {slides[1].ctaText}
-            </button>
-          </div>
+          ))}
         </div>
-
-        {/* Static Close Button - overlays on top-right of active card's hero container */}
-        <button
-          onClick={handleClose}
-          className="absolute top-[10px] right-[10px] w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Close promotion"
-        >
-          <X size={16} />
-        </button>
       </div>
 
       {/* Slide Indicators: positioned below and outside the card container */}
-      <div className="flex justify-end gap-1.5 mt-2 px-1">
-        <button
-          onClick={() => setActiveSlide(0)}
-          className={`h-[5px] rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
-            activeSlide === 0 ? "bg-white w-[28px]" : "bg-white/20 w-[14px] hover:bg-white/40"
-          }`}
-          aria-label="Go to Slide 1"
-          style={{ border: "none" }}
-        />
-        <button
-          onClick={() => setActiveSlide(1)}
-          className={`h-[5px] rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
-            activeSlide === 1 ? "bg-white w-[28px]" : "bg-white/20 w-[14px] hover:bg-white/40"
-          }`}
-          aria-label="Go to Slide 2"
-          style={{ border: "none" }}
-        />
-      </div>
+      {visibleSlides.length > 1 && (
+        <div className="flex justify-end gap-1.5 mt-2 px-1">
+          {visibleSlides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setActiveSlide(index)}
+              className={`h-[5px] rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
+                activeSlide === index ? "bg-white w-[28px]" : "bg-white/20 w-[14px] hover:bg-white/40"
+              }`}
+              aria-label={`Go to Slide ${index + 1}`}
+              style={{ border: "none" }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
