@@ -2310,7 +2310,7 @@ const SwapCard = ({
                 type="button"
                 aria-label="Open activity tab"
                 onClick={() => setIsActivityOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer"
+                className={`inline-flex items-center gap-1.5 rounded-lg p-2 transition-colors cursor-pointer ml-1 ${shouldShowSwapPendingIndicator ? "bg-secondary hover:bg-secondary" : "hover:bg-secondary"}`}
                 variants={{
                   hover: { scale: 1.1 },
                   tap: { scale: 0.9 },
