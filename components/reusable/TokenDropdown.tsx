@@ -59,7 +59,7 @@ export const TokenDropdown = ({
   return (
     <div>
       <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
-        <span className="text-sm font-medium text-white">{label}</span>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
         {showInfo && (
           <div className="relative group flex items-center">
             <button
@@ -90,7 +90,7 @@ export const TokenDropdown = ({
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
           onClick={() => setIsOpen(!isOpen)}
-          className="flex w-full items-center gap-3 rounded-[16px] border border-white/[0.04] bg-[#232324] px-4 py-3.5 text-sm transition-colors hover:bg-[#2a2a2c] sm:rounded-[18px] sm:py-4"
+          className="flex w-full items-center gap-3 rounded-xl border border-white/[0.04] bg-[#151617] px-4 py-3.5 text-sm transition-colors hover:bg-[#1f2125] sm:rounded-xl sm:py-4"
         >
           {selected ? (
             <>

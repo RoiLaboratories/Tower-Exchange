@@ -1250,7 +1250,7 @@ export default function BridgePageContent({
                   type="button"
                   aria-label="Open activity tab"
                   onClick={() => setIsActivityOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg p-2 bg-secondary hover:bg-secondary transition-colors cursor-pointer ml-1"
+                  className={`inline-flex items-center gap-1.5 rounded-lg p-2 transition-colors cursor-pointer ml-1 ${shouldShowBridgePendingIndicator ? "bg-secondary hover:bg-secondary" : "hover:bg-secondary"}`}
                   variants={{
                     hover: { scale: 1.1 },
                     tap: { scale: 0.9 },
@@ -1463,13 +1463,12 @@ export default function BridgePageContent({
               </div>
             </div>
 
-            {/* Add receiving wallet row */}
             <button
               type="button"
               onClick={() => setIsReceivingOpen(true)}
-              className="mb-4 inline-flex w-full items-center gap-2 rounded-xl border border-dashed border-[#ffffff91] px-3 py-2 text-xs font-medium text-white/90 transition-colors hover:border-[#ffffff91] hover:text-white"
+              className="mb-4 inline-flex self-start items-center gap-1.5 rounded-full bg-secondary px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[#2b2f38]"
             >
-              <Plus className="h-3 w-3 text-current" />
+              <Plus className="h-3.5 w-3.5 text-current" />
               <span>
                 {receivingAddress.trim()
                   ? `${receivingAddress.trim().slice(0, 6)}...${receivingAddress.trim().slice(-4)}`
