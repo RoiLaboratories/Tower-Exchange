@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RecurringOrdersDashboard } from "@/components/RecurringOrdersDashboard";
 import { RecurringBuys } from "@/components/reusable/RecurringBuys";
@@ -7,6 +7,14 @@ import { RecurringSell } from "@/components/reusable/RecurringSell";
 
 export default function RecurringOrdersPage() {
   const [activeTab, setActiveTab] = useState<"view" | "create-buy" | "create-sell">("view");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    if (tabParam === "create-buy" || tabParam === "create-sell" || tabParam === "view") {
+      setActiveTab(tabParam as "view" | "create-buy" | "create-sell");
+    }
+  }, []);
 
   return (
     <main className="min-h-screen bg-black">

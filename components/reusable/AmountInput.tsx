@@ -11,7 +11,7 @@ export const AmountInput = ({
   onChange,
   readOnly = false,
 }: AmountInputProps) => (
-  <div className="rounded-[20px] border border-white/[0.04] bg-[#252526] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:rounded-[24px] sm:p-4 lg:p-2.5 xl:p-3">
+  <div className="rounded-xl border border-white/[0.04] bg-[#151617] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:rounded-xl sm:p-4 lg:p-2.5 xl:p-3">
     <input
       type="text"
       value={`$${amount}`}

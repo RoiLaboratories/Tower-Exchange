@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { tokens } from "@/mockData/token";
 import { TokenDropdown } from "./TokenDropdown";
@@ -53,6 +53,17 @@ export const RecurringBuys = () => {
     targetToken: string;
     frequency: string;
   } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payTokenSymbol = params.get("payToken");
+    if (payTokenSymbol) {
+      const foundToken = recurringTokens.find((t) => t.symbol === payTokenSymbol);
+      if (foundToken) {
+        setSelectedPayToken(foundToken);
+      }
+    }
+  }, []);
 
   const availableTokensForBuy = recurringTokens.filter(
     (token) => token.symbol !== selectedPayToken.symbol,
@@ -180,7 +191,7 @@ export const RecurringBuys = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="space-y-4 rounded-[24px] border border-[#243046] bg-[#151517] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm sm:space-y-5 sm:rounded-[28px] sm:p-5"
+        className="space-y-4 rounded-2xl border border-border bg-[#191A1C] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm sm:space-y-5 sm:rounded-2xl sm:p-5"
       >
         <AmountInput amount={amount} onChange={setAmount} />
 
@@ -245,13 +256,13 @@ export const RecurringBuys = () => {
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/[0.05] bg-[#1b1c1f] px-4 py-3 text-sm text-zinc-400">
+        <div className="rounded-xl border border-border bg-[#151617] px-4 py-3 text-sm text-muted-foreground">
           <p className="font-medium text-white">Tracking in UTC</p>
           <p className="mt-1 leading-6">
-            First execution: <span className="text-zinc-200">{formatUtcDateTimeLabel(firstExecutionDate)}</span>
+            First execution: <span className="text-foreground">{formatUtcDateTimeLabel(firstExecutionDate)}</span>
           </p>
           <p className="leading-6">
-            End time: <span className="text-zinc-200">{endDate ? formatUtcDateTimeLabel(endDate) : "No end time"}</span>
+            End time: <span className="text-foreground">{endDate ? formatUtcDateTimeLabel(endDate) : "No end time"}</span>
           </p>
         </div>
 
