@@ -1049,25 +1049,30 @@ const SwapCard = ({
       return;
     }
 
+    let intervalId: number | null = null;
     const refreshQuotes = () => {
       getQuoteForSwap(sellAmount);
     };
-    refreshQuotes();
-    const intervalId = window.setInterval(
-      refreshQuotes,
-      QUOTE_REFRESH_INTERVAL_MS,
-    );
+    const debounceId = window.setTimeout(() => {
+      refreshQuotes();
+      intervalId = window.setInterval(
+        refreshQuotes,
+        QUOTE_REFRESH_INTERVAL_MS,
+      );
+    }, 350);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearTimeout(debounceId);
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
   }, [getQuoteForSwap, sellAmount, shouldShowRouterDisplay, swapState]);
 
   // Simulate DEX aggregator calculation
   const handleSellAmountChange = (value: string) => {
     setSellAmount(value);
-    if (value && parseFloat(value) > 0) {
-      // Get quote from Arc pool for actual exchange rate
-      getQuoteForSwap(value);
-    } else {
+    if (!value || parseFloat(value) <= 0) {
       resetSwapQuote();
     }
   };
