@@ -134,7 +134,7 @@ export default function PromotionalSidebar() {
   const outerWrapperClasses = [
     "promotional-sidebar",
     // Base/Mobile/Tablet layout: Inline/relative layout positioned below main page content
-    "relative w-full max-w-md mx-auto z-[9999] p-4 flex flex-col font-inter transition-all duration-300 ease-out select-none",
+    "relative w-full max-w-md mx-auto z-20 p-4 flex flex-col font-inter transition-all duration-300 ease-out select-none",
     
     // Desktop layout: fixed on the bottom-right, 301px wide, floating above the footer
     "xl:fixed xl:bottom-24 xl:top-auto xl:right-6 xl:left-auto xl:w-[301px] xl:p-0 xl:max-w-none xl:mx-0",
@@ -156,60 +156,70 @@ export default function PromotionalSidebar() {
       aria-label="cirBTC Promotions"
     >
       {/* Cards Viewport: masks the horizontal sliding wrapper */}
-      <div className="relative w-full h-[195px] xl:h-[335px] overflow-hidden rounded-2xl">
+      <div className="relative w-full overflow-hidden rounded-2xl">
         
         {/* Sliding wrapper: moves the entire cards side by side */}
         <div
-          className="flex h-full transition-transform duration-1000 ease-in-out"
+          className="flex transition-transform duration-1000 ease-in-out"
           style={{ transform: `translateX(-${activeSlide * 100}%)` }}
         >
           {visibleSlides.map((slide) => (
             <div
               key={slide.id}
-              className="relative w-full h-full bg-[#191A1C] border border-white/[0.08] p-4 flex flex-col justify-between rounded-2xl shrink-0"
+              className="relative w-full bg-[#191A1C] border border-white/[0.08] flex flex-col p-3 xl:p-4 rounded-2xl shrink-0 cursor-pointer"
               style={cardStyle}
+              onClick={() => {
+                slide.action();
+                if (window.innerWidth < 1280) {
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
             >
-              {/* Close Button - specific to this card */}
+              {/* Close Button - positioned absolutely to avoid flex flow disruption */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleCloseSlide(slide.id);
                 }}
-                className="absolute top-[10px] right-[10px] w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white z-10"
+                className="absolute top-2.5 right-2.5 xl:top-3.5 xl:right-3.5 w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-black/40 xl:bg-white/5 p-0 text-gray-300 transition-colors hover:text-white hover:bg-black/60 xl:hover:bg-white/10 z-10"
                 aria-label="Close promotion"
               >
                 <X size={16} />
               </button>
 
-              {/* Horizontal row layout on mobile/tablet, vertical stack on desktop */}
-              <div className="flex flex-row xl:flex-col gap-4 items-start w-full">
+              {/* Top Section: Horizontal on Mobile, Vertical on Desktop */}
+              <div className="flex flex-row xl:flex-col gap-3 xl:gap-0 items-start xl:items-stretch w-full">
+                
                 {/* Hero Image Container */}
-                <div className={`h-[100px] ${slide.imageWidthClass} xl:w-full xl:h-[140px] rounded-[12px] overflow-hidden select-none border border-white/[0.04] shrink-0`}>
+                <div className={`h-[80px] w-[80px] sm:h-[90px] sm:w-[90px] shrink-0 xl:w-full xl:h-[140px]`}>
                   <img
                     src={slide.heroImage}
                     alt={slide.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded-lg border border-white/[0.04] xl:rounded-xl"
                   />
                 </div>
+                
                 {/* Content text */}
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-8 xl:pr-0">
-                  <h3 className="font-inter font-semibold text-[18px] leading-tight text-white m-0 tracking-tight">
+                <div className="flex flex-col justify-center gap-y-1 xl:gap-y-2 min-w-0 flex-1 xl:pt-4 pr-7 xl:pr-0">
+                  <h3 className="font-inter font-semibold text-[16px] xl:text-[18px] leading-tight text-white m-0 tracking-tight">
                     {slide.title}
                   </h3>
-                  <p className="text-[14px] leading-[1.3] text-white/72 m-0 mt-1 font-light">
+                  <p className="font-inter text-[13px] xl:text-[14px] leading-[1.3] text-white/72 m-0 font-light whitespace-pre-line">
                     {slide.description}
                   </p>
                 </div>
               </div>
-              {/* Button */}
+              
+              {/* Shared CTA Button (Sits at the bottom on both Mobile and Desktop) */}
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   slide.action();
                   if (window.innerWidth < 1280) {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}
-                className="w-full h-10 mt-4 xl:mt-0 rounded-[999px] bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base flex items-center justify-center cursor-pointer border-none transition-all duration-[250ms] ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md"
+                className="flex w-full h-10 mt-3 xl:mt-4 rounded-full bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base items-center justify-center border-none transition-all duration-200 ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md shrink-0"
               >
                 {slide.ctaText}
               </button>

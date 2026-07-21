@@ -59,7 +59,7 @@ export const TokenDropdown = ({
   return (
     <div>
       <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className="text-sm font-medium text-gray-200">{label}</span>
         {showInfo && (
           <div className="relative group flex items-center">
             <button
