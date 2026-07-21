@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import BridgeCardContent from "@/app/bridge/bridge-content";
 import SwapCard from "@/components/SwapCard";
 import TokenTicker from "@/components/TokenTicker";
+import PromotionalSidebar from "@/components/PromotionalSidebar";
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<"swap" | "bridge">("swap");
@@ -36,7 +37,7 @@ export default function Home() {
   return (
     <>
       <TokenTicker />
-      <main className="flex-1 flex items-center justify-center py-12 px-4">
+      <main className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-8">
         {currentView === "swap" ? (
           <div className="w-full max-w-[62rem]">
             <SwapCard onNavigateToBridge={showBridge} />
@@ -50,6 +51,9 @@ export default function Home() {
             </Suspense>
           </div>
         )}
+        <div className="w-full max-w-md">
+          <PromotionalSidebar />
+        </div>
       </main>
     </>
   );

@@ -8,8 +8,6 @@ import InviteGate from "@/components/InviteGate";
 import { PrivyProvider } from "@/components/providers/PrivyProvider";
 import { CustomRainbowKitProvider } from "@/components/providers/RainbowKitProvider";
 import { SolanaWalletProvider } from "@/components/providers/SolanaWalletProvider";
-import PromotionalSidebar from "@/components/PromotionalSidebar";
-
 const INVITE_GATE_ENABLED = process.env.NEXT_PUBLIC_INVITE_GATE_ENABLED === "true";
 
 const sora = Sora({
@@ -58,7 +56,6 @@ export default function RootLayout({
     <div className="flex flex-col min-h-screen relative">
       <Header />
       <div className="flex-1 pt-20 min-h-0">{children}</div>
-      <PromotionalSidebar />
       <Footer />
     </div>
   );
