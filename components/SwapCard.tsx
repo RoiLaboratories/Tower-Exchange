@@ -2472,7 +2472,7 @@ const SwapCard = ({
         </motion.div>
 
         {/* Token Quick Access Buttons */}
-        <div className="flex items-center justify-center gap-4 mt-4">
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-4 w-full">
           <motion.button
             onClick={() => setSellToken(sellToken)}
             className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#191A1C] border border-border hover:bg-secondary transition-colors"
