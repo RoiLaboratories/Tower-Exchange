@@ -9,6 +9,7 @@ import synthraLogo from "@/public/assets/synthralogo.svg";
 import towerLogo from "@/public/assets/Tower Logo.svg";
 import unitflowLogo from "@/public/assets/unitflow.svg";
 import xylonetLogo from "@/public/assets/xylonetlogo.svg";
+import routeIcon from "@/public/assets/route icon.svg";
 
 interface RouteOption {
   dexId: string;
@@ -168,14 +169,18 @@ export default function RouterDisplay({
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
           <span
-            className="inline-grid h-3.5 min-w-6 shrink-0 place-items-center rounded-full px-1 text-white"
-            style={{
-              backgroundColor: "#2E2E2E",
-            }}
+            className="inline-grid h-3.5 min-w-6 shrink-0 place-items-center rounded-full border border-white/10 bg-[#2E2E2E] px-1 text-white"
             aria-label={`${dexCount} DEX routes available`}
           >
-            <span className="block translate-y-[0.5px] text-[9px] font-bold leading-none">
-              {dexCount}
+            <span className="flex items-center justify-center gap-0.5 translate-y-[0.5px] text-[9px] font-bold leading-none" >
+              <span>{dexCount}</span>
+              <Image
+                src={routeIcon}
+                alt=""
+                width={7}
+                height={7}
+                className="h-[7px] w-[7px] shrink-0 object-contain"
+              />
             </span>
           </span>
           <span className="truncate text-[11px] font-medium text-white/80">
