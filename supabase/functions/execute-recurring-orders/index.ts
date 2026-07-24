@@ -38,6 +38,12 @@ type SupabaseClientInstance = {
   from: (table: string) => SupabaseTableQuery;
 };
 
+type ExecutionAmounts = {
+  sourceAmountUsd?: number | null;
+  targetAmount?: string | null;
+  targetAmountUsd?: number | null;
+};
+
 const denoRuntime = (globalThis as unknown as { Deno: DenoRuntime }).Deno;
 
 const supabaseUrl = denoRuntime.env.get("SUPABASE_URL") ?? "";
@@ -99,6 +105,7 @@ const tokenDecimalsBySymbol: Record<string, number> = {
   EURC: 6,
   USYC: 6,
   USDT: 18,
+  cirBTC: 8,
   SWPRC: 6,
   SYN: 18,
 };
@@ -110,8 +117,18 @@ const tokenAddressBySymbol: Record<string, string> = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
+  cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
+};
+
+const tokenUsdPriceBySymbol: Record<string, number> = {
+  USDC: 1,
+  WUSDC: 1,
+  EURC: 1.08,
+  USYC: 1,
+  USDT: 1,
+  cirBTC: 404000,
 };
 
 const recurringOrderExecutorAbi = [
@@ -425,7 +442,14 @@ denoRuntime.serve(async (req: Request) => {
         failureCount++;
 
         // Log failed execution
-        await logOrderExecution(supabase, order, "Failed", undefined, String(error));
+        await logOrderExecution(
+          supabase,
+          order,
+          "Failed",
+          undefined,
+          String(error),
+          buildExecutionAmounts(order)
+        );
       }
 
       if (orderDelayMs > 0) {
@@ -468,6 +492,8 @@ async function executeOrder(
   supabase: SupabaseClientInstance,
   order: RecurringOrder
 ): Promise<{ orderId: string; status: string; transactionHash?: string; error?: string }> {
+  let executionAmounts: ExecutionAmounts = buildExecutionAmounts(order);
+
   try {
     console.log(`Executing order ${order.id}: ${order.source_token} -> ${order.target_token}`);
 
@@ -476,6 +502,8 @@ async function executeOrder(
     if (!quoteResult.success) {
       throw new Error(`Failed to get quote: ${quoteResult.error}`);
     }
+
+    executionAmounts = buildExecutionAmounts(order, quoteResult.data);
 
     const txResult = await executeOrderOnchain(order, quoteResult.data);
 
@@ -488,7 +516,9 @@ async function executeOrder(
       supabase,
       order,
       "Successful",
-      txResult.transactionHash
+      txResult.transactionHash,
+      undefined,
+      executionAmounts
     );
 
     // Update next execution date
@@ -513,7 +543,14 @@ async function executeOrder(
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    await logOrderExecution(supabase, order, "Failed", undefined, errorMsg);
+    await logOrderExecution(
+      supabase,
+      order,
+      "Failed",
+      undefined,
+      errorMsg,
+      executionAmounts
+    );
     await releaseFailedOrder(supabase, order);
     return {
       orderId: order.id,
@@ -1163,60 +1200,155 @@ function inferRouteMinAmountOut(
   return null;
 }
 
-function normalizeQuoteAmountOut(value: bigint, outputDecimals?: number): bigint {
+function convertNormalizedAmountToNative(
+  value: bigint,
+  outputDecimals?: number
+): bigint {
   if (outputDecimals == null || outputDecimals >= 18 || value <= 0n) {
     return value;
   }
 
   const scale = 10n ** BigInt(18 - outputDecimals);
+  return value / scale;
+}
 
-  if (value >= scale && value % scale === 0n) {
-    return value / scale;
+function parseQuoteAmountCandidate(value: unknown): bigint | null {
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return BigInt(value);
   }
 
-  return value;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return BigInt(Math.floor(value));
+  }
+
+  return null;
+}
+
+function collectQuoteAmountCandidates(
+  value: unknown,
+  candidates: Array<{ key: string; value: unknown }> = []
+): Array<{ key: string; value: unknown }> {
+  if (!value || typeof value !== "object") {
+    return candidates;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectQuoteAmountCandidates(item, candidates);
+    }
+    return candidates;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  for (const [key, nestedValue] of Object.entries(record)) {
+    if (
+      [
+        "outputAmountNative",
+        "minOutNative",
+        "minimumReceivedNative",
+        "toAmountNative",
+        "outputAmount",
+        "minOut",
+        "amountOut",
+        "minimumReceived",
+        "toAmount",
+      ].includes(key)
+    ) {
+      candidates.push({ key, value: nestedValue });
+    }
+
+    collectQuoteAmountCandidates(nestedValue, candidates);
+  }
+
+  return candidates;
 }
 
 function extractQuoteAmountOut(
   quoteData: unknown,
   outputDecimals?: number
 ): bigint {
-  const candidates: unknown[] = [];
+  const candidates = collectQuoteAmountCandidates(quoteData);
 
-  const visit = (value: unknown) => {
-    if (!value || typeof value !== "object") {
-      return;
+  const findCandidate = (keys: string[]) => {
+    for (const key of keys) {
+      const match = candidates.find((candidate) => candidate.key === key);
+      if (!match) {
+        continue;
+      }
+
+      const parsed = parseQuoteAmountCandidate(match.value);
+      if (parsed != null) {
+        return parsed;
+      }
     }
 
-    const record = value as Record<string, unknown>;
-    for (const key of [
-      "minOut",
-      "minimumReceived",
-      "amountOut",
-      "outputAmount",
-      "toAmount",
-    ]) {
-      candidates.push(record[key]);
-    }
-
-    for (const nestedKey of ["data", "quote", "swap_quote"]) {
-      visit(record[nestedKey]);
-    }
+    return null;
   };
 
-  visit(quoteData);
+  const nativeAmount = findCandidate([
+    "outputAmountNative",
+    "minOutNative",
+    "minimumReceivedNative",
+    "toAmountNative",
+  ]);
 
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && /^\d+$/.test(candidate)) {
-      return normalizeQuoteAmountOut(BigInt(candidate), outputDecimals);
-    }
+  if (nativeAmount != null) {
+    return nativeAmount;
+  }
 
-    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
-      return normalizeQuoteAmountOut(BigInt(Math.floor(candidate)), outputDecimals);
-    }
+  const normalizedAmount = findCandidate(["outputAmount", "minOut"]);
+  if (normalizedAmount != null) {
+    return convertNormalizedAmountToNative(normalizedAmount, outputDecimals);
+  }
+
+  const nativeFallback = findCandidate(["amountOut", "minimumReceived", "toAmount"]);
+  if (nativeFallback != null) {
+    return nativeFallback;
   }
 
   return 0n;
+}
+
+function roundUsdAmount(value: number): number | null {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(value * 100) / 100;
+}
+
+function buildExecutionAmounts(
+  order: RecurringOrder,
+  quoteData?: unknown
+): ExecutionAmounts {
+  const sourceTokenUsdPrice = tokenUsdPriceBySymbol[order.source_token];
+  const targetTokenUsdPrice = tokenUsdPriceBySymbol[order.target_token];
+  const targetDecimals = tokenDecimalsBySymbol[order.target_token];
+  const quotedTargetAmountRaw =
+    quoteData && targetDecimals != null
+      ? extractQuoteAmountOut(quoteData, targetDecimals)
+      : 0n;
+  const targetAmount =
+    quotedTargetAmountRaw > 0n && targetDecimals != null
+      ? ethers.formatUnits(quotedTargetAmountRaw, targetDecimals)
+      : null;
+  const parsedTargetAmount =
+    targetAmount == null ? null : Number.parseFloat(targetAmount);
+
+  return {
+    sourceAmountUsd:
+      sourceTokenUsdPrice == null
+        ? null
+        : roundUsdAmount(order.amount * sourceTokenUsdPrice),
+    targetAmount,
+    targetAmountUsd:
+      targetTokenUsdPrice == null ||
+      parsedTargetAmount == null ||
+      !Number.isFinite(parsedTargetAmount)
+        ? null
+        : roundUsdAmount(parsedTargetAmount * targetTokenUsdPrice),
+  };
 }
 
 /**
@@ -1227,13 +1359,17 @@ async function logOrderExecution(
   order: RecurringOrder,
   status: "Successful" | "Failed" | "Pending",
   transactionHash?: string,
-  errorMessage?: string
+  errorMessage?: string,
+  executionAmounts: ExecutionAmounts = {}
 ): Promise<void> {
   try {
     const { error } = await supabase.from("recurring_order_executions").insert({
       recurring_order_id: order.id,
       wallet_address: order.wallet_address,
       amount: order.amount,
+      source_amount_usd: executionAmounts.sourceAmountUsd ?? null,
+      target_amount: executionAmounts.targetAmount ?? null,
+      target_amount_usd: executionAmounts.targetAmountUsd ?? null,
       source_token: order.source_token,
       target_token: order.target_token,
       status,

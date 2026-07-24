@@ -4,7 +4,7 @@ export interface SwapQuote {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
-  swapInputAmount?: string; // Net amount after TowerSwapExecutor fee, normalized to 18 decimals
+  swapInputAmount?: string; // Net amount after Tower platform fee, normalized to 18 decimals
   outputAmount: string;
   minOut: string;
   priceImpact: string | number;
@@ -67,6 +67,8 @@ export interface ApprovalTransaction {
   data: string;
   from: string;
   gasLimit: string;
+  value?: string;
+  label?: string;
 }
 
 interface UseTowerSwapOptions {
@@ -74,6 +76,7 @@ interface UseTowerSwapOptions {
 }
 
 const DEFAULT_BACKEND_URL = '';
+const QUOTE_REQUEST_TIMEOUT_MS = 12_000;
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
@@ -99,6 +102,9 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       setIsLoading(true);
       setError(null);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), QUOTE_REQUEST_TIMEOUT_MS);
+
       try {
         const response = await fetch(`${backendUrl}/api/swap/quote`, {
           method: 'POST',
@@ -112,11 +118,23 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
             slippageTolerance,
             dexId,
           }),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Failed to get quote: ${response.statusText}`);
+          let errorMessage = `Failed to get quote: ${response.statusText}`;
+
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {
+            const errorText = await response.text().catch(() => '');
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          }
+
+          throw new Error(errorMessage);
         }
 
         const responseData = await response.json();
@@ -124,11 +142,17 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
         const quote: SwapQuote = responseData.data || responseData;
         return quote;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch quote';
+        const errorMessage =
+          err instanceof Error && err.name === 'AbortError'
+            ? 'Quote request timed out. Please try again.'
+            : err instanceof Error
+              ? err.message
+              : 'Failed to fetch quote';
         setError(errorMessage);
         console.error('Quote fetch error:', err);
         return null;
       } finally {
+        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     },

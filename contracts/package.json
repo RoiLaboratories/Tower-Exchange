@@ -18,7 +18,8 @@
     "deploy:bridge-collector:all": "node scripts/deploy-all-chains.js",
     "authorize-backend": "hardhat run scripts/authorize-backend.cjs --network arc-testnet",
     "register-routers": "hardhat run scripts/register-routers.ts --network arc-testnet",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "deploy:tower-dex-adapter": "hardhat run scripts/deploy-tower-dex-adapter.cjs --network arc-testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

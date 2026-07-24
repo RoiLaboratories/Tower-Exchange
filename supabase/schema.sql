@@ -273,7 +273,10 @@ CREATE TABLE IF NOT EXISTS recurring_order_executions (
   
   -- Execution details
   execution_date TIMESTAMPTZ NOT NULL DEFAULT now(),
-  amount NUMERIC(20, 10) NOT NULL, -- Amount executed
+  amount NUMERIC(20, 10) NOT NULL, -- Source token amount executed
+  source_amount_usd NUMERIC(20, 2), -- USD value of the executed source token amount
+  target_amount NUMERIC(38, 18), -- Target token amount captured for the execution
+  target_amount_usd NUMERIC(20, 2), -- USD value of the target token amount
   source_token VARCHAR(10) NOT NULL,
   target_token VARCHAR(10) NOT NULL,
   

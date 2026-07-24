@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { ARC_RPC_ENDPOINTS } from "@/lib/arcRpc";
+
 export const dynamic = "force-dynamic";
 
-const ARC_RPC_ENDPOINTS = [
-  "https://rpc.drpc.testnet.arc.network",
-  "https://rpc.quicknode.testnet.arc.network",
-  "https://rpc.blockdaemon.testnet.arc.network",
-  "https://rpc.testnet.arc.network",
-];
+const ARC_RPC_UPSTREAM_TIMEOUT_MS = 4_000;
 
 const NULL_RESULT_FALLBACK_METHODS = new Set([
   "eth_getTransactionByHash",
@@ -46,6 +43,12 @@ export async function POST(request: NextRequest) {
     let lastError: unknown = null;
 
     for (const rpcUrl of ARC_RPC_ENDPOINTS) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        ARC_RPC_UPSTREAM_TIMEOUT_MS,
+      );
+
       try {
         const upstreamResponse = await fetch(rpcUrl, {
           method: "POST",
@@ -55,6 +58,7 @@ export async function POST(request: NextRequest) {
           },
           body,
           cache: "no-store",
+          signal: controller.signal,
         });
 
         if (!upstreamResponse.ok && ARC_RPC_ENDPOINTS.length > 1) {
@@ -88,6 +92,8 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         lastError = error;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 

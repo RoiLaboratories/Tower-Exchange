@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
+
 import { getTokenIcon } from "./tokenIcons";
 import { ARC_TESTNET_CONFIG, TOKEN_CONTRACTS } from "./arcNetwork";
-import { DEFAULT_TOKEN_USD_PRICES } from "./tokenUsdPrices";
+import { fetchArcTokenUsdPrices } from "./tokenUsdPrices";
 
 export interface WalletHolding {
   token: string;
@@ -67,7 +68,7 @@ export const useWalletHoldings = (walletAddress: string | null) => {
           return Number.isFinite(parsedBalance) ? parsedBalance : 0;
         };
 
-        const [nativeBalanceFormatted, tokenBalances] = await Promise.all([
+        const [nativeBalanceFormatted, tokenBalances, priceMap] = await Promise.all([
           fetchBalance({
             balanceType: "native",
           }),
@@ -82,26 +83,8 @@ export const useWalletHoldings = (walletAddress: string | null) => {
               }
             }),
           ),
+          fetchArcTokenUsdPrices(),
         ]);
-
-        let priceMap: Record<string, number> = {
-          ...DEFAULT_TOKEN_USD_PRICES,
-        };
-
-        try {
-          const priceResponse = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,eurc,tether&vs_currencies=usd"
-          );
-          const prices = await priceResponse.json();
-          priceMap = {
-            USDC: prices["usd-coin"]?.usd || DEFAULT_TOKEN_USD_PRICES.USDC,
-            EURC: prices.eurc?.usd || DEFAULT_TOKEN_USD_PRICES.EURC,
-            USDT: prices.tether?.usd || DEFAULT_TOKEN_USD_PRICES.USDT,
-            cirBTC: DEFAULT_TOKEN_USD_PRICES.cirBTC,
-          };
-        } catch (err) {
-          console.warn("Failed to fetch prices from CoinGecko, using defaults", err);
-        }
 
         const newHoldings: WalletHolding[] = [];
 

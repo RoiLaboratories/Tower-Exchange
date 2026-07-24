@@ -12,13 +12,17 @@ import {
 } from "viem";
 
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
-import { ARC_RPC_ENDPOINTS, ARC_RPC_PROXY_PATH } from "@/lib/arcRpc";
+import { ARC_RPC_ENDPOINTS, ARC_RPC_PROXY_PATH, getArcRpcUrls } from "@/lib/arcRpc";
 
 export const TOWER_DEX_ID = "tower-dex" as const;
-export const TOWER_DEX_NAME = "Tower DEX" as const;
+export const TOWER_DEX_NAME = "Tower" as const;
 export const TOWER_DEX_CHAIN_ID = 5042002;
 export const TOWER_DEX_PUBLIC_RPC_URL = "https://rpc.testnet.arc.network";
 export const TOWER_DEX_PROXY_RPC_PATH = ARC_RPC_PROXY_PATH;
+const TOWER_SWAP_FEE_MODE = "tower-swap-executor" as const;
+const DEFAULT_TOWER_SWAP_FEE_BPS = 25;
+const BPS_DENOMINATOR = 10000n;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const TOWER_DEX_ROUTER_ADDRESS = normalizeTowerDexAddress(
   process.env.NEXT_PUBLIC_TOWER_DEX_ROUTER_ADDRESS ||
@@ -26,46 +30,107 @@ const TOWER_DEX_ROUTER_ADDRESS = normalizeTowerDexAddress(
     "0xDf115b4f2F22B9255B2E63348423B6C5B379Bce2",
 );
 
-const TOWER_DEX_PAIRS = [
+const TOWER_SWAP_EXECUTOR_ADDRESS = normalizeTowerDexAddress(
+  process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_ADDRESS ||
+    process.env.TOWER_SWAP_EXECUTOR_ADDRESS ||
+    "0x2De8906a641d65d490bC60A4179d961d59742bCb",
+);
+
+const parseTowerSwapFeeBps = (value?: string | null) => {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= Number(BPS_DENOMINATOR)
+    ? parsed
+    : DEFAULT_TOWER_SWAP_FEE_BPS;
+};
+
+const resolveOptionalTowerDexAddress = (value?: string | null) =>
+  value && isAddress(value) ? getAddress(value) : null;
+
+const TOWER_DEX_ADAPTER_ADDRESS = resolveOptionalTowerDexAddress(
+  process.env.NEXT_PUBLIC_TOWER_DEX_ADAPTER_ADDRESS ||
+    process.env.TOWER_DEX_ADAPTER_ADDRESS ||
+    process.env.NEXT_PUBLIC_TOWER_AMM_ADAPTER_ADDRESS ||
+    process.env.TOWER_AMM_ADAPTER_ADDRESS,
+);
+
+const TOWER_SWAP_FEE_BPS = parseTowerSwapFeeBps(
+  process.env.NEXT_PUBLIC_TOWER_SWAP_FEE_BPS ||
+    process.env.TOWER_SWAP_FEE_BPS ||
+    process.env.NEXT_PUBLIC_SWAP_FEE_BPS ||
+    process.env.SWAP_FEE_BPS,
+);
+
+const TOWER_SWAP_FEE_RECIPIENT = resolveOptionalTowerDexAddress(
+  process.env.NEXT_PUBLIC_TOWER_SWAP_FEE_RECIPIENT ||
+    process.env.TOWER_SWAP_FEE_RECIPIENT ||
+    process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_TREASURY ||
+    process.env.TOWER_SWAP_EXECUTOR_TREASURY ||
+    "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+);
+const ARC_NATIVE_USDC_ADDRESS = normalizeTowerDexAddress(TOKEN_CONTRACTS.USDC);
+
+type SupportedTowerDexSymbol = keyof typeof TOKEN_DECIMALS;
+
+type TowerDexDirectPair = {
+  key: string;
+  token0Symbol: SupportedTowerDexSymbol;
+  token1Symbol: SupportedTowerDexSymbol;
+  token0: Address;
+  token1: Address;
+};
+
+const TOWER_DEX_PAIR_DEFINITIONS = [
   {
     key: "USDC/EURC",
     token0Symbol: "USDC",
     token1Symbol: "EURC",
-    token0: normalizeTowerDexAddress(TOKEN_CONTRACTS.USDC),
-    token1: normalizeTowerDexAddress(TOKEN_CONTRACTS.EURC),
-    pairAddress: normalizeTowerDexAddress(
-      process.env.NEXT_PUBLIC_TOWER_DEX_USDC_EURC_PAIR_ADDRESS ||
-        process.env.TOWER_DEX_USDC_EURC_PAIR_ADDRESS ||
-        "0xFA4Cc09c073742b7EA534E0B55B8d2BB3089668C",
-    ),
   },
   {
     key: "EURC/USDT",
     token0Symbol: "EURC",
     token1Symbol: "USDT",
-    token0: normalizeTowerDexAddress(TOKEN_CONTRACTS.EURC),
-    token1: normalizeTowerDexAddress(TOKEN_CONTRACTS.USDT),
-    pairAddress: normalizeTowerDexAddress(
-      process.env.NEXT_PUBLIC_TOWER_DEX_EURC_USDT_PAIR_ADDRESS ||
-        process.env.TOWER_DEX_EURC_USDT_PAIR_ADDRESS ||
-        "0x037d9c33A8C0ddA1FbA65732A2f9b49651e465F1",
-    ),
   },
   {
     key: "USDC/USDT",
     token0Symbol: "USDC",
     token1Symbol: "USDT",
-    token0: normalizeTowerDexAddress(TOKEN_CONTRACTS.USDC),
-    token1: normalizeTowerDexAddress(TOKEN_CONTRACTS.USDT),
-    pairAddress: normalizeTowerDexAddress(
-      process.env.NEXT_PUBLIC_TOWER_DEX_USDC_USDT_PAIR_ADDRESS ||
-        process.env.TOWER_DEX_USDC_USDT_PAIR_ADDRESS ||
-        "0x22512C21A6A651D05D786Caf54Fdfee69205192c",
-    ),
   },
-] as const;
+  {
+    key: "USDC/cirBTC",
+    token0Symbol: "USDC",
+    token1Symbol: "cirBTC",
+  },
+  {
+    key: "EURC/cirBTC",
+    token0Symbol: "EURC",
+    token1Symbol: "cirBTC",
+  },
+  {
+    key: "USDT/cirBTC",
+    token0Symbol: "USDT",
+    token1Symbol: "cirBTC",
+  },
+] as const satisfies readonly {
+  key: string;
+  token0Symbol: SupportedTowerDexSymbol;
+  token1Symbol: SupportedTowerDexSymbol;
+}[];
+
+const TOWER_DEX_PAIRS: readonly TowerDexDirectPair[] =
+  TOWER_DEX_PAIR_DEFINITIONS.map((pair) => ({
+    ...pair,
+    token0: normalizeTowerDexAddress(TOKEN_CONTRACTS[pair.token0Symbol]),
+    token1: normalizeTowerDexAddress(TOKEN_CONTRACTS[pair.token1Symbol]),
+  }));
 
 const TOWER_DEX_ROUTER_ABI = [
+  {
+    type: "function",
+    name: "factory",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
   {
     type: "function",
     name: "getAmountsOut",
@@ -88,6 +153,118 @@ const TOWER_DEX_ROUTER_ABI = [
       { name: "deadline", type: "uint256" },
     ],
     outputs: [{ name: "amounts", type: "uint256[]" }],
+  },
+] as const;
+
+const TOWER_DEX_FACTORY_ABI = [
+  {
+    type: "function",
+    name: "getPair",
+    stateMutability: "view",
+    inputs: [
+      { name: "tokenA", type: "address" },
+      { name: "tokenB", type: "address" },
+    ],
+    outputs: [{ name: "pair", type: "address" }],
+  },
+] as const;
+
+let towerDexFactoryAddressPromise: Promise<Address> | null = null;
+const towerDexPairAddressCache = new Map<string, Address | null>();
+
+const getTowerDexPairCacheKey = (tokenA: Address, tokenB: Address) => {
+  const [firstToken, secondToken] = [tokenA.toLowerCase(), tokenB.toLowerCase()].sort();
+  return `${firstToken}:${secondToken}`;
+};
+
+const getTowerDexFactoryAddress = async (client: PublicClient) => {
+  if (!towerDexFactoryAddressPromise) {
+    towerDexFactoryAddressPromise = (async () =>
+      normalizeTowerDexAddress(
+        (await client.readContract({
+          address: TOWER_DEX_ROUTER_ADDRESS,
+          abi: TOWER_DEX_ROUTER_ABI,
+          functionName: "factory",
+        })) as string,
+      ))();
+  }
+
+  try {
+    return await towerDexFactoryAddressPromise;
+  } catch (error) {
+    towerDexFactoryAddressPromise = null;
+    throw error;
+  }
+};
+
+const resolveTowerDexPairAddress = async (
+  client: PublicClient,
+  pair: TowerDexDirectPair,
+): Promise<Address | null> => {
+  const cacheKey = getTowerDexPairCacheKey(pair.token0, pair.token1);
+  if (towerDexPairAddressCache.has(cacheKey)) {
+    return towerDexPairAddressCache.get(cacheKey) ?? null;
+  }
+
+  const factoryAddress = await getTowerDexFactoryAddress(client);
+  const pairAddress = normalizeTowerDexAddress(
+    (await client.readContract({
+      address: factoryAddress,
+      abi: TOWER_DEX_FACTORY_ABI,
+      functionName: "getPair",
+      args: [pair.token0, pair.token1],
+    })) as string,
+  );
+
+  const resolvedPairAddress =
+    pairAddress.toLowerCase() === ZERO_ADDRESS.toLowerCase() ? null : pairAddress;
+  towerDexPairAddressCache.set(cacheKey, resolvedPairAddress);
+  return resolvedPairAddress;
+};
+
+const TOWER_DEX_ADAPTER_ABI = [
+  {
+    type: "function",
+    name: "swap",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenIn", type: "address" },
+      { name: "tokenOut", type: "address" },
+      { name: "amountIn", type: "uint256" },
+      { name: "minAmountOut", type: "uint256" },
+      { name: "recipient", type: "address" },
+      { name: "deadline", type: "uint256" },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+const TOWER_SWAP_EXECUTOR_ABI = [
+  {
+    type: "function",
+    name: "executeSwap",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "amountIn", type: "uint256" },
+          { name: "minAmountOut", type: "uint256" },
+          { name: "recipient", type: "address" },
+          { name: "routeTarget", type: "address" },
+          { name: "approvalSpender", type: "address" },
+          { name: "routeCalldata", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "feeAmount", type: "uint256" },
+      { name: "inputRefund", type: "uint256" },
+    ],
   },
 ] as const;
 
@@ -145,9 +322,20 @@ const ERC20_APPROVE_ABI = [
   },
 ] as const;
 
-type SupportedTowerDexSymbol = keyof typeof TOKEN_DECIMALS;
+const ERC20_TRANSFER_ABI = [
+  {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
-type TowerDexDirectPair = (typeof TOWER_DEX_PAIRS)[number];
+
 
 type TowerDexTokenSnapshot = {
   address: Address;
@@ -157,6 +345,8 @@ type TowerDexTokenSnapshot = {
 
 type TowerDexPairSnapshot = {
   pairAddress: Address;
+  token0: TowerDexTokenSnapshot;
+  token1: TowerDexTokenSnapshot;
   tokenIn: TowerDexTokenSnapshot;
   tokenOut: TowerDexTokenSnapshot;
 };
@@ -165,15 +355,21 @@ export type TowerDexQuote = {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
+  swapInputAmount?: string;
   outputAmount: string;
   minOut: string;
   inputAmountNative: string;
+  swapInputAmountNative?: string;
   outputAmountNative: string;
   minOutNative: string;
+  platformFeeAmount?: string;
+  platformFeeAmountNative?: string;
   priceImpact: number;
   gasEstimate: string;
   slippage: number;
-  feeMode: "none";
+  feeBps?: number;
+  feeRecipient?: string;
+  feeMode: typeof TOWER_SWAP_FEE_MODE | "none";
   route: {
     type: "single";
       hops: Array<{
@@ -200,7 +396,7 @@ export type TowerDexTransaction = {
 
 const getDefaultTowerDexRpcUrl = () =>
   typeof window === "undefined"
-    ? TOWER_DEX_PUBLIC_RPC_URL
+    ? ARC_RPC_ENDPOINTS[0] || TOWER_DEX_PUBLIC_RPC_URL
     : TOWER_DEX_PROXY_RPC_PATH;
 
 export function createTowerDexPublicClient(
@@ -208,7 +404,7 @@ export function createTowerDexPublicClient(
 ) {
   const serverRpcUrls =
     typeof window === "undefined"
-      ? Array.from(new Set([rpcUrl, ...ARC_RPC_ENDPOINTS]))
+      ? getArcRpcUrls(rpcUrl)
       : [rpcUrl];
 
   return createPublicClient({
@@ -267,6 +463,14 @@ export function normalizeTowerDexId(rawDexId?: string | null) {
   return undefined;
 }
 
+function isArcNativeUsdcToken(tokenAddress?: string | Address | null) {
+  if (!tokenAddress) {
+    return false;
+  }
+
+  return normalizeTowerDexAddress(tokenAddress) === ARC_NATIVE_USDC_ADDRESS;
+}
+
 const TOWER_DEX_ENABLED =
   process.env.NEXT_PUBLIC_TOWER_DEX_ENABLED !== "false" &&
   process.env.TOWER_DEX_ENABLED !== "false";
@@ -280,6 +484,8 @@ export function getTowerDexInfo() {
     id: TOWER_DEX_ID,
     name: TOWER_DEX_NAME,
     routerAddress: TOWER_DEX_ROUTER_ADDRESS,
+    executorRouteTargetAddress:
+      TOWER_DEX_ADAPTER_ADDRESS ?? TOWER_DEX_ROUTER_ADDRESS,
     type: "v2" as const,
     chainId: TOWER_DEX_CHAIN_ID,
     enabled: isTowerDexEnabled(),
@@ -288,40 +494,11 @@ export function getTowerDexInfo() {
         TOWER_DEX_PAIRS.flatMap((pair) => [pair.token0, pair.token1]),
       ),
     ),
-    poolAddresses: TOWER_DEX_PAIRS.map((pair) => pair.pairAddress),
+    poolAddresses: [],
   };
 }
 
-const getTowerDexTokenSnapshot = (
-  address: string,
-): TowerDexTokenSnapshot | null => {
-  const normalizedAddress = normalizeTowerDexAddress(address).toLowerCase();
-
-  for (const pair of TOWER_DEX_PAIRS) {
-    if (pair.token0.toLowerCase() === normalizedAddress) {
-      return {
-        address: pair.token0,
-        symbol: pair.token0Symbol,
-        decimals: TOKEN_DECIMALS[pair.token0Symbol],
-      };
-    }
-
-    if (pair.token1.toLowerCase() === normalizedAddress) {
-      return {
-        address: pair.token1,
-        symbol: pair.token1Symbol,
-        decimals: TOKEN_DECIMALS[pair.token1Symbol],
-      };
-    }
-  }
-
-  return null;
-};
-
-const getTowerDexPair = (
-  tokenIn: string,
-  tokenOut: string,
-): TowerDexPairSnapshot | null => {
+const findSupportedTowerDexPair = (tokenIn: string, tokenOut: string) => {
   const normalizedTokenIn = normalizeTowerDexAddress(tokenIn).toLowerCase();
   const normalizedTokenOut = normalizeTowerDexAddress(tokenOut).toLowerCase();
 
@@ -333,30 +510,62 @@ const getTowerDexPair = (
       pair.token1.toLowerCase() === normalizedTokenIn &&
       pair.token0.toLowerCase() === normalizedTokenOut;
 
-    if (!matchesForward && !matchesReverse) {
-      continue;
+    if (matchesForward || matchesReverse) {
+      return {
+        pair,
+        matchesForward,
+      };
     }
-
-    const tokenInSnapshot = getTowerDexTokenSnapshot(tokenIn);
-    const tokenOutSnapshot = getTowerDexTokenSnapshot(tokenOut);
-
-    if (!tokenInSnapshot || !tokenOutSnapshot) {
-      return null;
-    }
-
-    return {
-      pairAddress: pair.pairAddress,
-      tokenIn: tokenInSnapshot,
-      tokenOut: tokenOutSnapshot,
-    };
   }
 
   return null;
 };
 
+const createTowerDexTokenSnapshot = (
+  symbol: SupportedTowerDexSymbol,
+  address: Address,
+): TowerDexTokenSnapshot => ({
+  address,
+  symbol,
+  decimals: TOKEN_DECIMALS[symbol],
+});
+
+const getTowerDexPair = async (
+  client: PublicClient,
+  tokenIn: string,
+  tokenOut: string,
+): Promise<TowerDexPairSnapshot | null> => {
+  const supportedPair = findSupportedTowerDexPair(tokenIn, tokenOut);
+  if (!supportedPair) {
+    return null;
+  }
+
+  const pairAddress = await resolveTowerDexPairAddress(client, supportedPair.pair);
+  if (!pairAddress) {
+    return null;
+  }
+
+  const token0 = createTowerDexTokenSnapshot(
+    supportedPair.pair.token0Symbol,
+    supportedPair.pair.token0,
+  );
+  const token1 = createTowerDexTokenSnapshot(
+    supportedPair.pair.token1Symbol,
+    supportedPair.pair.token1,
+  );
+
+  return {
+    pairAddress,
+    token0,
+    token1,
+    tokenIn: supportedPair.matchesForward ? token0 : token1,
+    tokenOut: supportedPair.matchesForward ? token1 : token0,
+  };
+};
+
 export function isTowerDexSupportedPair(tokenIn: string, tokenOut: string) {
   try {
-    return getTowerDexPair(tokenIn, tokenOut) !== null;
+    return findSupportedTowerDexPair(tokenIn, tokenOut) !== null;
   } catch {
     return false;
   }
@@ -402,8 +611,7 @@ const calculatePriceImpactBps = (
 
 const getPairReserves = async (
   client: PublicClient,
-  pair: TowerDexDirectPair,
-  tokenIn: Address,
+  pair: TowerDexPairSnapshot,
 ) => {
   const reserves = (await client.readContract({
     address: pair.pairAddress,
@@ -412,7 +620,7 @@ const getPairReserves = async (
   })) as readonly [bigint, bigint, number];
   const [reserve0, reserve1] = reserves;
 
-  if (pair.token0.toLowerCase() === tokenIn.toLowerCase()) {
+  if (pair.token0.address.toLowerCase() === pair.tokenIn.address.toLowerCase()) {
     return {
       reserveIn: reserve0,
       reserveOut: reserve1,
@@ -436,40 +644,45 @@ export async function getTowerDexQuote(params: {
     return null;
   }
 
-  const pair = getTowerDexPair(params.inputToken, params.outputToken);
+  const client = params.client ?? createTowerDexPublicClient();
+  const pair = await getTowerDexPair(
+    client,
+    params.inputToken,
+    params.outputToken,
+  );
   if (!pair) {
     return null;
   }
-
-  const client = params.client ?? createTowerDexPublicClient();
   const path = [pair.tokenIn.address, pair.tokenOut.address];
   const amountInNative = BigInt(params.inputAmount);
+  const shouldCollectExecutorFee =
+    Boolean(TOWER_DEX_ADAPTER_ADDRESS) &&
+    Boolean(TOWER_SWAP_FEE_RECIPIENT) &&
+    TOWER_SWAP_FEE_BPS > 0;
+  const platformFeeAmountNative =
+    shouldCollectExecutorFee
+      ? (amountInNative * BigInt(TOWER_SWAP_FEE_BPS)) / BPS_DENOMINATOR
+      : 0n;
+  const swapInputAmountNative = amountInNative - platformFeeAmountNative;
+
+  if (swapInputAmountNative <= 0n) {
+    return null;
+  }
 
   try {
     const amounts = (await client.readContract({
       address: TOWER_DEX_ROUTER_ADDRESS,
       abi: TOWER_DEX_ROUTER_ABI,
       functionName: "getAmountsOut",
-      args: [amountInNative, path],
+      args: [swapInputAmountNative, path],
     })) as readonly bigint[];
     const amountOutNative = amounts[amounts.length - 1];
     const minOutNative =
       (amountOutNative * BigInt(10000 - params.slippageBps)) / 10000n;
-    const matchedPair = TOWER_DEX_PAIRS.find(
-      (entry) => entry.pairAddress.toLowerCase() === pair.pairAddress.toLowerCase(),
-    );
 
-    if (!matchedPair) {
-      return null;
-    }
-
-    const { reserveIn, reserveOut } = await getPairReserves(
-      client,
-      matchedPair,
-      pair.tokenIn.address,
-    );
+    const { reserveIn, reserveOut } = await getPairReserves(client, pair);
     const priceImpact = calculatePriceImpactBps(
-      amountInNative,
+      swapInputAmountNative,
       amountOutNative,
       reserveIn,
       reserveOut,
@@ -479,6 +692,11 @@ export async function getTowerDexQuote(params: {
       inputToken: pair.tokenIn.address,
       outputToken: pair.tokenOut.address,
       inputAmount: scaleAmount(amountInNative, pair.tokenIn.decimals, 18).toString(),
+      swapInputAmount: scaleAmount(
+        swapInputAmountNative,
+        pair.tokenIn.decimals,
+        18,
+      ).toString(),
       outputAmount: scaleAmount(
         amountOutNative,
         pair.tokenOut.decimals,
@@ -486,12 +704,23 @@ export async function getTowerDexQuote(params: {
       ).toString(),
       minOut: scaleAmount(minOutNative, pair.tokenOut.decimals, 18).toString(),
       inputAmountNative: amountInNative.toString(),
+      swapInputAmountNative: swapInputAmountNative.toString(),
       outputAmountNative: amountOutNative.toString(),
       minOutNative: minOutNative.toString(),
+      platformFeeAmount:
+        platformFeeAmountNative > 0n
+          ? scaleAmount(platformFeeAmountNative, pair.tokenIn.decimals, 18).toString()
+          : undefined,
+      platformFeeAmountNative:
+        platformFeeAmountNative > 0n ? platformFeeAmountNative.toString() : undefined,
       priceImpact,
       gasEstimate: "300000",
       slippage: params.slippageBps,
-      feeMode: "none",
+      feeBps: shouldCollectExecutorFee ? TOWER_SWAP_FEE_BPS : undefined,
+      feeRecipient: shouldCollectExecutorFee
+        ? TOWER_SWAP_FEE_RECIPIENT || undefined
+        : undefined,
+      feeMode: shouldCollectExecutorFee ? TOWER_SWAP_FEE_MODE : "none",
       route: {
         type: "single",
         hops: [
@@ -501,7 +730,7 @@ export async function getTowerDexQuote(params: {
             dexName: TOWER_DEX_NAME,
             dexRouter: TOWER_DEX_ROUTER_ADDRESS,
             path,
-            amountIn: amountInNative.toString(),
+            amountIn: swapInputAmountNative.toString(),
             amountOut: amountOutNative.toString(),
             priceImpact,
             liquidity: reserveOut.toString(),
@@ -536,13 +765,26 @@ export async function buildTowerDexSwapTransaction(params: {
   const tokenOut = normalizeTowerDexAddress(params.quote.outputToken);
   const path = [tokenIn, tokenOut];
   const amountInNative = BigInt(params.quote.inputAmountNative);
+  const swapInputAmountNative = BigInt(
+    params.quote.swapInputAmountNative || params.quote.inputAmountNative,
+  );
   const minOutNative = BigInt(params.quote.minOutNative);
+  const platformFeeAmountNative = BigInt(
+    params.quote.platformFeeAmountNative || "0",
+  );
+  const feeRecipient = resolveOptionalTowerDexAddress(params.quote.feeRecipient);
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+  const useExecutorFeePath =
+    Boolean(TOWER_DEX_ADAPTER_ADDRESS) &&
+    params.quote.feeMode === TOWER_SWAP_FEE_MODE;
+  const approvalSpender = useExecutorFeePath
+    ? TOWER_SWAP_EXECUTOR_ADDRESS
+    : TOWER_DEX_ROUTER_ADDRESS;
   const allowance = (await client.readContract({
     address: tokenIn,
     abi: ERC20_ALLOWANCE_ABI,
     functionName: "allowance",
-    args: [userAddress, TOWER_DEX_ROUTER_ADDRESS],
+    args: [userAddress, approvalSpender],
   })) as bigint;
 
   const approval =
@@ -553,27 +795,86 @@ export async function buildTowerDexSwapTransaction(params: {
           data: encodeFunctionData({
             abi: ERC20_APPROVE_ABI,
             functionName: "approve",
-            args: [TOWER_DEX_ROUTER_ADDRESS, maxUint256],
+            args: [approvalSpender, maxUint256],
           }),
           from: userAddress,
           gasLimit: toHexQuantity(100000),
+          label: useExecutorFeePath ? "Executor approval" : "Router approval",
         };
 
+  if (!useExecutorFeePath) {
+    return {
+      approval,
+      swap: {
+        to: TOWER_DEX_ROUTER_ADDRESS,
+        data: encodeFunctionData({
+          abi: TOWER_DEX_ROUTER_ABI,
+          functionName: "swapExactTokensForTokens",
+          args: [amountInNative, minOutNative, path, userAddress, deadline],
+        }),
+        value: "0x0",
+        gasLimit: toHexQuantity(750000),
+        chainId: TOWER_DEX_CHAIN_ID,
+        expectedUserOutput: params.quote.outputAmountNative,
+        feeMode: "none",
+        inputAmountNative: amountInNative.toString(),
+      },
+    };
+  }
+
+  if (!TOWER_DEX_ADAPTER_ADDRESS) {
+    throw new Error("Tower DEX adapter is required for executor fee collection.");
+  }
+
+  const routeCalldata = encodeFunctionData({
+    abi: TOWER_DEX_ADAPTER_ABI,
+    functionName: "swap",
+    args: [
+      tokenIn,
+      tokenOut,
+      swapInputAmountNative,
+      minOutNative,
+      TOWER_SWAP_EXECUTOR_ADDRESS,
+      deadline,
+    ],
+  });
+
+  const swapParams = {
+    tokenIn,
+    tokenOut,
+    amountIn: amountInNative,
+    minAmountOut: minOutNative,
+    recipient: userAddress,
+    routeTarget: TOWER_DEX_ADAPTER_ADDRESS,
+    approvalSpender: TOWER_DEX_ADAPTER_ADDRESS,
+    routeCalldata,
+  };
+
   const swap: TowerDexTransaction = {
-    to: TOWER_DEX_ROUTER_ADDRESS,
+    to: TOWER_SWAP_EXECUTOR_ADDRESS,
     data: encodeFunctionData({
-      abi: TOWER_DEX_ROUTER_ABI,
-      functionName: "swapExactTokensForTokens",
-      args: [amountInNative, minOutNative, path, userAddress, deadline],
+      abi: TOWER_SWAP_EXECUTOR_ABI,
+      functionName: "executeSwap",
+      args: [swapParams],
     }),
     value: "0x0",
-    gasLimit: toHexQuantity(350000),
+    gasLimit: toHexQuantity(2500000),
     chainId: TOWER_DEX_CHAIN_ID,
   };
 
   return {
     approval,
-    swap,
+    swap: {
+      ...swap,
+      platformFeeAmount: platformFeeAmountNative.toString(),
+      expectedUserOutput: params.quote.outputAmountNative,
+      feeRecipient: feeRecipient || undefined,
+      feeBps: params.quote.feeBps ?? TOWER_SWAP_FEE_BPS,
+      feeMode: params.quote.feeMode,
+      feeToken: tokenIn,
+      executorAddress: TOWER_SWAP_EXECUTOR_ADDRESS,
+      inputAmountNative: amountInNative.toString(),
+    },
   };
 }
 

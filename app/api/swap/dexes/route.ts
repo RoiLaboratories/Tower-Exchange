@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getSynthraDexInfo } from '@/lib/synthraDex';
+import {
+  getTowerDexInfo,
+  isTowerDexEnabled,
+  TOWER_DEX_ID,
+  TOWER_DEX_NAME,
+} from "@/lib/towerDex";
 import { getUnitFlowDexInfo } from '@/lib/unitflowDex';
 import { resolveSwapBackendUrl } from '@/lib/resolveSwapBackendUrl';
 
@@ -53,6 +59,13 @@ const getCanonicalUnitFlowDex = (): DexInfo => {
   };
 };
 
+const getCanonicalTowerDex = (): DexInfo => ({
+  ...getTowerDexInfo(),
+  id: TOWER_DEX_ID,
+  name: TOWER_DEX_NAME,
+  enabled: isTowerDexEnabled(),
+});
+
 const isExecutorUnsupportedDexId = (id: string) =>
   id === "unitflow" && !UNITFLOW_EXECUTOR_ENABLED;
 
@@ -74,6 +87,15 @@ const normalizeDex = (dex: DexInfo): DexInfo => {
       ...dex,
       id: "unitflow",
       name: "UnitFlow",
+      enabled: dex.enabled !== false,
+    };
+  }
+
+  if (id === TOWER_DEX_ID || id === "tower" || name.includes("tower")) {
+    return {
+      ...dex,
+      id: TOWER_DEX_ID,
+      name: TOWER_DEX_NAME,
       enabled: dex.enabled !== false,
     };
   }
@@ -119,16 +141,27 @@ export async function GET() {
   try {
     const synthraDex = getCanonicalSynthraDex();
     const unitFlowDex = getCanonicalUnitFlowDex();
+    const towerDex = isTowerDexEnabled() ? getCanonicalTowerDex() : null;
+    const localDexes = towerDex
+      ? [synthraDex, unitFlowDex, towerDex]
+      : [synthraDex, unitFlowDex];
 
     if (SWAPS_DISABLED) {
       return NextResponse.json({
         success: true,
         disabled: true,
         message: SWAPS_DISABLED_MESSAGE,
-        data: [synthraDex, unitFlowDex].map((dex) => ({
+        data: localDexes.map((dex) => ({
           ...dex,
           enabled: false,
         })),
+      });
+    }
+
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        success: true,
+        data: getVisibleDexes(localDexes),
       });
     }
 
@@ -145,7 +178,7 @@ export async function GET() {
       console.error('Backend DEX API error:', response.statusText);
       return NextResponse.json({
         success: true,
-        data: [synthraDex, unitFlowDex],
+        data: localDexes,
       });
     }
 
@@ -157,13 +190,21 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: getVisibleDexes([...dexesArray, synthraDex, unitFlowDex]),
+      data: getVisibleDexes([
+        ...dexesArray,
+        ...localDexes,
+      ]),
     });
   } catch (error) {
     console.error('Error fetching DEXes:', error);
+    const towerDex = isTowerDexEnabled() ? [getCanonicalTowerDex()] : [];
     return NextResponse.json({
       success: true,
-      data: [getCanonicalSynthraDex(), getCanonicalUnitFlowDex()],
+      data: [
+        getCanonicalSynthraDex(),
+        getCanonicalUnitFlowDex(),
+        ...towerDex,
+      ],
     });
   }
 }

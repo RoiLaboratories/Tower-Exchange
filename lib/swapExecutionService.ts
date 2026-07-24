@@ -16,6 +16,7 @@ export interface ApprovalTransactionData {
   from?: string;
   gasLimit?: string;
   chainId?: number;
+  label?: string;
   inputToken?: string;
   outputToken?: string;
 }
@@ -395,6 +396,19 @@ const getWalletErrorMessage = (error: unknown): string => {
   return typeof error === "string" ? error : "Unknown wallet error";
 };
 
+const isRecoverableArcGasEstimationError = (message: string) => {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("timed out") ||
+    normalized.includes("timeout") ||
+    normalized.includes("out of memory") ||
+    normalized.includes("memory limit exceeded") ||
+    normalized.includes("memory expansion") ||
+    normalized.includes("temporary internal error")
+  );
+};
+
 /**
  * Sign and send a transaction using the connected browser wallet
  * This uses the active injected provider exposed at window.ethereum
@@ -429,9 +443,31 @@ export const signTransactionWithPrivy = async (
       data: transaction.data,
       value: walletTxValue,
     };
-    const gasEstimate = await callArcRpc<string>("eth_estimateGas", [
-      preflightTx,
-    ]);
+    let gasToUse = transaction.gasLimit
+      ? toHexQuantity(transaction.gasLimit)
+      : undefined;
+
+    try {
+      const gasEstimate = await callArcRpc<string>("eth_estimateGas", [
+        preflightTx,
+      ]);
+      gasToUse = applyGasBuffer(gasEstimate) || gasToUse;
+    } catch (gasEstimateError) {
+      const gasEstimateMessage = getWalletErrorMessage(gasEstimateError);
+
+      if (isRecoverableArcGasEstimationError(gasEstimateMessage)) {
+        console.warn(
+          "Arc RPC gas estimation failed; falling back to transaction gas limit or wallet estimation",
+          {
+            message: gasEstimateMessage,
+            fallbackGas: gasToUse,
+          },
+        );
+      } else {
+        throw gasEstimateError;
+      }
+    }
+
     const feeParams = await getArcFeeParams().catch((feeError) => {
       console.warn(
         "Could not load Arc EIP-1559 fee params; wallet will choose fees",
@@ -448,7 +484,7 @@ export const signTransactionWithPrivy = async (
       data: transaction.data,
       value: walletTxValue,
       nonce,
-      gas: applyGasBuffer(gasEstimate),
+      ...(gasToUse ? { gas: gasToUse } : {}),
       ...(feeParams || {}),
     };
 
@@ -657,20 +693,20 @@ export const executeSwapFlow = async (
     const approvalTransactions = normalizeApprovalTransactions(transaction.approval);
 
     for (let index = 0; index < approvalTransactions.length; index += 1) {
+      const approvalStep = approvalTransactions[index];
       const approvalTransaction = withTransactionDefaults(
-        approvalTransactions[index],
+        approvalStep,
         walletAddress,
         transaction,
       );
+      const approvalLabelBase = approvalStep.label?.trim() || "Token approval";
       const approvalLabel =
         approvalTransactions.length > 1
-          ? `${index + 1}/${approvalTransactions.length}`
-          : "";
+          ? `${approvalLabelBase} ${index + 1}/${approvalTransactions.length}`
+          : approvalLabelBase;
 
       onStatusChange("signing", {
-        message: approvalLabel
-          ? `Requesting token approval ${approvalLabel}...`
-          : "Requesting token approval...",
+        message: `Requesting ${approvalLabel}...`,
       });
       const approvalSignResult = await signTransactionWithPrivy(
         approvalTransaction,
@@ -678,18 +714,14 @@ export const executeSwapFlow = async (
       );
 
       onStatusChange("broadcasting", {
-        message: approvalLabel
-          ? `Broadcasting token approval ${approvalLabel}...`
-          : "Broadcasting token approval...",
+        message: `Broadcasting ${approvalLabel}...`,
       });
       const approvalBroadcastResult = await broadcastTransaction(
         approvalSignResult.signedTx,
       );
 
       onStatusChange("confirming", {
-        message: approvalLabel
-          ? `Waiting for token approval ${approvalLabel} confirmation...`
-          : "Waiting for token approval confirmation...",
+        message: `Waiting for ${approvalLabel} confirmation...`,
         transactionHash: approvalBroadcastResult.transactionHash,
       });
       const approvalConfirmation = await pollTransactionConfirmation(
@@ -697,7 +729,7 @@ export const executeSwapFlow = async (
       );
 
       if (approvalConfirmation.status !== "success") {
-        throw new Error("Token approval transaction failed");
+        throw new Error(`${approvalLabel} transaction failed`);
       }
     }
 
