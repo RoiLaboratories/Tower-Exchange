@@ -16,8 +16,6 @@ export const DEFAULT_TOKEN_USD_PRICES = {
 export type StableTokenSymbol = keyof typeof DEFAULT_TOKEN_USD_PRICES;
 export type TokenUsdPriceMap = Record<StableTokenSymbol, number>;
 
-const COINGECKO_PRICE_URL =
-  "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,eurc,tether&vs_currencies=usd";
 const ONE_USDC_NATIVE = 10n ** 6n;
 const QUOTE_OUTPUT_DECIMALS = 18;
 const CIRBTC_DECIMALS = 8;
@@ -118,7 +116,7 @@ export async function fetchArcTokenUsdPrices(): Promise<TokenUsdPriceMap> {
   };
 
   try {
-    const response = await fetch(COINGECKO_PRICE_URL, {
+    const response = await fetch("/api/prices", {
       cache: "no-store",
     });
 
