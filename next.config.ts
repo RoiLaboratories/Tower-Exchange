@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+   output: "standalone",
   images: {
     domains: [
       "udebjfrhnwqoawziuhgu.supabase.co", // Supabase storage domain

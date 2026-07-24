@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "generate:invite-codes": "node scripts/generate-invite-codes.mjs",
     "withdraw:fees": "node scripts/withdraw-fees-to-treasury.mjs",
