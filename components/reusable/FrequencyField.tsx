@@ -62,11 +62,11 @@ export const FrequencyField = ({
   return (
     <div className="min-w-0">
       <div className="relative mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
-        <span className="shrink-0 whitespace-nowrap text-sm font-medium leading-5 text-muted-foreground">
+        <span className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-200">
           {label}
         </span>
         {optional && (
-          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-muted-foreground/60">
+          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-gray-200/60">
             (Optional)
           </span>
         )}
