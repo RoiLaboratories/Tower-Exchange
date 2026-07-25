@@ -1343,7 +1343,7 @@ export async function createBridgeKitAdapterFromClients(
       if (supportedChainConfig && supportedChainConfig.chainId !== SUPPORTED_CHAINS.solana.chainId) {
         return createEVMPublicClient(
           supportedChainConfig.chainId,
-          supportedChainConfig.rpcUrl,
+          `/api/rpc/${supportedChainConfig.chainId}`,
         );
       }
 
@@ -1496,7 +1496,10 @@ function createEVMPublicClient(chainId: number, rpcUrl: string): PublicClient {
 
   return createPublicClient({
     chain: chain as ViemChain,
-    transport: http(rpcUrl),
+    transport: http(rpcUrl, {
+      retryCount: 10,
+      timeout: 180000,
+    }),
   });
 }
 
