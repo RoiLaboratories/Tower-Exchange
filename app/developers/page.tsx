@@ -34,10 +34,10 @@ const features = [
 export default function DevelopersPage() {
   return (
     <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-[#0C0C0D] text-white pt-6 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
-      {/* Full-Viewport Background Tower Layer (Anchored to screen edges) */}
+      {/* Background Tower Layer - Anchored to far outer edges of screen with enhanced opacity */}
       <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-        {/* Left Leaning Tower - Anchored to far left edge, starting at protocol logos level (top-[260px]) */}
-        <div className="absolute left-0 top-[250px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[540px] max-h-[520px] opacity-50 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]">
+        {/* Left Leaning Tower - Shifted further left */}
+        <div className="absolute left-[-100px] sm:left-[-140px] md:left-[-180px] lg:left-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt="Tower Background Left"
@@ -45,8 +45,8 @@ export default function DevelopersPage() {
           />
         </div>
 
-        {/* Right Leaning Tower - Anchored to far right edge, starting at protocol logos level (top-[260px]) */}
-        <div className="absolute right-0 top-[250px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[540px] max-h-[520px] opacity-50 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]">
+        {/* Right Leaning Tower - Shifted further right */}
+        <div className="absolute right-[-100px] sm:right-[-140px] md:right-[-180px] lg:right-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt="Tower Background Right"
@@ -67,12 +67,12 @@ export default function DevelopersPage() {
           transition={{ duration: 0.6 }}
           className="text-center max-w-4xl mx-auto pt-6 sm:pt-10"
         >
-          {/* Title - Single Line on Desktop */}
+          {/* Title - Single Line on Desktop (Figma text-[44px]) */}
           <h1 className="text-2xl sm:text-3xl md:text-[44px] font-bold text-white tracking-tight leading-tight whitespace-nowrap sm:whitespace-normal md:whitespace-nowrap font-sora">
             Unified Stablecoin Markets on Arc
           </h1>
 
-          {/* Subtitle */}
+          {/* Subtitle (Figma: width 700px, font-size 18px) */}
           <p className="mt-4 sm:mt-5 text-base sm:text-[18px] text-gray-300 leading-relaxed font-normal max-w-[700px] mx-auto">
             One integration unlocks the entire Arc stablecoin ecosystem. Access
             the best prices across every liquidity source, eliminate
@@ -80,7 +80,7 @@ export default function DevelopersPage() {
             infrastructure.
           </p>
 
-          {/* CTA Button */}
+          {/* CTA Button (Figma: width 209px, height 36px, fill #7BB8FF, text #0C0C0D) */}
           <div className="mt-7">
             <motion.button
               whileHover={{ scale: 1.04 }}
@@ -134,7 +134,7 @@ export default function DevelopersPage() {
           />
         </motion.div>
 
-        {/* Feature Cards Stack */}
+        {/* Feature Cards Stack (Figma: width 1011px, rx 25.4px, fill #191A1C, border #26282D, gap 34px) */}
         <div className="w-full max-w-[1011px] space-y-[34px]">
           {features.map((feature, index) => {
             const Icon = feature.icon;
