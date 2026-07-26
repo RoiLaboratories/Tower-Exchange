@@ -177,9 +177,9 @@ export default function RouterDisplay({
               <Image
                 src={routeIcon}
                 alt=""
-                width={7}
-                height={7}
-                className="h-[7px] w-[7px] shrink-0 object-contain"
+                width={8}
+                height={8}
+                className="h-[8px] w-[8px] shrink-0 object-contain"
               />
             </span>
           </span>

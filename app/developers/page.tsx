@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Database, Zap, Network } from "lucide-react";
 
@@ -32,6 +33,17 @@ const features = [
 ];
 
 export default function DevelopersPage() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-[#0C0C0D] text-white pt-6 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
       {/* Background Tower Layer - Anchored to far outer edges of screen with enhanced opacity */}
@@ -65,14 +77,14 @@ export default function DevelopersPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-center max-w-4xl mx-auto pt-6 sm:pt-10"
+          className="text-center max-w-4xl mx-auto pt-6 sm:pt-10 px-2 sm:px-4"
         >
-          {/* Title - Single Line on Desktop (Figma text-[44px]) */}
-          <h1 className="text-2xl sm:text-3xl md:text-[44px] font-bold text-white tracking-tight leading-tight whitespace-nowrap sm:whitespace-normal md:whitespace-nowrap font-sora">
+          {/* Title - Single Line on Desktop, Wraps on Mobile */}
+          <h1 className="text-2xl sm:text-3xl md:text-[44px] font-bold text-white tracking-tight leading-tight whitespace-normal md:whitespace-nowrap font-sora">
             Unified Stablecoin Markets on Arc
           </h1>
 
-          {/* Subtitle (Figma: width 700px, font-size 18px) */}
+          {/* Subtitle */}
           <p className="mt-4 sm:mt-5 text-base sm:text-[18px] text-gray-300 leading-relaxed font-normal max-w-[700px] mx-auto">
             One integration unlocks the entire Arc stablecoin ecosystem. Access
             the best prices across every liquidity source, eliminate
@@ -80,7 +92,7 @@ export default function DevelopersPage() {
             infrastructure.
           </p>
 
-          {/* CTA Button (Figma: width 209px, height 36px, fill #7BB8FF, text #0C0C0D) */}
+          {/* CTA Button */}
           <div className="mt-7">
             <motion.button
               whileHover={{ scale: 1.04 }}
@@ -92,45 +104,81 @@ export default function DevelopersPage() {
           </div>
         </motion.div>
 
-        {/* Protocol Logos Row with Figma Edge Fade Gradient */}
+        {/* Protocol Logos Row with Figma Edge Fade Gradient - Wraps on Mobile, Fade Mask on Desktop only */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="w-full max-w-[900px] mx-auto h-[44px] my-12 sm:my-14 flex items-center justify-between px-4 sm:px-8 gap-4 sm:gap-8"
-          style={{
-            maskImage:
-              "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 20%, rgba(255,255,255,0.75) 80%, rgba(255,255,255,0) 100%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 20%, rgba(255,255,255,0.75) 80%, rgba(255,255,255,0) 100%)",
-          }}
+          className="w-full max-w-[900px] mx-auto my-12 sm:my-14 flex flex-wrap md:flex-nowrap items-center justify-center md:justify-between px-4 sm:px-8 gap-6 sm:gap-8 md:gap-4 min-h-[44px] h-auto"
+          style={
+            isMobile
+              ? {}
+              : {
+                  maskImage:
+                    "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 20%, rgba(255,255,255,0.75) 80%, rgba(255,255,255,0) 100%)",
+                  WebkitMaskImage:
+                    "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 20%, rgba(255,255,255,0.75) 80%, rgba(255,255,255,0) 100%)",
+                }
+          }
         >
           {/* Circle Logo */}
-          <img
-            src="/assets/developer/developer-circle.svg"
-            alt="Circle"
-            className="h-7 sm:h-8 w-auto object-contain"
+          <div
+            className="h-7 sm:h-8 w-[110px] sm:w-[130px] md:w-[150px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+            style={{
+              maskImage: `url('/assets/developer/developer-circle.svg')`,
+              WebkitMaskImage: `url('/assets/developer/developer-circle.svg')`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+            }}
           />
 
           {/* Arc Logo */}
-          <img
-            src="/assets/developer/developer-arc.svg"
-            alt="Arc"
-            className="h-7 sm:h-8 w-auto object-contain"
+          <div
+            className="h-7 sm:h-8 w-[70px] sm:w-[85px] md:w-[100px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+            style={{
+              maskImage: `url('/assets/developer/developer-arc.svg')`,
+              WebkitMaskImage: `url('/assets/developer/developer-arc.svg')`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+            }}
           />
 
           {/* Gate DEX Logo */}
-          <img
-            src="/assets/developer/developer-gate-dex.svg"
-            alt="Gate DEX"
-            className="h-7 sm:h-8 w-auto object-contain"
+          <div
+            className="h-7 sm:h-8 w-[130px] sm:w-[160px] md:w-[185px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+            style={{
+              maskImage: `url('/assets/developer/developer-gate-dex.svg')`,
+              WebkitMaskImage: `url('/assets/developer/developer-gate-dex.svg')`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+            }}
           />
 
           {/* Hibachi Logo */}
-          <img
-            src="/assets/developer/developer-hibachi.svg"
-            alt="Hibachi"
-            className="h-7 sm:h-8 w-auto object-contain"
+          <div
+            className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+            style={{
+              maskImage: `url('/assets/developer/developer-hibachi.svg')`,
+              WebkitMaskImage: `url('/assets/developer/developer-hibachi.svg')`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+            }}
           />
         </motion.div>
 
