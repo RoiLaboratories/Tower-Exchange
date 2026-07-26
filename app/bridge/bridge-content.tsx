@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
-import { SUPPORTED_CHAINS, isValidAddress } from "@/lib/bridgeService";
+import { SUPPORTED_CHAINS, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
 import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
@@ -273,6 +273,9 @@ export default function BridgePageContent({
   const latestBridgeStepRef = useRef<BridgeStepsStep>("approve");
   const previousFromChainIdRef = useRef<string | null>(null);
   const previousToChainIdRef = useRef<string | null>(null);
+  const previousBridgeStatusRef = useRef<string | undefined>(undefined);
+  const bridgeCompletionResetTimeoutRef =
+    useRef<number | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -312,20 +315,24 @@ export default function BridgePageContent({
 
   const getDestinationBridgeAddress = useCallback(
     (chainId: string | null, fallbackAddress?: string | null) => {
-      const manualAddress = receivingAddress.trim();
+      const manualAddress = normalizeWalletAddress(receivingAddress);
       const chainType = chainId === "solana" ? "solana" : "evm";
 
       if (manualAddress && isValidAddress(manualAddress, chainType)) {
         return manualAddress;
       }
 
-      if (chainId === "solana" || fromChainId === "solana") {
+      if (chainId === "solana") {
+        return "";
+      }
+
+      if (fromChainId === "solana") {
         return "";
       }
 
       return getBridgeAddressForChain(chainId, fallbackAddress);
     },
-    [fromChainId, getBridgeAddressForChain, receivingAddress],
+    [fromChainId, getBridgeAddressForChain, receivingAddress, solanaAddress],
   );
 
   useEffect(() => {
@@ -374,7 +381,7 @@ export default function BridgePageContent({
 
   useEffect(() => {
     const previousToChainId = previousToChainIdRef.current;
-    const manualAddress = receivingAddress.trim();
+    const manualAddress = normalizeWalletAddress(receivingAddress);
 
     if (
       previousToChainId &&
@@ -652,7 +659,7 @@ export default function BridgePageContent({
     setFromAmount(toAmount);
     setToAmount(fromAmount);
 
-    const manualAddress = receivingAddress.trim();
+    const manualAddress = normalizeWalletAddress(receivingAddress);
     if (manualAddress && nextToChainId) {
       const chainType = nextToChainId === "solana" ? "solana" : "evm";
       if (!isValidAddress(manualAddress, chainType)) {
@@ -684,13 +691,13 @@ export default function BridgePageContent({
   }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
 
   const handleBridge = useCallback(async () => {
-    if (fromChainId === "solana" && !isSolanaConnected) {
-      openSolanaConnectModal();
+    if (!user && fromChainId !== "solana") {
+      alert("Please connect your wallet first");
       return;
     }
 
-    if (!user && fromChainId !== "solana") {
-      alert("Please connect your wallet first");
+    if (fromChainId === "solana" && !isSolanaConnected) {
+      openSolanaConnectModal();
       return;
     }
 
@@ -861,6 +868,46 @@ export default function BridgePageContent({
     isSolanaConnected,
     openBridgeStepsModal,
     openSolanaConnectModal,
+    solanaAddress,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (bridgeCompletionResetTimeoutRef.current) {
+        window.clearTimeout(bridgeCompletionResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousBridgeStatus = previousBridgeStatusRef.current;
+
+    if (bridgeHook.status === "completed" && previousBridgeStatus === "pending") {
+      setBridgeStepsFailureMessage(null);
+      setBridgeStepsPhase("success");
+      setBridgeStepsModalOpen(false);
+      setShowSuccessModal(true);
+      void fetchWalletBalance();
+      void fetchToChainBalance();
+
+      if (bridgeCompletionResetTimeoutRef.current) {
+        window.clearTimeout(bridgeCompletionResetTimeoutRef.current);
+      }
+
+      bridgeCompletionResetTimeoutRef.current = window.setTimeout(() => {
+        bridgeHook.resetBridgeState();
+        setFromAmount("0.00");
+        setToAmount("0.00");
+        setShowSuccessModal(false);
+        setBridgeStepsModalOpen(false);
+      }, BRIDGE_SUCCESS_MODAL_DURATION_MS);
+    }
+
+    previousBridgeStatusRef.current = bridgeHook.status;
+  }, [
+    bridgeHook,
+    fetchToChainBalance,
+    fetchWalletBalance,
   ]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
@@ -907,8 +954,11 @@ export default function BridgePageContent({
     isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
+  const needsSourceEvmWallet = fromChainId !== "solana" && !user;
+  const needsSourceSolanaWallet = fromChainId === "solana" && !isSolanaConnected;
   const shouldPromptConnectWallet =
-    fromChainId === "solana" ? !isSolanaConnected : !user;
+    needsSourceEvmWallet ||
+    needsSourceSolanaWallet;
   const isBridgeButtonDisabled = shouldPromptConnectWallet
     ? false
     : isBridgeActionDisabled;
@@ -928,11 +978,15 @@ export default function BridgePageContent({
     solana: "https://explorer.solana.com/tx/",
     "unichain-sepolia": "https://unichain-sepolia.blockscout.com/tx/",
   };
+  const bridgeTransactionChainId =
+    bridgeHook.status === "completed" ? toChainId : fromChainId;
   const bridgeTransactionUrl =
-    bridgeHook.transactionHash && toChainId && bridgeExplorerUrls[toChainId]
-      ? toChainId === "solana"
-        ? `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}?cluster=devnet`
-        : `${bridgeExplorerUrls[toChainId]}${bridgeHook.transactionHash}`
+    bridgeHook.transactionHash &&
+    bridgeTransactionChainId &&
+    bridgeExplorerUrls[bridgeTransactionChainId]
+      ? bridgeTransactionChainId === "solana"
+        ? `${bridgeExplorerUrls[bridgeTransactionChainId]}${bridgeHook.transactionHash}?cluster=devnet`
+        : `${bridgeExplorerUrls[bridgeTransactionChainId]}${bridgeHook.transactionHash}`
       : null;
   const fromUsdValueLabel = formatUsdAmount(
     fromAmount,
@@ -944,16 +998,18 @@ export default function BridgePageContent({
   );
 
   const handleConnectWallet = async () => {
-    if (fromChainId === "solana") {
-      openSolanaConnectModal();
+    if (needsSourceEvmWallet) {
+      if (authenticated) return;
+      try {
+        await login();
+      } catch (error) {
+        console.error("Wallet connection failed:", error);
+      }
       return;
     }
 
-    if (authenticated) return;
-    try {
-      await login();
-    } catch (error) {
-      console.error("Wallet connection failed:", error);
+    if (needsSourceSolanaWallet) {
+      openSolanaConnectModal();
     }
   };
 
@@ -974,8 +1030,12 @@ export default function BridgePageContent({
 
   const getBridgeButtonContent = () => {
     if (shouldPromptConnectWallet) {
-      return fromChainId === "solana" && isConnectingSolana
-        ? "Connecting Wallet..."
+      if (needsSourceSolanaWallet && isConnectingSolana) {
+        return "Connecting Wallet...";
+      }
+
+      return needsSourceSolanaWallet
+        ? "Connect Solana Wallet"
         : "Connect Wallet";
     }
 
@@ -1085,6 +1145,7 @@ export default function BridgePageContent({
     success: 100,
     failed: 100,
   };
+  const isBridgeSettlementCompleted = bridgeHook.status === "completed";
   const shouldShowBridgePendingIndicator =
     !bridgeStepsModalOpen &&
     (bridgeHook.isBridging || bridgeHook.status === "pending");
@@ -1538,7 +1599,7 @@ export default function BridgePageContent({
                     type="button"
                     disabled={!receivingAddress.trim()}
                     onClick={() => {
-                      saveRecentAddress(receivingAddress);
+                      saveRecentAddress(normalizeWalletAddress(receivingAddress));
                       setIsReceivingOpen(false);
                     }}
                     className={`mt-1 inline-flex w-full items-center justify-center rounded-full py-2.5 text-xs font-semibold transition-all ${
@@ -1610,7 +1671,9 @@ export default function BridgePageContent({
                         />
                       </div>
                       <h2 className="text-[1.05rem] font-medium text-white">
-                        Bridge Initiated!
+                        {isBridgeSettlementCompleted
+                          ? "Bridge Completed!"
+                          : "Bridge Initiated!"}
                       </h2>
                     </div>
                     <button
@@ -1622,24 +1685,41 @@ export default function BridgePageContent({
                     </button>
                   </div>
                   <div className="mb-3 text-[0.95rem] leading-6 text-[#e4e4e6]">
-                    <p>
-                      Your tokens are being bridged to{" "}
-                      <span className="font-semibold text-white">
-                        {destinationChainName}
-                      </span>
-                    </p>
-                    <p className="text-sm text-[#a3a4a8]">
-                      Estimated time:{" "}
-                      <span className="font-semibold text-white">
-                        {bridgeHook.estimatedTime}
-                      </span>
-                    </p>
-                    {bridgeHook.status === "pending" && (
-                      <p className="mt-2 text-sm text-[#f59e0b]">
-                        Pending:{" "}
-                        {bridgeHook.message ||
-                          "Your transaction is being settled on-chain. Please wait..."}
-                      </p>
+                    {isBridgeSettlementCompleted ? (
+                      <>
+                        <p>
+                          Your tokens have been bridged to{" "}
+                          <span className="font-semibold text-white">
+                            {destinationChainName}
+                          </span>
+                        </p>
+                        <p className="text-sm text-[#7dd3a8]">
+                          {bridgeHook.message ||
+                            "Circle Forwarder confirmed the destination mint."}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p>
+                          Your tokens are being bridged to{" "}
+                          <span className="font-semibold text-white">
+                            {destinationChainName}
+                          </span>
+                        </p>
+                        <p className="text-sm text-[#a3a4a8]">
+                          Estimated time:{" "}
+                          <span className="font-semibold text-white">
+                            {bridgeHook.estimatedTime}
+                          </span>
+                        </p>
+                        {bridgeHook.status === "pending" && (
+                          <p className="mt-2 text-sm text-[#f59e0b]">
+                            Pending:{" "}
+                            {bridgeHook.message ||
+                              "Your transaction is being settled on-chain. Please wait..."}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="mb-4 flex items-center gap-1.5 text-xs text-[#a3a4a8]">

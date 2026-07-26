@@ -6,13 +6,14 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import {
   bridgeTokens,
   isBridgeRouteSupported,
   estimateBridgeTime,
   getBridgeFees,
+  waitForForwardedBridgeCompletion,
   BridgeRequest,
   BridgeResponse,
   SUPPORTED_CHAINS,
@@ -38,7 +39,29 @@ export interface BridgeState {
   forwarded?: boolean;
 }
 
-export function useBridge() {
+export interface UseBridgeResult extends BridgeState {
+  executeBridge: (request: BridgeRequest) => Promise<BridgeResponse>;
+  validateBridgeInputs: (
+    fromChain: string | null,
+    toChain: string | null,
+    amount: string,
+    toAddress: string,
+  ) => string | null;
+  calculateBridgeDetails: (
+    fromChain: string,
+    toChain: string,
+    amount: string,
+    tokenSymbol?: string,
+  ) => Promise<void>;
+  resetBridgeState: () => void;
+  clearError: () => void;
+  reportError: (errorMessage: string) => void;
+}
+
+const FORWARDED_BRIDGE_POLL_INTERVAL_MS = 10000;
+const FORWARDED_BRIDGE_POLL_MAX_DURATION_MS = 15 * 60 * 1000;
+
+export function useBridge(): UseBridgeResult {
   const { chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
@@ -55,6 +78,90 @@ export function useBridge() {
     estimatedTime: "2-5 minutes",
     customFeeEnabled: false,
   });
+  const forwardedBridgePollTimerRef =
+    useRef<number | null>(null);
+  const activeForwardedBridgePollRef = useRef<{
+    burnTxHash: string;
+    startedAt: number;
+  } | null>(null);
+
+  const clearForwardedBridgePolling = useCallback(() => {
+    if (forwardedBridgePollTimerRef.current) {
+      window.clearTimeout(forwardedBridgePollTimerRef.current);
+      forwardedBridgePollTimerRef.current = null;
+    }
+
+    activeForwardedBridgePollRef.current = null;
+  }, []);
+
+  const pollForwardedBridgeCompletion = useCallback(
+    async (
+      pendingRequest: Pick<
+        BridgeRequest,
+        "fromChain" | "sourceAddress" | "publicClient" | "walletClient" | "chain"
+      >,
+      burnTxHash: string,
+      startedAt: number,
+    ) => {
+      try {
+        const completion = await waitForForwardedBridgeCompletion({
+          ...pendingRequest,
+          burnTxHash,
+        });
+
+        if (activeForwardedBridgePollRef.current?.burnTxHash !== burnTxHash) {
+          return;
+        }
+
+        if (completion.success && completion.status === "completed") {
+          clearForwardedBridgePolling();
+          setState((prev) => {
+            if (prev.status !== "pending") {
+              return prev;
+            }
+
+            return {
+              ...prev,
+              success: true,
+              status: "completed",
+              message:
+                completion.message ??
+                "Circle Forwarder confirmed the destination mint.",
+              transactionHash:
+                completion.transactionHash ?? prev.transactionHash,
+              forwarded: true,
+              error: null,
+            };
+          });
+          return;
+        }
+      } catch (completionError) {
+        console.warn(
+          "Unable to finalize pending forwarded bridge status:",
+          completionError,
+        );
+      }
+
+      if (activeForwardedBridgePollRef.current?.burnTxHash !== burnTxHash) {
+        return;
+      }
+
+      if (Date.now() - startedAt >= FORWARDED_BRIDGE_POLL_MAX_DURATION_MS) {
+        return;
+      }
+
+      forwardedBridgePollTimerRef.current = window.setTimeout(() => {
+        void pollForwardedBridgeCompletion(pendingRequest, burnTxHash, startedAt);
+      }, FORWARDED_BRIDGE_POLL_INTERVAL_MS);
+    },
+    [clearForwardedBridgePolling],
+  );
+
+  useEffect(() => {
+    return () => {
+      clearForwardedBridgePolling();
+    };
+  }, [clearForwardedBridgePolling]);
 
   /**
    * Validate bridge inputs
@@ -150,6 +257,8 @@ export function useBridge() {
       }
 
       try {
+        clearForwardedBridgePolling();
+
         setState((prev) => ({
           ...prev,
           isBridging: true,
@@ -184,7 +293,41 @@ export function useBridge() {
             forwarded: result.forwarded,
             error: null,
           }));
+
+          if (
+            result.status === "pending" &&
+            result.forwarded &&
+            (result.sourceTransactionHash || result.transactionHash)
+          ) {
+            const pendingBurnTxHash =
+              result.sourceTransactionHash ?? result.transactionHash!;
+            const pollStartedAt = Date.now();
+
+            activeForwardedBridgePollRef.current = {
+              burnTxHash: pendingBurnTxHash,
+              startedAt: pollStartedAt,
+            };
+
+            void pollForwardedBridgeCompletion(
+              {
+                fromChain: request.fromChain,
+                sourceAddress: request.sourceAddress,
+                publicClient: request.publicClient ?? publicClient,
+                walletClient: request.walletClient ?? walletClient,
+                chain:
+                  request.chain ??
+                  walletClient?.chain ??
+                  publicClient?.chain ??
+                  chainId,
+              },
+              pendingBurnTxHash,
+              pollStartedAt,
+            );
+          } else {
+            clearForwardedBridgePolling();
+          }
         } else {
+          clearForwardedBridgePolling();
           setState((prev) => ({
             ...prev,
             isBridging: false,
@@ -195,6 +338,7 @@ export function useBridge() {
 
         return result;
       } catch (error) {
+        clearForwardedBridgePolling();
         const errorMessage =
           error instanceof Error ? error.message : "Bridge transaction failed";
         setState((prev) => ({
@@ -210,13 +354,21 @@ export function useBridge() {
         };
       }
     },
-    [chainId, publicClient, validateBridgeInputs, walletClient]
+    [
+      chainId,
+      clearForwardedBridgePolling,
+      pollForwardedBridgeCompletion,
+      publicClient,
+      validateBridgeInputs,
+      walletClient,
+    ]
   );
 
   /**
    * Reset bridge state
    */
   const resetBridgeState = useCallback(() => {
+    clearForwardedBridgePolling();
     setState({
       isLoading: false,
       isBridging: false,
@@ -233,7 +385,7 @@ export function useBridge() {
       message: undefined,
       forwarded: undefined,
     });
-  }, []);
+  }, [clearForwardedBridgePolling]);
 
   /**
    * Clear error message
@@ -245,6 +397,20 @@ export function useBridge() {
     }));
   }, []);
 
+  const reportError = useCallback(
+    (errorMessage: string) => {
+      clearForwardedBridgePolling();
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        isBridging: false,
+        success: false,
+        error: errorMessage,
+      }));
+    },
+    [clearForwardedBridgePolling],
+  );
+
   return {
     ...state,
     executeBridge,
@@ -252,6 +418,7 @@ export function useBridge() {
     calculateBridgeDetails,
     resetBridgeState,
     clearError,
+    reportError,
   };
 }
 

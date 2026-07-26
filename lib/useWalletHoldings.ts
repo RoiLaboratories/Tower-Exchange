@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
+
 import { getTokenIcon } from "./tokenIcons";
-import { ARC_TESTNET_CONFIG } from "./arcNetwork";
-import { DEFAULT_TOKEN_USD_PRICES } from "./tokenUsdPrices";
+import { ARC_TESTNET_CONFIG, TOKEN_CONTRACTS } from "./arcNetwork";
+import { fetchArcTokenUsdPrices } from "./tokenUsdPrices";
 
 export interface WalletHolding {
   token: string;
@@ -13,11 +14,12 @@ export interface WalletHolding {
   rawBalance: number;
 }
 
-const SUPPORTED_SWAP_ERC20_TOKENS = {
-  EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-  USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
-  cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
-};
+const ARC_HOLDINGS_CHAIN_ID = "arc-testnet";
+const SUPPORTED_PROFILE_TOKENS = [
+  { symbol: "EURC", address: TOKEN_CONTRACTS.EURC },
+  { symbol: "USDT", address: TOKEN_CONTRACTS.USDT },
+  { symbol: "cirBTC", address: TOKEN_CONTRACTS.CIRBTC },
+] as const;
 
 export const useWalletHoldings = (walletAddress: string | null) => {
   const [holdings, setHoldings] = useState<WalletHolding[]>([]);
@@ -46,7 +48,7 @@ export const useWalletHoldings = (walletAddress: string | null) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               address: walletAddress,
-              chainId: String(ARC_TESTNET_CONFIG.chainId),
+              chainId: ARC_HOLDINGS_CHAIN_ID,
               rpcUrl: ARC_TESTNET_CONFIG.rpcUrl,
               tokenAddress,
               balanceType,
@@ -66,47 +68,26 @@ export const useWalletHoldings = (walletAddress: string | null) => {
           return Number.isFinite(parsedBalance) ? parsedBalance : 0;
         };
 
-        const nativeBalanceFormatted = await fetchBalance({
-          balanceType: "native",
-        });
-
-        const tokenPromises = Object.entries(SUPPORTED_SWAP_ERC20_TOKENS).map(
-          async ([tokenName, tokenAddress]) => {
-            try {
-              const balance = await fetchBalance({ tokenAddress });
-              return { tokenName, balance };
-            } catch (err) {
-              console.error(`Error fetching ${tokenName} balance:`, err);
-              return { tokenName, balance: 0 };
-            }
-          }
-        );
-
-        const tokenBalances = await Promise.all(tokenPromises);
-
-        // Get token prices from CoinGecko
-        let priceMap: Record<string, number> = {
-          ...DEFAULT_TOKEN_USD_PRICES,
-        };
-
-        try {
-          const priceResponse = await fetch(
-            "https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,eurc,tether&vs_currencies=usd"
-          );
-          const prices = await priceResponse.json();
-          priceMap = {
-            USDC: prices["usd-coin"]?.usd || DEFAULT_TOKEN_USD_PRICES.USDC,
-            EURC: prices.eurc?.usd || DEFAULT_TOKEN_USD_PRICES.EURC,
-            USDT: prices.tether?.usd || DEFAULT_TOKEN_USD_PRICES.USDT,
-            cirBTC: DEFAULT_TOKEN_USD_PRICES.cirBTC,
-          };
-        } catch (err) {
-          console.warn("Failed to fetch prices from CoinGecko, using defaults", err);
-        }
+        const [nativeBalanceFormatted, tokenBalances, priceMap] = await Promise.all([
+          fetchBalance({
+            balanceType: "native",
+          }),
+          Promise.all(
+            SUPPORTED_PROFILE_TOKENS.map(async ({ symbol, address }) => {
+              try {
+                const balance = await fetchBalance({ tokenAddress: address });
+                return { tokenName: symbol, balance };
+              } catch (err) {
+                console.error(`Error fetching ${symbol} balance:`, err);
+                return { tokenName: symbol, balance: 0 };
+              }
+            }),
+          ),
+          fetchArcTokenUsdPrices(),
+        ]);
 
         const newHoldings: WalletHolding[] = [];
 
-        // Add native USDC balance
         if (nativeBalanceFormatted > 0.000001) {
           const price = priceMap.USDC;
           newHoldings.push({
@@ -119,12 +100,10 @@ export const useWalletHoldings = (walletAddress: string | null) => {
           });
         }
 
-        // Add ERC20 tokens
         tokenBalances.forEach(({ tokenName, balance }) => {
           if (balance > 0) {
             const formattedBalance = balance;
 
-            // Skip if balance is too small (dust)
             if (formattedBalance < 0.000001) return;
 
             const price = priceMap[tokenName] || 0;
@@ -143,7 +122,6 @@ export const useWalletHoldings = (walletAddress: string | null) => {
           }
         });
 
-        // Sort by value (descending)
         newHoldings.sort(
           (a, b) =>
             parseFloat(b.value.replace("$", "")) -
@@ -162,7 +140,6 @@ export const useWalletHoldings = (walletAddress: string | null) => {
       }
     };
 
-    // Debounce the fetch to avoid too many API calls
     const timer = setTimeout(fetchHoldings, 300);
     return () => clearTimeout(timer);
   }, [walletAddress]);

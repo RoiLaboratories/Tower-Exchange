@@ -103,7 +103,8 @@ contract TowerSwapExecutor is Ownable, Pausable, ReentrancyGuard {
         inputToken.safeApprove(params.approvalSpender, 0);
         inputToken.safeApprove(params.approvalSpender, swapAmountIn);
 
-        (bool success, bytes memory returnData) = params.routeTarget.call(
+        (bool success, bytes memory returnData) = _callRouteTarget(
+            params.routeTarget,
             params.routeCalldata
         );
         require(success, _getRevertMsg(returnData));
@@ -188,15 +189,45 @@ contract TowerSwapExecutor is Ownable, Pausable, ReentrancyGuard {
         require(params.routeCalldata.length > 0, "Invalid route calldata");
     }
 
+    function _callRouteTarget(
+        address target,
+        bytes calldata data
+    ) private returns (bool success, bytes memory returnData) {
+        assembly {
+            success := call(gas(), target, 0, data.offset, data.length, 0, 0)
+
+            if iszero(success) {
+                let size := returndatasize()
+                returnData := mload(0x40)
+                mstore(returnData, size)
+                returndatacopy(add(returnData, 0x20), 0, size)
+                mstore(0x40, add(add(returnData, 0x20), and(add(size, 0x1f), not(0x1f))))
+            }
+        }
+    }
+
     function _getRevertMsg(bytes memory returnData) private pure returns (string memory) {
-        if (returnData.length < 68) {
+        if (returnData.length < 4) {
             return "Route execution failed";
         }
 
+        bytes4 selector;
         assembly {
-            returnData := add(returnData, 0x04)
+            selector := mload(add(returnData, 0x20))
         }
 
-        return abi.decode(returnData, (string));
+        if (selector == 0x08c379a0 && returnData.length >= 68) {
+            assembly {
+                returnData := add(returnData, 0x04)
+            }
+
+            return abi.decode(returnData, (string));
+        }
+
+        if (selector == 0x4e487b71) {
+            return "Route execution panicked";
+        }
+
+        return "Route execution failed";
     }
 }

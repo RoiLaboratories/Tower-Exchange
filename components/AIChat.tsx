@@ -982,6 +982,13 @@ export const AIChat = () => {
             );
           } else {
             try {
+              if (bridgeRequest.toChain === "solana" && !toAddress) {
+                setError(
+                  "Please include a Solana receiving address to continue.",
+                );
+                return;
+              }
+
               const result = await bridgeHook.executeBridge({
                 fromChain: bridgeRequest.fromChain,
                 toChain: bridgeRequest.toChain,
@@ -1197,13 +1204,18 @@ export const AIChat = () => {
       : bridgeHook.success
         ? "confirmed"
         : "idle";
+  const bridgeExplorerChain = activeBridgeRequest
+    ? bridgeHook.status === "completed"
+      ? activeBridgeRequest.toChain
+      : activeBridgeRequest.fromChain
+    : null;
   const bridgeExplorerUrl =
     bridgeHook.transactionHash &&
-    activeBridgeRequest?.toChain &&
-    BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]
-      ? activeBridgeRequest.toChain === "solana"
-        ? `${BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]}${bridgeHook.transactionHash}?cluster=devnet`
-        : `${BRIDGE_EXPLORER_URLS[activeBridgeRequest.toChain]}${bridgeHook.transactionHash}`
+    bridgeExplorerChain &&
+    BRIDGE_EXPLORER_URLS[bridgeExplorerChain]
+      ? bridgeExplorerChain === "solana"
+        ? `${BRIDGE_EXPLORER_URLS[bridgeExplorerChain]}${bridgeHook.transactionHash}?cluster=devnet`
+        : `${BRIDGE_EXPLORER_URLS[bridgeExplorerChain]}${bridgeHook.transactionHash}`
       : undefined;
   const bridgeStatusMessage = bridgeHook.isBridging
     ? "Follow the wallet prompts to submit the bridge transaction."

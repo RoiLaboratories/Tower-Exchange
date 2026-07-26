@@ -8,6 +8,7 @@ import {
   formatUnits,
 } from "viem";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { ARC_RPC_ENDPOINTS } from "@/lib/arcRpc";
 
 const ARC_TESTNET_CHAIN_ID = "arc-testnet";
 const ARC_NATIVE_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
@@ -17,6 +18,7 @@ const SOLANA_DEVNET_RPC_URL = "https://api.devnet.solana.com";
 const SOLANA_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 const RPC_URL_FALLBACKS: Record<string, string[]> = {
+  [ARC_TESTNET_CHAIN_ID]: [...ARC_RPC_ENDPOINTS],
   "421614": [
     "https://sepolia-rollup.arbitrum.io/rpc",
     "https://arbitrum-sepolia-rpc.publicnode.com",

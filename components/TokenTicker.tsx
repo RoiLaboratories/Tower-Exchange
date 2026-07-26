@@ -1,9 +1,19 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { useState } from "react";
-import { tokens, Token } from "@/mockData/token";
+import { useEffect, useMemo, useState } from "react";
 import { ResponsiveContainer, Area, AreaChart } from "recharts";
+
+import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import {
+  DEFAULT_TOKEN_USD_PRICES,
+  fetchArcTokenUsdPrices,
+  type StableTokenSymbol,
+  type TokenUsdPriceMap,
+} from "@/lib/tokenUsdPrices";
+import { tokens, Token } from "@/mockData/token";
+
+const TOKEN_TICKER_PRICE_REFRESH_INTERVAL_MS = 10000;
 
 interface TokenCardProps {
   token: Token;
@@ -15,6 +25,10 @@ interface TokenOverlayProps {
   token: Token;
   position: { x: number; y: number };
 }
+
+const isTrackedTicker = (symbol: string): symbol is StableTokenSymbol =>
+  symbol === "USDC" || symbol === "EURC" || symbol === "USDT" || symbol === "cirBTC";
+
 const TokenCard = ({ token, onMouseEnter, onMouseLeave }: TokenCardProps) => {
   return (
     <motion.div
@@ -74,7 +88,6 @@ const TokenOverlay = ({ token, position }: TokenOverlayProps) => {
       }}
     >
       <div className="bg-background border border-border rounded-xl p-4 shadow-2xl backdrop-blur-sm w-56">
-        {/* Header */}
         <div className="flex items-center gap-2 mb-3">
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center border ${
@@ -103,7 +116,6 @@ const TokenOverlay = ({ token, position }: TokenOverlayProps) => {
           </div>
         </div>
 
-        {/* Chart with Recharts */}
         <div
           className={`mb-3 h-20 rounded-lg ${
             isPositive
@@ -156,7 +168,6 @@ const TokenOverlay = ({ token, position }: TokenOverlayProps) => {
           )}
         </div>
 
-        {/* Details */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground text-xs">Price:</span>
@@ -182,6 +193,52 @@ const TokenTicker = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [hoveredToken, setHoveredToken] = useState<Token | null>(null);
   const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
+  const [tokenUsdPrices, setTokenUsdPrices] = useState<TokenUsdPriceMap>({
+    ...DEFAULT_TOKEN_USD_PRICES,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncTokenUsdPrices = async () => {
+      try {
+        const nextTokenUsdPrices = await fetchArcTokenUsdPrices();
+        if (isMounted) {
+          setTokenUsdPrices(nextTokenUsdPrices);
+        }
+      } catch (error) {
+        console.warn("Failed to sync ticker token prices", error);
+      }
+    };
+
+    syncTokenUsdPrices();
+    const intervalId = window.setInterval(
+      syncTokenUsdPrices,
+      TOKEN_TICKER_PRICE_REFRESH_INTERVAL_MS,
+    );
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const tickerTokens = useMemo(
+    () =>
+      tokens.map((token) => {
+        if (!isTrackedTicker(token.symbol)) {
+          return token;
+        }
+
+        const nextUsdPrice = tokenUsdPrices[token.symbol];
+
+        return {
+          ...token,
+          price: formatUsdAmount(1, nextUsdPrice),
+        };
+      }),
+    [tokenUsdPrices],
+  );
 
   const handleMouseEnter = (
     token: Token,
@@ -227,7 +284,18 @@ const TokenTicker = () => {
             },
           }}
         >
-          {[...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens, ...tokens].map((token, index) => (
+          {[
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+            ...tickerTokens,
+          ].map((token, index) => (
             <TokenCard
               key={`${token.symbol}-${index}`}
               token={token}
@@ -240,7 +308,6 @@ const TokenTicker = () => {
         </motion.div>
       </motion.div>
 
-      {/* Hover Overlay */}
       <AnimatePresence>
         {hoveredToken && (
           <TokenOverlay token={hoveredToken} position={hoverPosition} />

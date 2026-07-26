@@ -3,7 +3,9 @@
 import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
 import { Info } from "lucide-react";
+import { formatUnits } from "viem";
 
+import { formatUsdAmount } from "@/lib/formatUsdAmount";
 import quotesIcon from "@/public/assets/quotes icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
 import towerLogo from "@/public/assets/Tower Logo.svg";
@@ -21,8 +23,9 @@ interface RouteOption {
 interface RouterDisplayProps {
   selectedRouterId?: string;
   routeOptions?: RouteOption[];
-  isAutoSelected?: boolean;
-  quoteUsdValueLabel?: string;
+  outputTokenUsdPrice?: number;
+  outputTokenSymbol?: string;
+  availableRouterIds?: string[];
 }
 
 type SupportedRouter = {
@@ -59,6 +62,10 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
   },
 ];
 
+const ROUTE_OUTPUT_DISPLAY_DECIMALS: Partial<Record<string, number>> = {
+  cirBTC: 8,
+};
+
 const normalizeRouterId = (id = "") => {
   const normalizedId = id.toLowerCase();
 
@@ -76,24 +83,53 @@ const outputAmountToBigInt = (amount?: string) => {
   }
 };
 
-const formatQuoteAmount = (amount?: string) => {
+const formatRouteTokenAmount = (amount?: string, outputTokenSymbol?: string) => {
   const rawAmount = outputAmountToBigInt(amount);
 
   if (rawAmount <= 0n) {
     return "-";
   }
 
-  const whole = rawAmount / 10n ** 18n;
-  const fraction = rawAmount % 10n ** 18n;
-  const cents = (fraction * 100n) / 10n ** 18n;
+  const tokenAmount = Number.parseFloat(formatUnits(rawAmount, 18));
+  if (!Number.isFinite(tokenAmount)) {
+    return "-";
+  }
 
-  return `$${whole.toString()}.${cents.toString().padStart(2, "0")}`;
+  const maximumFractionDigits =
+    ROUTE_OUTPUT_DISPLAY_DECIMALS[outputTokenSymbol || ""] ?? 6;
+  const formattedAmount = tokenAmount.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  });
+
+  return formattedAmount;
+};
+
+const formatRouteUsdValue = (amount?: string, outputTokenUsdPrice?: number) => {
+  const rawAmount = outputAmountToBigInt(amount);
+
+  if (rawAmount <= 0n) {
+    return null;
+  }
+
+  if (typeof outputTokenUsdPrice !== "number" || outputTokenUsdPrice <= 0) {
+    return null;
+  }
+
+  const tokenAmount = Number.parseFloat(formatUnits(rawAmount, 18));
+  if (!Number.isFinite(tokenAmount)) {
+    return null;
+  }
+
+  return formatUsdAmount(tokenAmount, outputTokenUsdPrice);
 };
 
 export default function RouterDisplay({
   selectedRouterId,
   routeOptions = [],
-  quoteUsdValueLabel,
+  outputTokenUsdPrice,
+  outputTokenSymbol,
+  availableRouterIds = [],
 }: RouterDisplayProps) {
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
     const dexId = normalizeRouterId(option.dexId);
@@ -110,48 +146,57 @@ export default function RouterDisplay({
     return optionsByDexId;
   }, new Map<string, RouteOption>());
 
-  const displayedRoutes = SUPPORTED_ROUTERS.map((router) => {
-    const option = routeOptionByDexId.get(router.id);
-    const outputAmount = outputAmountToBigInt(option?.outputAmount);
+  const normalizedAvailableRouterIds = Array.from(
+    new Set(availableRouterIds.map((routerId) => normalizeRouterId(routerId))),
+  );
+  const availableRouterIdSet = new Set(normalizedAvailableRouterIds);
+  const routersToDisplay = (
+    normalizedAvailableRouterIds.length > 0
+      ? SUPPORTED_ROUTERS.filter((router) => availableRouterIdSet.has(router.id))
+      : SUPPORTED_ROUTERS.filter((router) => routeOptionByDexId.has(router.id))
+  ).map((router, index) => ({ router, index }));
 
-    if (!option || outputAmount <= 0n) {
-      return null;
-    }
+  const displayedRoutes = routersToDisplay
+    .map(({ router, index }) => {
+      const option = routeOptionByDexId.get(router.id) ?? null;
+      const outputAmount = outputAmountToBigInt(option?.outputAmount);
 
-    return { router, option, outputAmount };
-  })
-    .filter(
-      (
-        route,
-      ): route is {
-        router: SupportedRouter;
-        option: RouteOption;
-        outputAmount: bigint;
-      } => route !== null,
-    )
+      return {
+        router,
+        option,
+        outputAmount,
+        hasQuote: outputAmount > 0n,
+        index,
+      };
+    })
+    .filter((route) => route.option !== null && route.hasQuote)
     .sort((leftRoute, rightRoute) => {
-      const leftOutputAmount = leftRoute.outputAmount;
-      const rightOutputAmount = rightRoute.outputAmount;
+      if (leftRoute.hasQuote && rightRoute.hasQuote) {
+        if (leftRoute.outputAmount === rightRoute.outputAmount) {
+          return leftRoute.index - rightRoute.index;
+        }
 
-      if (leftOutputAmount === rightOutputAmount) {
-        return 0;
+        return leftRoute.outputAmount > rightRoute.outputAmount ? -1 : 1;
       }
 
-      return leftOutputAmount > rightOutputAmount ? -1 : 1;
+      if (leftRoute.hasQuote !== rightRoute.hasQuote) {
+        return leftRoute.hasQuote ? -1 : 1;
+      }
+
+      return leftRoute.index - rightRoute.index;
     });
 
   if (displayedRoutes.length === 0) {
     return null;
   }
 
-  const bestOutputAmount = displayedRoutes[0]?.outputAmount ?? 0n;
+  const bestQuotedRoute = displayedRoutes.find((route) => route.hasQuote) ?? null;
+  const bestOutputAmount = bestQuotedRoute?.outputAmount ?? 0n;
   const normalizedSelectedRouterId = selectedRouterId
     ? normalizeRouterId(selectedRouterId)
     : undefined;
   const dexCount = displayedRoutes.length;
-  const dexNamesLabel = displayedRoutes
-    .map(({ router }) => router.name)
-    .join(", ");
+  const dexNamesLabel = displayedRoutes.map(({ router }) => router.name).join(", ");
 
   return (
     <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
@@ -206,26 +251,29 @@ export default function RouterDisplay({
       </div>
 
       <div className="space-y-1 p-1.5">
-        {displayedRoutes.map(({ router, option, outputAmount }) => {
+        {displayedRoutes.map(({ router, option, outputAmount, hasQuote }) => {
           const isBestPrice =
-            outputAmount > 0n && outputAmount === bestOutputAmount;
+            hasQuote && outputAmount > 0n && outputAmount === bestOutputAmount;
           const isSelected =
             normalizedSelectedRouterId === router.id ||
             (!normalizedSelectedRouterId && isBestPrice);
+          const routeUsdValue = hasQuote
+            ? formatRouteUsdValue(option?.outputAmount, outputTokenUsdPrice)
+            : null;
 
           return (
             <motion.div
               key={router.id}
               role="listitem"
-              className={`flex h-11 w-full items-center justify-between gap-3 rounded-sm px-3 text-left transition-colors ${
+              className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left transition-colors ${
                 isSelected
-  ? `
+                  ? `
     border border-[#56697c]
     bg-[#171b22]
     ring-1 ring-white/[0.04]
     shadow-[inset_0_1px_0_rgba(255,255,255,.06),inset_0_-1px_0_rgba(0,0,0,.45),0_2px_6px_rgba(0,0,0,.35)]
   `
-  : "border border-transparent"
+                  : "border border-transparent"
               }`}
             >
               <span className="flex min-w-0 items-center gap-2.5">
@@ -245,8 +293,19 @@ export default function RouterDisplay({
                   </span>
                 )}
               </span>
-              <span className="shrink-0 text-sm tabular-nums text-white/90">
-                {quoteUsdValueLabel || formatQuoteAmount(option.outputAmount)}
+              <span className="flex shrink-0 flex-col items-end text-right leading-tight">
+                <span
+                  className={`text-sm tabular-nums ${
+                    hasQuote ? "text-white/90" : "text-white/45"
+                  }`}
+                >
+                  {formatRouteTokenAmount(option?.outputAmount, outputTokenSymbol)}
+                </span>
+                {routeUsdValue ? (
+                  <span className="text-[11px] tabular-nums text-white/55">
+                    ~ {routeUsdValue}
+                  </span>
+                ) : null}
               </span>
             </motion.div>
           );

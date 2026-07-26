@@ -31,6 +31,7 @@ import {
   type SwapToken,
   type SwapTokenSymbol,
 } from "@/lib/swapTokens";
+import { isTowerDexEnabled, isTowerDexSupportedPair } from "@/lib/towerDex";
 import TokenModal from "./TokenModal";
 import SettingsModal from "./SettingsModal";
 import ChartModal from "./ChartModal";
@@ -48,6 +49,10 @@ import {
 } from "@/lib/supabase";
 import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import {
+  DEFAULT_TOKEN_USD_PRICES,
+  fetchArcTokenUsdPrices,
+} from "@/lib/tokenUsdPrices";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import {
   getBrowserWalletChainId,
@@ -57,6 +62,7 @@ import {
 import arcTestnetLogo from "@/public/assets/ARCSvg.svg";
 const NATIVE_USDC_GAS_RESERVE = 0.05;
 const QUOTE_REFRESH_INTERVAL_MS = 10000;
+const TOKEN_PRICE_REFRESH_INTERVAL_MS = QUOTE_REFRESH_INTERVAL_MS;
 const SWAP_SUCCESS_NOTIFICATION_DURATION_MS = 10000;
 const SWAP_SUCCESS_RESET_DELAY_MS = SWAP_SUCCESS_NOTIFICATION_DURATION_MS + 500;
 const ARC_RPC_PROXY_URL = `/api/rpc/${ARC_TESTNET_CONFIG.chainId}`;
@@ -303,6 +309,19 @@ const applyGasBuffer = (gasEstimate: unknown) => {
   return `0x${((BigInt(gasEstimate) * 13n) / 10n).toString(16)}`;
 };
 
+const isRecoverableGasEstimationError = (message: string) => {
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("timed out") ||
+    normalized.includes("timeout") ||
+    normalized.includes("out of memory") ||
+    normalized.includes("memory limit exceeded") ||
+    normalized.includes("memory expansion") ||
+    normalized.includes("temporary internal error")
+  );
+};
+
 interface TokenSelectorProps {
   selected: SwapToken | null;
   onOpenModal: () => void;
@@ -345,6 +364,107 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   );
 };
 
+const normalizeSwapRouteDexId = (dexId?: string) => {
+  const normalized = String(dexId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
+
+  if (!normalized) {
+    return "unknown";
+  }
+
+  if (normalized === "synthra-v3" || normalized.includes("synthra")) {
+    return "synthra";
+  }
+
+  if (
+    normalized === "unitflow-v3" ||
+    normalized.includes("unitflow") ||
+    normalized.includes("unit-flow")
+  ) {
+    return "unitflow";
+  }
+
+  if (
+    normalized === "xylonet" ||
+    normalized === "xylo" ||
+    normalized === "xylo-net" ||
+    normalized === "xylonet-adapter" ||
+    normalized.includes("xylonet")
+  ) {
+    return "xylonet-adapter";
+  }
+
+  if (
+    normalized === "tower-dex" ||
+    normalized === "tower" ||
+    normalized === "tower-amm"
+  ) {
+    return "tower-dex";
+  }
+
+  return normalized;
+};
+
+const routeOutputAmountToBigInt = (amount?: string) => {
+  try {
+    return BigInt(amount || "0");
+  } catch {
+    return 0n;
+  }
+};
+
+const mergeRouteOptionsByDex = (
+  existing: SwapRouteOption[],
+  incoming: SwapRouteOption[],
+) => {
+  const optionsByDexId = new Map<string, SwapRouteOption>();
+
+  for (const option of existing) {
+    optionsByDexId.set(normalizeSwapRouteDexId(option.dexId), {
+      ...option,
+      dexId: normalizeSwapRouteDexId(option.dexId),
+    });
+  }
+
+  for (const option of incoming) {
+    optionsByDexId.set(normalizeSwapRouteDexId(option.dexId), {
+      ...option,
+      dexId: normalizeSwapRouteDexId(option.dexId),
+    });
+  }
+
+  return Array.from(optionsByDexId.values());
+};
+
+const getBestRouteOption = (options: SwapRouteOption[]) => {
+  if (options.length === 0) {
+    return null;
+  }
+
+  return options.reduce((bestOption, option) =>
+    routeOutputAmountToBigInt(option.outputAmount) >
+    routeOutputAmountToBigInt(bestOption.outputAmount)
+      ? option
+      : bestOption,
+  );
+};
+
+const getTokenWithLiveUsdPrice = (
+  token: SwapToken | null,
+  tokenUsdPrices: Record<SwapTokenSymbol, number>,
+): SwapToken | null => {
+  if (!token) {
+    return null;
+  }
+
+  const liveUsdPrice = tokenUsdPrices[token.symbol];
+
+  return typeof liveUsdPrice === "number"
+    ? { ...token, usdPrice: liveUsdPrice }
+    : token;
+};
 const SwapCard = ({
   onNavigateToBridge,
 }: {
@@ -569,13 +689,63 @@ const SwapCard = ({
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
   const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
+  const [tokenUsdPrices, setTokenUsdPrices] = useState<Record<SwapTokenSymbol, number>>({
+    ...DEFAULT_TOKEN_USD_PRICES,
+  });
+  const pricedSwapTokens = useMemo(
+    () =>
+      SWAP_TOKENS.map((token) => ({
+        ...token,
+        usdPrice: tokenUsdPrices[token.symbol] ?? token.usdPrice,
+      })),
+    [tokenUsdPrices],
+  );
+  const findPricedSwapToken = useCallback(
+    (symbol: SwapTokenSymbol) =>
+      pricedSwapTokens.find((token) => token.symbol === symbol) ?? null,
+    [pricedSwapTokens],
+  );
+  const sellTokenWithLivePrice = useMemo(
+    () => getTokenWithLiveUsdPrice(sellToken, tokenUsdPrices) ?? sellToken,
+    [sellToken, tokenUsdPrices],
+  );
+  const receiveTokenWithLivePrice = useMemo(
+    () => getTokenWithLiveUsdPrice(receiveToken, tokenUsdPrices),
+    [receiveToken, tokenUsdPrices],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncTokenUsdPrices = async () => {
+      try {
+        const nextTokenUsdPrices = await fetchArcTokenUsdPrices();
+        if (isMounted) {
+          setTokenUsdPrices(nextTokenUsdPrices);
+        }
+      } catch (error) {
+        console.warn("Failed to sync live token USD prices", error);
+      }
+    };
+
+    syncTokenUsdPrices();
+    const intervalId = window.setInterval(
+      syncTokenUsdPrices,
+      TOKEN_PRICE_REFRESH_INTERVAL_MS,
+    );
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // Listen for external cirBTC selection events or URL parameters
   useEffect(() => {
     const handleSelectTokenEvent = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail?.symbol === "cirBTC") {
-        const cirbtcToken = SWAP_TOKENS.find(t => t.symbol === "cirBTC");
+        const cirbtcToken = findPricedSwapToken("cirBTC");
         if (cirbtcToken) {
           setSellToken(cirbtcToken);
           // Clean URL params if present
@@ -594,7 +764,7 @@ const SwapCard = ({
     const params = new URLSearchParams(window.location.search);
     const selectToken = params.get("select");
     if (selectToken === "cirBTC") {
-      const cirbtcToken = SWAP_TOKENS.find(t => t.symbol === "cirBTC");
+      const cirbtcToken = findPricedSwapToken("cirBTC");
       if (cirbtcToken) {
         setSellToken(cirbtcToken);
         // Clean URL params
@@ -607,11 +777,19 @@ const SwapCard = ({
     return () => {
       window.removeEventListener("select-sell-token", handleSelectTokenEvent);
     };
-  }, []);
+  }, [findPricedSwapToken]);
   const quoteRequestIdRef = useRef(0);
+  const lastSuccessfulQuoteRef = useRef<{
+    sellAmountValue: string;
+    sellTokenSymbol: SwapTokenSymbol;
+    receiveTokenSymbol: SwapTokenSymbol;
+  } | null>(null);
+  const lastSuccessfulRouteOptionsRef = useRef<SwapRouteOption[]>([]);
 
   const resetSwapQuote = useCallback(() => {
     quoteRequestIdRef.current += 1;
+    lastSuccessfulQuoteRef.current = null;
+    lastSuccessfulRouteOptionsRef.current = [];
     setReceiveAmount("0.00");
     setRouteOptions([]);
     setSelectedRouterId(undefined);
@@ -677,7 +855,7 @@ const SwapCard = ({
     ) => {
       try {
         if (!user?.wallet?.address) return null;
-        const amountUsd = (parseFloat(sellAmount) || 0) * sellToken.usdPrice;
+        const amountUsd = (parseFloat(sellAmount) || 0) * sellTokenWithLivePrice.usdPrice;
         const resolvedRouteLabel = routeLabel || getActiveSwapRouteName();
         const { data, error } = await supabase
           .from("activities")
@@ -715,7 +893,7 @@ const SwapCard = ({
       receiveToken?.symbol,
       sellAmount,
       user?.wallet?.address,
-      sellToken.usdPrice,
+      sellTokenWithLivePrice.usdPrice,
       getActiveSwapRouteName,
     ],
   );
@@ -735,21 +913,28 @@ const SwapCard = ({
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isSellTokenModalOpen, setIsSellTokenModalOpen] = useState(false);
   const [isReceiveTokenModalOpen, setIsReceiveTokenModalOpen] = useState(false);
-  const sellUsdValueLabel = formatUsdAmount(sellAmount, sellToken.usdPrice);
-  const shouldUseInputUsdValueForReceive =
-    (receiveToken?.symbol === "EURC" || receiveToken?.symbol === "cirBTC") &&
-    Number.parseFloat(sellAmount) > 0 &&
-    Number.parseFloat(receiveAmount) > 0;
-  const receiveUsdValueLabel = formatUsdAmount(
-    receiveAmount,
-    receiveToken?.usdPrice ?? 0,
-  );
-  const effectiveReceiveUsdValueLabel = shouldUseInputUsdValueForReceive
-    ? sellUsdValueLabel
-    : receiveUsdValueLabel;
-  const shouldUseQuoteUsdValueLabel =
-    receiveToken?.symbol === "EURC" || receiveToken?.symbol === "cirBTC";
+  const sellUsdValueLabel = formatUsdAmount(sellAmount, sellTokenWithLivePrice.usdPrice);
+  const bestDisplayedRouteOption = getBestRouteOption(routeOptions);
+  const receiveUsdValueLabel = (() => {
+    if (!receiveToken) {
+      return "$0.00";
+    }
 
+    const bestOutputAmount = bestDisplayedRouteOption?.outputAmount;
+    if (bestOutputAmount) {
+      try {
+        const bestOutputTokens = Number.parseFloat(
+          formatUnits(BigInt(bestOutputAmount), 18),
+        );
+        return formatUsdAmount(bestOutputTokens, receiveTokenWithLivePrice?.usdPrice || 0);
+      } catch {
+        // Fall through to the displayed token amount label.
+      }
+    }
+
+    return formatUsdAmount(receiveAmount, receiveTokenWithLivePrice?.usdPrice || 0);
+  })();
+  const effectiveReceiveUsdValueLabel = receiveUsdValueLabel;
   const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
 
@@ -866,26 +1051,68 @@ const SwapCard = ({
     sellAmount !== "0.00" &&
     parseFloat(receiveAmount) > 0 &&
     receiveAmount !== "0.00";
-  const shouldShowRouterDisplay =
+  const shouldFetchSwapQuotes =
     parseFloat(sellAmount) > 0 &&
     sellAmount !== "0.00" &&
     Boolean(receiveToken) &&
     isSupportedSwapPair(sellToken.symbol, receiveToken?.symbol);
+  const shouldRenderRouterDisplay =
+    shouldFetchSwapQuotes &&
+    routeOptions.some(
+      (option) => routeOutputAmountToBigInt(option.outputAmount) > 0n,
+    );
+
+  const availableRouterIds = useMemo(() => {
+    if (
+      !receiveToken ||
+      !isSupportedSwapPair(sellToken.symbol, receiveToken.symbol)
+    ) {
+      return [] as string[];
+    }
+
+    const pairSymbols = [sellToken.symbol, receiveToken.symbol].sort();
+    const pairKey = pairSymbols.join("/");
+    const isCirBtcPair =
+      sellToken.symbol === "cirBTC" || receiveToken.symbol === "cirBTC";
+    const isSynthraOnlyPair =
+      pairKey === "EURC/USDT" || pairKey === "USDC/USDT";
+    const routerIds = isCirBtcPair || isSynthraOnlyPair
+      ? ["synthra"]
+      : ["xylonet-adapter", "synthra"];
+
+    if (!isCirBtcPair && !isSynthraOnlyPair && receiveToken.symbol !== "USDC") {
+      routerIds.push("unitflow");
+    }
+
+    const inputTokenAddress = TOKEN_CONTRACTS[sellToken.symbol];
+    const outputTokenAddress = TOKEN_CONTRACTS[receiveToken.symbol];
+
+    if (
+      isTowerDexEnabled() &&
+      inputTokenAddress &&
+      outputTokenAddress &&
+      isTowerDexSupportedPair(inputTokenAddress, outputTokenAddress)
+    ) {
+      routerIds.push("tower-dex");
+    }
+
+    return routerIds;
+  }, [receiveToken, sellToken.symbol]);
 
   const availableSellTokens = useMemo(
     () =>
       receiveToken
-        ? SWAP_TOKENS.filter(
+        ? pricedSwapTokens.filter(
             (token) =>
               token.symbol !== receiveToken.symbol &&
               isSupportedSwapPair(token.symbol, receiveToken.symbol),
           )
-        : [...SWAP_TOKENS],
-    [receiveToken],
+        : [...pricedSwapTokens],
+    [pricedSwapTokens, receiveToken],
   );
   const availableReceiveTokens = useMemo(
-    () => getSupportedCounterpartyTokens(sellToken.symbol),
-    [sellToken.symbol],
+    () => getSupportedCounterpartyTokens(sellToken.symbol, pricedSwapTokens),
+    [pricedSwapTokens, sellToken.symbol],
   );
 
   useEffect(() => {
@@ -956,6 +1183,11 @@ const SwapCard = ({
           return;
         }
 
+        const shouldPreserveCurrentQuote =
+          lastSuccessfulQuoteRef.current?.sellAmountValue === sellAmountValue &&
+          lastSuccessfulQuoteRef.current?.sellTokenSymbol === sellToken.symbol &&
+          lastSuccessfulQuoteRef.current?.receiveTokenSymbol === receiveToken.symbol;
+
         const sellTokenDecimals = TOKEN_DECIMALS[sellToken.symbol] || 18;
         const amountInWei = parseUnits(
           sellAmountValue,
@@ -979,9 +1211,10 @@ const SwapCard = ({
         );
 
         if (!quoteData) {
-          throw new Error(
-            towerError || "Failed to get quote from Tower Exchange",
-          );
+          if (!shouldPreserveCurrentQuote && requestId === quoteRequestIdRef.current) {
+            resetSwapQuote();
+          }
+          return;
         }
 
         if (requestId !== quoteRequestIdRef.current) {
@@ -990,25 +1223,50 @@ const SwapCard = ({
 
         console.log("Quote received from Tower Exchange:", quoteData);
 
-        const selectedDexId = quoteData.route?.hops?.[0]?.dexId;
-        if (selectedDexId) {
-          setSelectedRouterId(selectedDexId);
+        const selectedDexId = normalizeSwapRouteDexId(
+          quoteData.route?.hops?.[0]?.dexId,
+        );
+        const currentBestRouteOption: SwapRouteOption | null = {
+          dexId: selectedDexId,
+          dexName:
+            quoteData.route?.hops?.[0]?.dexName ||
+            quoteData.route?.hops?.[0]?.dexId ||
+            selectedDexId,
+          outputAmount: quoteData.outputAmount,
+          routeType: quoteData.route.type,
+          gasEstimate: quoteData.gasEstimate,
+          quote: quoteData,
+        };
+        const nextRouteOptions = mergeRouteOptionsByDex(
+          [],
+          quoteData.routeOptions?.length
+            ? quoteData.routeOptions
+            : [currentBestRouteOption],
+        );
+        const bestRouteOption =
+          getBestRouteOption(nextRouteOptions) || currentBestRouteOption;
+        const nextSelectedRouterId = bestRouteOption?.dexId || selectedDexId;
+
+        if (nextSelectedRouterId) {
+          setSelectedRouterId(nextSelectedRouterId);
           console.log(
             routerId ? "Selected router from quote:" : "Auto-selected router from backend:",
-            quoteData.route.hops[0].dexName,
+            bestRouteOption?.dexName || quoteData.route.hops[0]?.dexName,
             "ID:",
-            selectedDexId,
+            nextSelectedRouterId,
           );
         }
 
-        setRouteOptions(quoteData.routeOptions || []);
+        setRouteOptions(nextRouteOptions);
 
         const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
         const displayPrecision =
           SWAP_DISPLAY_DECIMALS[receiveToken.symbol] ??
           Math.min(receiveTokenDecimals, 6);
+        const outputAmountForDisplay =
+          bestRouteOption?.outputAmount || quoteData.outputAmount;
         const quoteAmount = Number.parseFloat(
-          formatUnits(BigInt(quoteData.outputAmount || "0"), 18),
+          formatUnits(BigInt(outputAmountForDisplay || "0"), 18),
         );
         const priceImpactPercent =
           typeof quoteData.priceImpact === "number"
@@ -1016,20 +1274,34 @@ const SwapCard = ({
             : quoteData.priceImpact;
 
         console.log("Quote conversion details:", {
-          outputAmount_wei: quoteData.outputAmount,
+          outputAmount_wei: outputAmountForDisplay,
           quoteAmount_tokens: quoteAmount,
           priceImpact: priceImpactPercent,
           displayPrecision,
+          routeCount: nextRouteOptions.length,
         });
 
-        setReceiveAmount(
-          Number.isFinite(quoteAmount)
-            ? quoteAmount.toFixed(displayPrecision)
-            : "0.00",
-        );
+        const nextReceiveAmount = Number.isFinite(quoteAmount)
+          ? quoteAmount.toFixed(displayPrecision)
+          : "0.00";
+
+        lastSuccessfulQuoteRef.current = {
+          sellAmountValue,
+          sellTokenSymbol: sellToken.symbol,
+          receiveTokenSymbol: receiveToken.symbol,
+        };
+        lastSuccessfulRouteOptionsRef.current = nextRouteOptions;
+
+        setReceiveAmount(nextReceiveAmount);
       } catch (error) {
         console.error("Error getting swap quote:", error);
-        if (requestId === quoteRequestIdRef.current) {
+
+        const shouldPreserveCurrentQuote =
+          lastSuccessfulQuoteRef.current?.sellAmountValue === sellAmountValue &&
+          lastSuccessfulQuoteRef.current?.sellTokenSymbol === sellToken.symbol &&
+          lastSuccessfulQuoteRef.current?.receiveTokenSymbol === receiveToken?.symbol;
+
+        if (requestId === quoteRequestIdRef.current && !shouldPreserveCurrentQuote) {
           resetSwapQuote();
         }
       }
@@ -1040,34 +1312,37 @@ const SwapCard = ({
       resetSwapQuote,
       sellToken.symbol,
       slippageTolerance,
-      towerError,
     ],
   );
-
   useEffect(() => {
-    if (!shouldShowRouterDisplay || swapState === "loading") {
+    if (!shouldFetchSwapQuotes || swapState === "loading") {
       return;
     }
 
+    let intervalId: number | null = null;
     const refreshQuotes = () => {
       getQuoteForSwap(sellAmount);
     };
-    refreshQuotes();
-    const intervalId = window.setInterval(
-      refreshQuotes,
-      QUOTE_REFRESH_INTERVAL_MS,
-    );
+    const debounceId = window.setTimeout(() => {
+      refreshQuotes();
+      intervalId = window.setInterval(
+        refreshQuotes,
+        QUOTE_REFRESH_INTERVAL_MS,
+      );
+    }, 350);
 
-    return () => window.clearInterval(intervalId);
-  }, [getQuoteForSwap, sellAmount, shouldShowRouterDisplay, swapState]);
+    return () => {
+      window.clearTimeout(debounceId);
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [getQuoteForSwap, sellAmount, shouldFetchSwapQuotes, swapState]);
 
   // Simulate DEX aggregator calculation
   const handleSellAmountChange = (value: string) => {
     setSellAmount(value);
-    if (value && parseFloat(value) > 0) {
-      // Get quote from Arc pool for actual exchange rate
-      getQuoteForSwap(value);
-    } else {
+    if (!value || parseFloat(value) <= 0) {
       resetSwapQuote();
     }
   };
@@ -1468,10 +1743,11 @@ const SwapCard = ({
             approvalIndex++
           ) {
             const approvalTx = approvalTxs[approvalIndex];
+            const approvalLabelBase = approvalTx.label?.trim() || "APPROVAL";
             const approvalLabel =
               approvalTxs.length > 1
-                ? `APPROVAL ${approvalIndex + 1}/${approvalTxs.length}`
-                : "APPROVAL";
+                ? `${approvalLabelBase.toUpperCase()} ${approvalIndex + 1}/${approvalTxs.length}`
+                : approvalLabelBase.toUpperCase();
             const approvalFeeParams = await getArcFeeParams().catch(
               (feeError: unknown) => {
                 console.warn(
@@ -1491,7 +1767,7 @@ const SwapCard = ({
               {
                 to: approvalTx.to,
                 data: approvalTx.data,
-                value: "0x0",
+                value: approvalTx.value ?? "0x0",
                 gas: approvalTx.gasLimit,
                 nonce: approvalNonce,
                 ...(approvalFeeParams || {}),
@@ -1524,11 +1800,11 @@ const SwapCard = ({
 
             console.log(`${approvalLabel} transaction confirmed:`, approvalReceipt);
 
-            // Additional wait to ensure block is finalized
-            await sleep(2000);
+
           }
 
           console.log("Approval transaction(s) confirmed successfully!");
+          setSwapStepsPhase("confirm");
 
           // CRITICAL: Rebuild swap transaction after approval to get fresh deadline
           // Using old swap data will cause "execution reverted" due to stale deadline
@@ -1632,6 +1908,7 @@ const SwapCard = ({
       // Preflight the swap before signing. If this fails, the transaction is
       // likely to be dropped or reverted, so do not broadcast it.
       let bufferedSwapGas: string | null = null;
+      let shouldUseWalletGasEstimate = false;
       try {
         console.log("Estimating gas...");
         const gasEstimate = await walletRequest<unknown>(
@@ -1679,12 +1956,35 @@ const SwapCard = ({
           estimateErrorDetails.message = String(estimateError);
         }
 
-        console.error("Gas estimation error details:", estimateErrorDetails);
-        throw new Error(
-          `Swap preflight failed: ${
-            estimateErrorDetails.message || "gas estimation failed"
-          }`,
+        const estimateErrorMessage = String(
+          estimateErrorDetails.message || "gas estimation failed",
         );
+        const isRecoverableGasEstimationFailure =
+          isRecoverableGasEstimationError(estimateErrorMessage);
+
+        if (isRecoverableGasEstimationFailure) {
+          bufferedSwapGas =
+            typeof swapDataToSend.gasLimit === "string"
+              ? swapDataToSend.gasLimit.startsWith("0x")
+                ? swapDataToSend.gasLimit
+                : toHexQuantity(swapDataToSend.gasLimit)
+              : null;
+          shouldUseWalletGasEstimate = !bufferedSwapGas;
+          estimateErrorDetails.note = bufferedSwapGas
+            ? "Continuing with fallback gas limit after Arc RPC estimation failure"
+            : "Continuing with swap - letting wallet estimate gas";
+          console.warn(
+            "Gas estimation failed on Arc RPC; falling back to buffered transaction gas:",
+            {
+              ...estimateErrorDetails,
+              fallbackGas: bufferedSwapGas,
+            },
+          );
+        } else {
+          estimateErrorDetails.note = "Stopping swap - gas preflight failed";
+          console.error("Gas estimation error details:", estimateErrorDetails);
+          throw new Error(`Swap preflight failed: ${estimateErrorMessage}`);
+        }
       }
 
       // Ensure value is properly formatted (should be hex string)
@@ -1732,7 +2032,7 @@ const SwapCard = ({
           to: swapDataToSend.to,
           value: finalSwapValue,
           data: swapDataToSend.data,
-          gas: bufferedSwapGas ?? swapDataToSend.gasLimit ?? undefined,
+          gas: shouldUseWalletGasEstimate ? undefined : bufferedSwapGas ?? swapDataToSend.gasLimit ?? undefined,
           nonce: swapNonce,
           ...(swapFeeParams || {}),
         },
@@ -1895,7 +2195,7 @@ const SwapCard = ({
         );
       }
 
-      console.log("[SwapCard] TowerSwapExecutor swap settled:", {
+      console.log("[SwapCard] Fee-aware swap settled:", {
         txHash,
         feeMode: swapTx?.feeMode,
         feeToken: swapTx?.feeToken,
@@ -1912,8 +2212,8 @@ const SwapCard = ({
 
       if (
         swapTx?.feeMode === "tower-swap-executor" &&
-        swapTx.platformFeeAmount &&
-        swapTx.feeToken
+        swapTx?.platformFeeAmount &&
+        swapTx?.feeToken
       ) {
         const receiptBlockNumber =
           typeof receipt.blockNumber === "string"
@@ -1929,11 +2229,11 @@ const SwapCard = ({
           transactionHash: txHash,
           blockNumber: receiptBlockNumber,
           activityId: swapActivityId,
-          usdPrice: sellToken.usdPrice,
+          usdPrice: sellTokenWithLivePrice.usdPrice,
         });
 
         if (!swapFeeResult.success) {
-          console.error("[SwapCard] Failed to persist executor swap fee:", {
+          console.error("[SwapCard] Failed to persist swap fee:", {
             txHash,
             error: swapFeeResult.error,
           });
@@ -2385,7 +2685,7 @@ const SwapCard = ({
             </div>
             <div className="flex items-center justify-between gap-2">
               <TokenSelector
-                selected={sellToken}
+                selected={sellTokenWithLivePrice}
                 onOpenModal={() => setIsSellTokenModalOpen(true)}
               />
               <TokenInput
@@ -2455,17 +2755,14 @@ const SwapCard = ({
             </Button>
           </motion.div>
 
-          {shouldShowRouterDisplay && (
+          {shouldRenderRouterDisplay && (
             <div className="mt-4">
               <RouterDisplay
                 selectedRouterId={selectedRouterId}
                 routeOptions={routeOptions}
-                isAutoSelected={!selectedRouterId}
-                quoteUsdValueLabel={
-                  shouldUseQuoteUsdValueLabel
-                    ? effectiveReceiveUsdValueLabel
-                    : undefined
-                }
+                outputTokenUsdPrice={receiveTokenWithLivePrice?.usdPrice}
+                outputTokenSymbol={receiveToken?.symbol}
+                availableRouterIds={availableRouterIds}
               />
             </div>
           )}
@@ -2492,7 +2789,7 @@ const SwapCard = ({
               {sellToken.symbol}
             </span>
             <span className="text-muted-foreground">
-              {formatUsdAmount(1, sellToken.usdPrice)}
+              {formatUsdAmount(1, sellTokenWithLivePrice.usdPrice)}
             </span>
           </motion.button>
           {receiveToken && (
@@ -2515,7 +2812,7 @@ const SwapCard = ({
                 {receiveToken.symbol}
               </span>
               <span className="text-muted-foreground">
-                {formatUsdAmount(1, receiveToken.usdPrice)}
+                {formatUsdAmount(1, receiveTokenWithLivePrice?.usdPrice || 0)}
               </span>
             </motion.button>
           )}
@@ -2525,7 +2822,7 @@ const SwapCard = ({
         <TokenModal
           isOpen={isSellTokenModalOpen}
           onClose={() => setIsSellTokenModalOpen(false)}
-          selected={sellToken}
+          selected={sellTokenWithLivePrice}
           onSelect={handleSellTokenSelect}
           excludeSymbol={receiveToken?.symbol || ""}
           availableTokens={availableSellTokens}
@@ -2535,7 +2832,7 @@ const SwapCard = ({
         <TokenModal
           isOpen={isReceiveTokenModalOpen}
           onClose={() => setIsReceiveTokenModalOpen(false)}
-          selected={receiveToken || availableReceiveTokens[0] || sellToken}
+          selected={receiveTokenWithLivePrice || availableReceiveTokens[0] || sellTokenWithLivePrice}
           onSelect={handleReceiveTokenSelect}
           excludeSymbol={sellToken.symbol}
           availableTokens={availableReceiveTokens}
@@ -2563,3 +2860,23 @@ const SwapCard = ({
 };
 
 export default SwapCard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

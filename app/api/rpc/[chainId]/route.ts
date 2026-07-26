@@ -25,37 +25,120 @@ const SOLANA_RPC_ENDPOINTS = uniqueRpcEndpoints(
   ["https://api.devnet.solana.com"],
 );
 
+const RETRYABLE_RPC_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const RPC_RETRY_DELAY_MS = 400;
+
 const RPC_ENDPOINTS: Record<string, string[]> = {
-  "1": [
-    "https://ethereum-rpc.publicnode.com",
-    "https://ethereum.publicnode.com",
-    "https://eth.llamarpc.com",
-    "https://cloudflare-eth.com",
-  ],
-  "10": ["https://mainnet.optimism.io"],
-  "1301": ["https://sepolia.unichain.org"],
-  "137": ["https://polygon.drpc.org"],
-  "14601": ["https://rpc.testnet.soniclabs.com"],
-  "8453": ["https://mainnet.base.org"],
-  "43113": ["https://api.avax-test.network/ext/bc/C/rpc"],
-  "42161": ["https://arb1.arbitrum.io/rpc"],
-  "59141": ["https://rpc.sepolia.linea.build"],
-  "80002": ["https://rpc-amoy.polygon.technology"],
-  "84532": ["https://sepolia.base.org"],
-  "421614": [
-    "https://sepolia-rollup.arbitrum.io/rpc",
-    "https://arbitrum-sepolia-rpc.publicnode.com",
-    "https://arbitrum-sepolia.drpc.org",
-  ],
-  "5042002": [
-    "https://rpc.drpc.testnet.arc.network",
-    "https://rpc.quicknode.testnet.arc.network",
-    "https://rpc.blockdaemon.testnet.arc.network",
-    "https://rpc.testnet.arc.network",
-  ],
+  "1": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.ETHEREUM_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_ETHEREUM_RPC_URLS),
+    [
+      "https://ethereum-rpc.publicnode.com",
+      "https://ethereum.publicnode.com",
+      "https://eth.llamarpc.com",
+      "https://cloudflare-eth.com",
+    ],
+  ),
+  "10": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.OPTIMISM_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_OPTIMISM_RPC_URLS),
+    ["https://mainnet.optimism.io", "https://optimism-rpc.publicnode.com"],
+  ),
+  "1301": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.UNICHAIN_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_UNICHAIN_RPC_URLS),
+    ["https://sepolia.unichain.org", "https://unichain-sepolia-rpc.publicnode.com"],
+  ),
+  "137": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.POLYGON_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_POLYGON_RPC_URLS),
+    ["https://polygon.drpc.org", "https://polygon-rpc.com"],
+  ),
+  "14601": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.SONIC_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_SONIC_RPC_URLS),
+    ["https://rpc.testnet.soniclabs.com", "https://sonic-testnet.rpc.thirdweb.com"],
+  ),
+  "8453": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.BASE_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_BASE_RPC_URLS),
+    ["https://mainnet.base.org", "https://base-rpc.publicnode.com"],
+  ),
+  "43113": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.AVALANCHE_FUJI_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_AVALANCHE_FUJI_RPC_URLS),
+    [
+      "https://api.avax-test.network/ext/bc/C/rpc",
+      "https://avax-fuji.drpc.org",
+      "https://avalanche-fuji.rpc.thirdweb.com",
+    ],
+  ),
+  "42161": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.ARBITRUM_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_ARBITRUM_RPC_URLS),
+    ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one.publicnode.com"],
+  ),
+  "59141": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.LINEA_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_LINEA_RPC_URLS),
+    ["https://rpc.sepolia.linea.build", "https://linea-sepolia-rpc.publicnode.com"],
+  ),
+  "80002": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.POLYGON_AMOY_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_POLYGON_AMOY_RPC_URLS),
+    ["https://rpc-amoy.polygon.technology", "https://polygon-amoy.drpc.org"],
+  ),
+  "84532": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.BASE_SEPOLIA_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URLS),
+    [
+      "https://sepolia.base.org",
+      "https://base-sepolia-rpc.publicnode.com",
+      "https://base-sepolia.drpc.org",
+      "https://base-sepolia.blockpi.network/v1/rpc/public",
+    ],
+  ),
+  "421614": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.ARBITRUM_SEPOLIA_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URLS),
+    [
+      "https://sepolia-rollup.arbitrum.io/rpc",
+      "https://arbitrum-sepolia-rpc.publicnode.com",
+      "https://arbitrum-sepolia.drpc.org",
+    ],
+  ),
+  "5042002": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.ARC_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_ARC_RPC_URLS),
+    [
+      process.env.ARC_ALCHEMY_RPC_URL,
+      process.env.ARC_RPC_URL,
+      process.env.ARC_TESTNET_RPC_URL,
+      "https://rpc.drpc.testnet.arc.network",
+      "https://rpc.quicknode.testnet.arc.network",
+      "https://rpc.blockdaemon.testnet.arc.network",
+      "https://rpc.testnet.arc.network",
+    ].filter((value): value is string => Boolean(value && value.trim())),
+  ),
   solana: SOLANA_RPC_ENDPOINTS,
-  "11155111": ["https://sepolia.drpc.org"],
-  "11155420": ["https://sepolia.optimism.io"],
+  "11155111": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.ETHEREUM_SEPOLIA_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_ETHEREUM_SEPOLIA_RPC_URLS),
+    [
+      "https://sepolia.drpc.org",
+      "https://ethereum-sepolia-rpc.publicnode.com",
+      "https://eth-sepolia-public.blastapi.io",
+    ],
+  ),
+  "11155420": uniqueRpcEndpoints(
+    splitRpcEnv(process.env.OPTIMISM_SEPOLIA_RPC_URLS),
+    splitRpcEnv(process.env.NEXT_PUBLIC_OPTIMISM_SEPOLIA_RPC_URLS),
+    [
+      "https://sepolia.optimism.io",
+      "https://optimism-sepolia-rpc.publicnode.com",
+      "https://optimism-sepolia.drpc.org",
+    ],
+  ),
 };
 
 const NULL_RESULT_FALLBACK_METHODS = new Set([
@@ -102,7 +185,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const body = await request.text();
     let lastError: unknown = null;
 
-    for (const rpcUrl of rpcUrls) {
+    for (const [index, rpcUrl] of rpcUrls.entries()) {
       try {
         const upstreamResponse = await fetch(rpcUrl, {
           method: "POST",
@@ -112,7 +195,22 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           },
           body,
           cache: "no-store",
+          // Allow upstreams a brief chance to recover before we move on.
+          next: { revalidate: 0 },
         });
+
+        if (
+          RETRYABLE_RPC_STATUS_CODES.has(upstreamResponse.status) &&
+          index < rpcUrls.length - 1
+        ) {
+          lastError = new Error(
+            `RPC ${rpcUrl} returned HTTP ${upstreamResponse.status}`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, RPC_RETRY_DELAY_MS * (index + 1)),
+          );
+          continue;
+        }
 
         if (!upstreamResponse.ok && rpcUrls.length > 1) {
           lastError = new Error(

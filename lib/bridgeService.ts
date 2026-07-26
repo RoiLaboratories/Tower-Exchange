@@ -24,9 +24,10 @@ import {
 } from "viem/chains";
 
 // Bridge Kit adapters and chain definitions
-import { AppKit } from "@circle-fin/app-kit";
+import { AppKit, isRetryableError } from "@circle-fin/app-kit";
 import { createViemAdapterFromProvider } from "@circle-fin/adapter-viem-v2";
 import { createSolanaAdapterFromProvider } from "@circle-fin/adapter-solana";
+import { CCTPV2BridgingProvider } from "@circle-fin/provider-cctp-v2";
 import { Buffer } from "buffer";
 import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 import {
@@ -607,6 +608,10 @@ const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
   "fetchAttestation",
   "mint",
 ]);
+
+function isBridgeSourceTransactionStep(stepName?: string): boolean {
+  return stepName === "burn" || stepName === "depositForBurn";
+}
 const CHAIN_SWITCH_RESTORE_DELAY_MS = 350;
 
 export type BridgeProgressSnapshot = {
@@ -705,6 +710,217 @@ function createPendingBridgeMessage(progress: BridgeProgressSnapshot): string {
   }
 }
 
+const BRIDGE_RETRY_ATTEMPTS = 2;
+const BRIDGE_RETRY_DELAY_MS = 1500;
+const FORWARDED_BRIDGE_COMPLETION_TIMEOUT_MS = 15000;
+const FORWARDED_BRIDGE_COMPLETION_RETRIES = 15;
+const FORWARDED_BRIDGE_COMPLETION_RETRY_DELAY_MS = 2000;
+const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
+  "arc-testnet": ArcTestnet,
+  "base-sepolia": BaseSepolia,
+  "optimism-sepolia": OptimismSepolia,
+  "avalanche-fuji": AvalancheFuji,
+  "arbitrum-sepolia": ArbitrumSepolia,
+  "ethereum-sepolia": EthereumSepolia,
+  "linea-sepolia": LineaSepolia,
+  "polygon-amoy": PolygonAmoy,
+  "sonic-testnet": SonicTestnet,
+  "unichain-sepolia": UnichainSepolia,
+  solana: SolanaDevnet,
+};
+const RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS = [
+  "circle relayer failed to forward the mint transaction",
+  "relayer failed to forward the mint transaction",
+  "mint may still have succeeded",
+  "retry using the attestation data",
+  "rpc error on solana devnet",
+  "relayer_forward_failed",
+  "onchain_unknown_blockchain_error",
+  "unknown blockchain error",
+];
+
+function isBridgeRelayerFailureMessage(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS.some((pattern) =>
+    normalizedMessage.includes(pattern)
+  );
+}
+
+function isBridgeRetryableFailure(error: unknown): boolean {
+  if (isRetryableError(error)) {
+    return true;
+  }
+
+  const diagnostics = getBridgeErrorDiagnostics(error);
+  if (
+    diagnostics &&
+    typeof diagnostics === "object" &&
+    "recoverability" in diagnostics
+  ) {
+    const recoverability = (diagnostics as { recoverability?: unknown })
+      .recoverability;
+    if (recoverability === "RETRYABLE" || recoverability === "RESUMABLE") {
+      return true;
+    }
+  }
+
+  const message = getBridgeErrorMessage(error);
+  return (
+    isBridgeRelayerFailureMessage(message) ||
+    isBridgeTimeoutError(message) ||
+    isBridgeNetworkError(message)
+  );
+}
+
+function getRetryableFailedBridgeStep(result: unknown): any | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const steps = (result as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) {
+    return null;
+  }
+
+  return (
+    steps.find((step) => {
+      if (!step || typeof step !== "object" || (step as any).state !== "error") {
+        return false;
+      }
+
+      const stepError = (step as any).error;
+      const stepErrorMessage =
+        typeof (step as any).errorMessage === "string"
+          ? (step as any).errorMessage
+          : getBridgeErrorMessage(stepError);
+
+      return (
+        isBridgeRetryableFailure(stepError) ||
+        isBridgeRelayerFailureMessage(stepErrorMessage)
+      );
+    }) ?? null
+  );
+}
+
+function getBridgeRetryContext(
+  fromAdapter: any,
+  toAdapter: any,
+  useForwarder: boolean,
+) {
+  if (useForwarder) {
+    return { from: fromAdapter };
+  }
+
+  return {
+    from: fromAdapter,
+    to: toAdapter,
+  };
+}
+
+function waitForBridgeRetryDelay(attemptNumber: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, BRIDGE_RETRY_DELAY_MS * attemptNumber);
+  });
+}
+
+export async function waitForForwardedBridgeCompletion(
+  request: Pick<
+    BridgeRequest,
+    "fromChain" | "sourceAddress" | "publicClient" | "walletClient" | "chain"
+  > & {
+    burnTxHash: string;
+  },
+): Promise<BridgeResponse> {
+  const fromChainObj = CIRCLE_CHAIN_OBJECTS[request.fromChain];
+
+  if (!fromChainObj) {
+    return {
+      success: false,
+      error: `Chain object not found for ${request.fromChain}`,
+    };
+  }
+
+  const sourceAdapter =
+    request.fromChain === "solana"
+      ? await ensureSolanaBridgeAdapter()
+      : await ensureEvmBridgeAdapter(request);
+
+  if (!sourceAdapter) {
+    return {
+      success: false,
+      error: "Bridge source adapter not initialized.",
+    };
+  }
+
+  const provider = new CCTPV2BridgingProvider();
+
+  try {
+    const attestation = await provider.fetchRelayerMint(
+      {
+        adapter: sourceAdapter,
+        chain: fromChainObj,
+        ...(request.sourceAddress
+          ? {
+              address: request.sourceAddress,
+            }
+          : {}),
+      } as any,
+      request.burnTxHash,
+      {
+        timeout: FORWARDED_BRIDGE_COMPLETION_TIMEOUT_MS,
+        maxRetries: FORWARDED_BRIDGE_COMPLETION_RETRIES,
+        retryDelay: FORWARDED_BRIDGE_COMPLETION_RETRY_DELAY_MS,
+      },
+    );
+
+    const transactionHash = (attestation as { forwardTxHash?: string }).forwardTxHash;
+
+    if (!transactionHash) {
+      return {
+        success: true,
+        status: "pending",
+        forwarded: true,
+        transactionHash: request.burnTxHash,
+        sourceTransactionHash: request.burnTxHash,
+        message: createPendingBridgeMessage({
+          lastStep: "mint",
+          lastTxHash: request.burnTxHash,
+          events: [],
+        }),
+      };
+    }
+
+    return {
+      success: true,
+      status: "completed",
+      forwarded: true,
+      transactionHash,
+      sourceTransactionHash: request.burnTxHash,
+      message: "Circle Forwarder confirmed the destination mint.",
+    };
+  } catch (error) {
+    if (isBridgeRetryableFailure(error)) {
+      return {
+        success: true,
+        status: "pending",
+        forwarded: true,
+        transactionHash: request.burnTxHash,
+        sourceTransactionHash: request.burnTxHash,
+        message: createPendingBridgeMessage({
+          lastStep: "mint",
+          lastTxHash: request.burnTxHash,
+          events: [],
+        }),
+      };
+    }
+
+    return {
+      success: false,
+      error: getBridgeErrorMessage(error),
+    };
+  }
+}
+
 function withBridgeTransactionTimeouts<T>(adapter: T): T {
   const candidate = adapter as T & {
     waitForTransaction?: (
@@ -739,14 +955,27 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
 }
 
 const getEvmRequestProvider = (
-  walletClient?: { request?: EIP1193Provider["request"]; transport?: { request?: EIP1193Provider["request"] } } | null,
-): Pick<EIP1193Provider, "request"> | null => {
+  walletClient?: {
+    request?: EIP1193Provider["request"];
+    transport?: { request?: EIP1193Provider["request"] };
+    on?: EIP1193Provider["on"];
+    removeListener?: EIP1193Provider["removeListener"];
+  } | null,
+): EIP1193Provider | null => {
   if (walletClient?.request) {
-    return { request: walletClient.request };
+    return {
+      request: walletClient.request,
+      on: walletClient.on ?? (() => undefined),
+      removeListener: walletClient.removeListener ?? (() => undefined),
+    } as EIP1193Provider;
   }
 
   if (walletClient?.transport?.request) {
-    return { request: walletClient.transport.request };
+    return {
+      request: walletClient.transport.request,
+      on: walletClient.on ?? (() => undefined),
+      removeListener: walletClient.removeListener ?? (() => undefined),
+    } as EIP1193Provider;
   }
 
   const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
@@ -905,13 +1134,59 @@ const getBridgeFeeQuote = (
   };
 };
 
+type PreparedSolanaRecipient = {
+  ownerAddress: string;
+  ataAddress: string;
+  created: boolean;
+  sponsored: boolean;
+};
+
+const prepareSolanaBridgeRecipient = async (
+  walletAddress: string,
+): Promise<PreparedSolanaRecipient> => {
+  const response = await fetch("/api/bridge/prepare-solana-recipient", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      walletAddress,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        success?: boolean;
+        error?: string;
+        ownerAddress?: string;
+        ataAddress?: string;
+        created?: boolean;
+        sponsored?: boolean;
+      }
+    | null;
+
+  if (!response.ok || !payload?.success || !payload.ataAddress || !payload.ownerAddress) {
+    throw new Error(
+      payload?.error ||
+        "Unable to prepare the Solana receiving wallet right now.",
+    );
+  }
+
+  return {
+    ownerAddress: payload.ownerAddress,
+    ataAddress: payload.ataAddress,
+    created: Boolean(payload.created),
+    sponsored: Boolean(payload.sponsored),
+  };
+};
+
 // Bridge request parameters
 export interface BridgeRequest {
   fromChain: string;
   toChain: string;
   amount: string; // In token units (e.g., "1.00" for USDC)
   token: string; // Token symbol, usually "USDC"
-  toAddress?: string; // Destination wallet address
+  toAddress?: string; // Destination wallet address (Solana owner wallet when bridging to Solana)
   sourceAddress?: string; // Source wallet address
   // Optional: For RainbowKit/wagmi integration - provide pre-configured viem clients
   publicClient?: any; // PublicClient from usePublicClient();
@@ -925,6 +1200,7 @@ export interface BridgeRequest {
 export interface BridgeResponse {
   success: boolean;
   transactionHash?: string;
+  sourceTransactionHash?: string;
   status?: string;
   error?: string;
   estimatedTime?: string;
@@ -1048,8 +1324,14 @@ export async function createBridgeKitAdapterFromClients(
     throw new Error("Chain information is required.");
   }
 
-  const adapter = {
-    getPublicClient: async ({ chain: requestedChain }: { chain?: ViemChain } = {}) => {
+  const provider = getEvmRequestProvider(walletClient);
+  if (!provider) {
+    throw new Error("Unable to resolve the connected wallet provider from RainbowKit.");
+  }
+
+  const adapter = await createViemAdapterFromProvider({
+    provider,
+    getPublicClient: ({ chain: requestedChain }) => {
       if (!requestedChain || requestedChain.id === publicClient.chain?.id) {
         return publicClient;
       }
@@ -1061,7 +1343,7 @@ export async function createBridgeKitAdapterFromClients(
       if (supportedChainConfig && supportedChainConfig.chainId !== SUPPORTED_CHAINS.solana.chainId) {
         return createEVMPublicClient(
           supportedChainConfig.chainId,
-          supportedChainConfig.rpcUrl,
+          `/api/rpc/${supportedChainConfig.chainId}`,
         );
       }
 
@@ -1074,9 +1356,11 @@ export async function createBridgeKitAdapterFromClients(
         pollingInterval: 2000,
       });
     },
-    getWalletClient: async () => walletClient,
-    getSupportedChains: async () => [...SUPPORTED_EVM_CIRCLE_CHAINS],
-  };
+    capabilities: {
+      addressContext: "user-controlled",
+      supportedChains: [...SUPPORTED_EVM_CIRCLE_CHAINS],
+    },
+  });
 
   console.log("Bridge adapter created from RainbowKit/wagmi clients", {
     chainId: walletClient.chain?.id ?? publicClient.chain?.id ?? chain?.id ?? chain,
@@ -1212,7 +1496,10 @@ function createEVMPublicClient(chainId: number, rpcUrl: string): PublicClient {
 
   return createPublicClient({
     chain: chain as ViemChain,
-    transport: http(rpcUrl),
+    transport: http(rpcUrl, {
+      retryCount: 10,
+      timeout: 180000,
+    }),
   });
 }
 
@@ -1240,6 +1527,8 @@ export async function bridgeTokens(
   const initialWalletChainId = shouldTrackEvmWalletChain
     ? await getActiveWalletChainId(request.walletClient)
     : null;
+  const resolvedUseForwarder =
+    request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
 
   try {
     const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
@@ -1252,6 +1541,10 @@ export async function bridgeTokens(
       };
     }
 
+    const requestedDestinationAddress = request.toAddress
+      ? normalizeWalletAddress(request.toAddress)
+      : "";
+
     // Determine if destination is cross-chain type (EVM <-> Solana)
     const isFromEVM = request.fromChain !== "solana";
     const isToEVM = request.toChain !== "solana";
@@ -1259,7 +1552,7 @@ export async function bridgeTokens(
 
     // Validate destination address for cross-chain type transitions
     if (isChainTypeCrossover) {
-      if (!request.toAddress) {
+      if (!requestedDestinationAddress) {
         const chainType = isToEVM ? "EVM" : "Solana";
         return {
           success: false,
@@ -1269,10 +1562,34 @@ export async function bridgeTokens(
 
       // Validate address format matches destination chain type
       const addressType = isToEVM ? "evm" : "solana";
-      if (!isValidAddress(request.toAddress, addressType)) {
+      if (!isValidAddress(requestedDestinationAddress, addressType)) {
         return {
           success: false,
           error: `Invalid ${addressType.toUpperCase()} address format for destination chain`,
+        };
+      }
+    }
+
+    let resolvedDestinationAddress = requestedDestinationAddress;
+    let preparedSolanaRecipient: PreparedSolanaRecipient | null = null;
+
+    if (request.toChain === "solana") {
+      if (!requestedDestinationAddress) {
+        return {
+          success: false,
+          error: "Destination Solana address is required.",
+        };
+      }
+
+      try {
+        preparedSolanaRecipient = await prepareSolanaBridgeRecipient(
+          requestedDestinationAddress,
+        );
+        resolvedDestinationAddress = preparedSolanaRecipient.ataAddress;
+      } catch (error) {
+        return {
+          success: false,
+          error: getBridgeErrorMessage(error),
         };
       }
     }
@@ -1282,11 +1599,13 @@ export async function bridgeTokens(
       to: toChainConfig.name,
       amount: request.amount,
       token: request.token,
-      destination: request.toAddress,
+      destination: requestedDestinationAddress,
+      resolvedDestination: resolvedDestinationAddress,
       sourceChainId: fromChainConfig.chainId,
       destChainId: toChainConfig.chainId,
       hasCustomClients: !!request.publicClient,
-      useForwarder: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
+      useForwarder: resolvedUseForwarder,
+      solanaRecipientPrepared: Boolean(preparedSolanaRecipient),
     });
 
     // Use Circle's recommended client-side bridge with browser wallet
@@ -1304,23 +1623,6 @@ export async function bridgeTokens(
         error: `Unsupported token: ${request.token}`,
       };
     }
-
-    // Map to Circle's chain objects
-    const CIRCLE_CHAIN_OBJECTS: Record<string, any> = {
-      // Testnet chains
-      "arc-testnet": ArcTestnet,
-      "base-sepolia": BaseSepolia,
-      "optimism-sepolia": OptimismSepolia,
-      "avalanche-fuji": AvalancheFuji,
-      "arbitrum-sepolia": ArbitrumSepolia,
-      "ethereum-sepolia": EthereumSepolia,
-      "linea-sepolia": LineaSepolia,
-      "polygon-amoy": PolygonAmoy,
-      "sonic-testnet": SonicTestnet,
-      "unichain-sepolia": UnichainSepolia,
-      "solana": SolanaDevnet,
-    };
-
     const fromChainObj = CIRCLE_CHAIN_OBJECTS[request.fromChain];
     const toChainObj = CIRCLE_CHAIN_OBJECTS[request.toChain];
 
@@ -1331,10 +1633,10 @@ export async function bridgeTokens(
       };
     }
 
-    const useForwarder = request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
-    const requiresDestinationAdapter = !(useForwarder && request.toAddress);
+    const useForwarder = resolvedUseForwarder;
+    const requiresDestinationAdapter = !(useForwarder && resolvedDestinationAddress);
 
-    if (!request.toAddress) {
+    if (!resolvedDestinationAddress) {
       return {
         success: false,
         error: "Destination address is required",
@@ -1470,7 +1772,6 @@ export async function bridgeTokens(
       console.log(`Bridge event [${step}]`, { txHash, explorerUrl, values });
     };
 
-    let timeoutId: number | undefined;
     let result: unknown;
 
     kit.on("*", bridgeEventHandler);
@@ -1480,19 +1781,18 @@ export async function bridgeTokens(
         chain: toChainObj,
       };
 
-      if (request.toAddress) {
-        bridgeDestination.recipientAddress = request.toAddress;
+      if (resolvedDestinationAddress) {
+        bridgeDestination.recipientAddress = resolvedDestinationAddress;
       }
 
-      if (useForwarder && request.toAddress) {
+      if (useForwarder && resolvedDestinationAddress) {
         bridgeDestination.useForwarder = true;
       } else {
         bridgeDestination.adapter = toAdapter;
         bridgeDestination.useForwarder = useForwarder;
       }
 
-      // Add a longer execution timeout so slow attestations do not fail too early.
-      const bridgePromise = kit.bridge({
+      const buildBridgeParams = () => ({
         from: { adapter: fromAdapter, chain: fromChainObj },
         to: bridgeDestination as any,
         amount: request.amount,
@@ -1506,24 +1806,69 @@ export async function bridgeTokens(
           : {}),
       });
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => {
-          reject(
-            new Error(
-              `Bridge timeout: Execution exceeded ${
-                BRIDGE_EXECUTION_TIMEOUT_MS / 60000
-              } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
-            )
-          );
-        }, BRIDGE_EXECUTION_TIMEOUT_MS);
-      });
+      const executeBridgeAttemptWithTimeout = async (
+        actionLabel: string,
+        operation: () => Promise<unknown>,
+      ) => {
+        let attemptTimeoutId: number | undefined;
 
-      // Race between bridge execution and timeout
-      result = await Promise.race([bridgePromise, timeoutPromise]);
-    } finally {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
+        try {
+          return await Promise.race([
+            operation(),
+            new Promise<never>((_, reject) => {
+              attemptTimeoutId = window.setTimeout(() => {
+                reject(
+                  new Error(
+                    `${actionLabel} timeout: Execution exceeded ${
+                      BRIDGE_EXECUTION_TIMEOUT_MS / 60000
+                    } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
+                  )
+                );
+              }, BRIDGE_EXECUTION_TIMEOUT_MS);
+            }),
+          ]);
+        } finally {
+          if (attemptTimeoutId) {
+            window.clearTimeout(attemptTimeoutId);
+          }
+        }
+      };
+
+      result = await executeBridgeAttemptWithTimeout("Bridge", () =>
+        kit.bridge(buildBridgeParams())
+      );
+
+      let retryableFailedStep = getRetryableFailedBridgeStep(result);
+
+      for (
+        let retryAttempt = 1;
+        retryableFailedStep && retryAttempt <= BRIDGE_RETRY_ATTEMPTS;
+        retryAttempt += 1
+      ) {
+        const retryMessage =
+          retryableFailedStep.errorMessage ||
+          getBridgeErrorMessage(retryableFailedStep.error);
+
+        console.warn("Retrying bridge after transient bridge-step failure", {
+          retryAttempt,
+          step: retryableFailedStep.name,
+          message: retryMessage,
+        });
+
+        await waitForBridgeRetryDelay(retryAttempt);
+
+        result = await executeBridgeAttemptWithTimeout(
+          `Bridge retry ${retryAttempt}`,
+          () =>
+            kit.retryBridge(
+              result as any,
+              getBridgeRetryContext(fromAdapter, toAdapter, useForwarder),
+            ),
+        );
+
+        retryableFailedStep = getRetryableFailedBridgeStep(result);
       }
+    } finally {
       kit.off("*", bridgeEventHandler);
     }
 
@@ -1559,10 +1904,11 @@ export async function bridgeTokens(
 
     // Extract transaction hash and check result status
     let txHash: string | undefined;
+    let sourceTxHash: string | undefined;
     let errorMessage: string | undefined;
     let pendingMessage: string | undefined;
     let shouldTreatAsPending = false;
-    let wasForwarded = false;
+    let wasForwarded = resolvedUseForwarder;
 
     if (typeof result === "string") {
       // If result is just a string, it's the transaction hash
@@ -1579,27 +1925,37 @@ export async function bridgeTokens(
       }
 
       // If no tx hash at root level, check steps array
-      if (!txHash && Array.isArray(resultObj.steps)) {
+      if (Array.isArray(resultObj.steps)) {
         // Prioritize the "mint" step (final transaction), otherwise take the last step with a txHash
         let lastTxHash: string | undefined;
         for (const step of resultObj.steps) {
-          if (step.txHash && typeof step.txHash === "string") {
-            lastTxHash = step.txHash;
-            // If this is the mint step, use it and break
-            if (step.name === "mint") {
-              txHash = lastTxHash;
-              break;
-            }
+          const stepTxHash =
+            typeof step.txHash === "string"
+              ? step.txHash
+              : typeof step.transactionHash === "string"
+                ? step.transactionHash
+                : undefined;
+
+          if (
+            !sourceTxHash &&
+            isBridgeSourceTransactionStep(step.name) &&
+            stepTxHash
+          ) {
+            sourceTxHash = stepTxHash;
           }
-          if (!txHash && step.transactionHash && typeof step.transactionHash === "string") {
-            lastTxHash = step.transactionHash;
-            if (step.name === "mint") {
-              txHash = lastTxHash;
-              break;
-            }
+
+          if (!stepTxHash) {
+            continue;
+          }
+
+          lastTxHash = stepTxHash;
+
+          if (!txHash && step.name === "mint") {
+            txHash = stepTxHash;
+            break;
           }
         }
-        // If no mint step found, use the last txHash we found
+
         if (!txHash && lastTxHash) {
           txHash = lastTxHash;
         }
@@ -1607,9 +1963,9 @@ export async function bridgeTokens(
 
       // Check steps array for any errors or stuck pending steps
       if (Array.isArray(resultObj.steps)) {
-        wasForwarded = resultObj.steps.some(
-          (step: any) => step?.forwarded === true
-        );
+        wasForwarded =
+          resolvedUseForwarder ||
+          resultObj.steps.some((step: any) => step?.forwarded === true);
 
         // First check for explicit errors
         const failedStep = resultObj.steps.find((step: any) => step.state === "error");
@@ -1660,7 +2016,8 @@ export async function bridgeTokens(
         if (
           submittedBridgeStep?.txHash &&
           (isBridgeTimeoutError(actionableFailedStepMessage) ||
-            isBridgeNetworkError(actionableFailedStepMessage))
+            isBridgeNetworkError(actionableFailedStepMessage) ||
+            isBridgeRelayerFailureMessage(actionableFailedStepMessage))
         ) {
           shouldTreatAsPending = true;
           txHash = txHash || submittedBridgeStep.txHash;
@@ -1688,6 +2045,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash ?? txHash,
         forwarded: wasForwarded,
         message:
           pendingMessage ||
@@ -1705,6 +2063,7 @@ export async function bridgeTokens(
         status: "completed",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash,
         forwarded: wasForwarded,
       };
     } else if (isSuccess) {
@@ -1714,6 +2073,7 @@ export async function bridgeTokens(
         status: wasForwarded ? "completed" : "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash,
         forwarded: wasForwarded,
         message: wasForwarded
           ? "Circle Forwarder confirmed the destination mint."
@@ -1732,6 +2092,7 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: txHash,
+        sourceTransactionHash: sourceTxHash ?? txHash,
         forwarded: wasForwarded,
         message: `Bridge is in progress. Waiting for ${pendingSteps} to complete on-chain. This typically takes 2-5 minutes.`,
       };
@@ -1751,8 +2112,17 @@ export async function bridgeTokens(
       bridgeProgress.lastTxHash &&
       hasActionableBridgeProgress(bridgeProgress) &&
       (isBridgeTimeoutError(rawErrorMessage) ||
-        isBridgeNetworkError(rawErrorMessage))
+        isBridgeNetworkError(rawErrorMessage) ||
+        isBridgeRelayerFailureMessage(rawErrorMessage))
     ) {
+      const sourceBridgeTxHash = [...bridgeProgress.events]
+        .reverse()
+        .find(
+          (event) =>
+            isBridgeSourceTransactionStep(event.step) &&
+            typeof event.txHash === "string",
+        )?.txHash;
+
       console.warn(
         "Treating bridge error as pending because a bridge transaction was already submitted",
         {
@@ -1767,7 +2137,8 @@ export async function bridgeTokens(
         status: "pending",
         estimatedTime: estimateBridgeTime(request.fromChain, request.toChain),
         transactionHash: bridgeProgress.lastTxHash,
-        forwarded: request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER,
+        sourceTransactionHash: sourceBridgeTxHash ?? bridgeProgress.lastTxHash,
+        forwarded: resolvedUseForwarder,
         message: createPendingBridgeMessage(bridgeProgress),
       };
     }
@@ -1781,6 +2152,9 @@ export async function bridgeTokens(
     } else if (isBridgeNetworkError(rawErrorMessage)) {
       errorMessage =
         "Network connection error during bridge. The RPC endpoint may be unavailable. Check your connection and try again.";
+    } else if (isBridgeRelayerFailureMessage(rawErrorMessage)) {
+      errorMessage =
+        "Circle is still finalizing the destination mint for this bridge. Check the recipient wallet balance before trying again.";
     } else if (
       rawErrorMessage.toLowerCase().includes("user rejected") ||
       rawErrorMessage.toLowerCase().includes("rejected")
@@ -1976,15 +2350,23 @@ export function formatBridgeAmount(amount: string, decimals: number = 6): string
 }
 
 /**
+ * Remove whitespace and invisible clipboard characters that commonly sneak into pasted wallet addresses.
+ */
+export function normalizeWalletAddress(address: string): string {
+  return address.replace(/[\s\u200B-\u200D\uFEFF]/g, "").trim();
+}
+/**
  * Validate wallet address format based on chain
  */
 export function isValidAddress(address: string, chainType: "evm" | "solana"): boolean {
+  const normalizedAddress = normalizeWalletAddress(address);
+
   if (chainType === "evm") {
     // EVM address: 0x followed by 40 hex characters
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+    return /^0x[a-fA-F0-9]{40}$/.test(normalizedAddress);
   } else if (chainType === "solana") {
-    // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 43-44 characters
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+    // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 32-44 characters
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress);
   }
   return false;
 }
@@ -1999,6 +2381,7 @@ export default {
   getBridgeFees,
   estimateBridgeTime,
   formatBridgeAmount,
+  normalizeWalletAddress,
   isValidAddress,
   getViemClient,
   createEVMPublicClient: createEVMPublicClient,

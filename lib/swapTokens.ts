@@ -77,12 +77,13 @@ export function isSupportedSwapPair(
 
 export function getSupportedCounterpartyTokens(
   tokenSymbol?: string | null,
+  availableTokens: readonly SwapToken[] = SWAP_TOKENS,
 ): SwapToken[] {
   if (!tokenSymbol) {
-    return [...SWAP_TOKENS];
+    return [...availableTokens];
   }
 
-  return SWAP_TOKENS.filter(
+  return availableTokens.filter(
     (token) =>
       token.symbol !== tokenSymbol &&
       isSupportedSwapPair(tokenSymbol, token.symbol),

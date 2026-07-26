@@ -1,25 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
+import {
+  getTowerDexQuote,
+  isTowerDexEnabled,
+  isTowerDexSupportedPair,
+  normalizeTowerDexId,
+  TOWER_DEX_ID,
+  TOWER_DEX_NAME,
+  type TowerDexQuote,
+} from "@/lib/towerDex";
 
 type BackendQuote = {
   inputToken: string;
   outputToken: string;
   inputAmount: string;
-  swapInputAmount?: string; // Net amount after TowerSwapExecutor fee, normalized to 18 decimals
+  swapInputAmount?: string;
   outputAmount: string;
   minOut: string;
   priceImpact: string | number;
   gasEstimate?: string;
-  slippage?: number; // in basis points
+  slippage?: number;
   exec_price?: number;
   feeBps?: number;
-  feeMode?: 'tower-swap-executor' | 'none';
-  platformFeeAmount?: string; // Platform fee in input token, normalized to 18 decimals
+  feeMode?: "tower-swap-executor" | "none";
+  platformFeeAmount?: string;
   route: {
     type: "single" | "multi" | "split";
     rawPath?: string;
-    totalFee?: number; // in basis points
+    totalFee?: number;
     estimatedOutput?: string;
     hops: Array<{
       dexId: string;
@@ -32,7 +41,7 @@ type BackendQuote = {
       amountIn: string;
       amountOut: string;
       priceImpact: string | number;
-      liquidity?: string; // Liquidity available in the hop
+      liquidity?: string;
     }>;
   };
   routeOptions?: RouteOption[];
@@ -44,8 +53,10 @@ type RouteOption = {
   outputAmount: string;
   routeType: "single" | "multi" | "split";
   gasEstimate?: string;
-  quote: BackendQuote;
+  quote: QuoteLike;
 };
+
+type QuoteLike = BackendQuote | TowerDexQuote;
 
 const BACKEND_URL = resolveSwapBackendUrl();
 const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
@@ -57,6 +68,10 @@ const SWAPS_DISABLED_RESPONSE = {
 const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
+const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 8_000;
+const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 8_000;
+const OPTIONAL_TOWER_QUOTE_TIMEOUT_MS = 3_000;
+const OPTIONAL_TOWER_QUOTE_JOIN_GRACE_MS = 250;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const UNITFLOW_ADAPTER_ADDRESS =
   process.env.UNITFLOW_ADAPTER_ADDRESS ||
@@ -124,7 +139,10 @@ const resolveTokenAddress = (token?: string) => {
 };
 
 const normalizeDexId = (dexId?: string) => {
-  const normalized = String(dexId || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const normalized = String(dexId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
 
   if (!normalized) {
     return undefined;
@@ -152,6 +170,10 @@ const normalizeDexId = (dexId?: string) => {
     return "xylonet-adapter";
   }
 
+  if (normalizeTowerDexId(normalized) === TOWER_DEX_ID) {
+    return TOWER_DEX_ID;
+  }
+
   return normalized;
 };
 
@@ -172,10 +194,7 @@ const getBackendDexIds = (
       return true;
     }
 
-    return (
-      UNITFLOW_EXECUTOR_ENABLED &&
-      outputToken.toLowerCase() !== TOKEN_CONTRACTS.USDC.toLowerCase()
-    );
+    return UNITFLOW_EXECUTOR_ENABLED;
   }) as BackendDexId[];
 };
 
@@ -218,7 +237,7 @@ const buildBackendQuoteBody = (body: Record<string, unknown>) => {
   return body;
 };
 
-const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
+const routeOptionFromQuote = (quote: QuoteLike): RouteOption => {
   const hop = quote.route?.hops?.[0];
   const dexId = hop?.dexId || hop?.dex || hop?.dexName || "unknown";
   const normalizedDexId = normalizeDexId(dexId) || "unknown";
@@ -232,14 +251,110 @@ const routeOptionFromQuote = (quote: BackendQuote): RouteOption => {
           ? "UnitFlow"
           : normalizedDexId === "xylonet-adapter"
             ? "Xylonet"
-            : hop?.dexName || hop?.dexId || "Unknown Router",
+            : normalizedDexId === TOWER_DEX_ID
+              ? TOWER_DEX_NAME
+              : hop?.dexName || hop?.dexId || "Unknown Router",
     outputAmount: quote.outputAmount,
     routeType: quote.route?.type || "single",
     quote,
   };
 };
 
-async function fetchBackendQuote(body: Record<string, unknown>) {
+const dedupeRouteOptions = (options: RouteOption[]) =>
+  Array.from(
+    options
+      .map((option) => ({
+        ...option,
+        dexId: normalizeDexId(option.dexId) || option.dexId,
+      }))
+      .reduce((optionsByDexId, option) => {
+        const existingOption = optionsByDexId.get(option.dexId);
+
+        if (
+          !existingOption ||
+          BigInt(option.outputAmount || "0") >
+            BigInt(existingOption.outputAmount || "0")
+        ) {
+          optionsByDexId.set(option.dexId, option);
+        }
+
+        return optionsByDexId;
+      }, new Map<string, RouteOption>())
+      .values(),
+  );
+
+const dedupeQuotesByDex = (quotes: BackendQuote[]) =>
+  Array.from(
+    quotes.reduce((quotesByDexId, quote) => {
+      const dexId = normalizeDexId(
+        quote.route?.hops?.[0]?.dexId ||
+          quote.route?.hops?.[0]?.dex ||
+          quote.route?.hops?.[0]?.dexName,
+      );
+
+      if (!dexId) {
+        return quotesByDexId;
+      }
+
+      const existingQuote = quotesByDexId.get(dexId);
+
+      if (
+        !existingQuote ||
+        BigInt(quote.outputAmount || "0") > BigInt(existingQuote.outputAmount || "0")
+      ) {
+        quotesByDexId.set(dexId, quote);
+      }
+
+      return quotesByDexId;
+    }, new Map<string, BackendQuote>()).values(),
+  );
+
+const buildBackendRouteOptions = (
+  quote: BackendQuote,
+  backendDexIds: readonly BackendDexId[],
+) => {
+  const fallbackOption = routeOptionFromQuote(quote);
+  const sourceOptions = quote.routeOptions?.length
+    ? quote.routeOptions
+    : [fallbackOption];
+  const filteredOptions = sourceOptions.filter((option) => {
+    const normalizedOptionDexId = normalizeDexId(option.dexId || option.dexName);
+
+    return normalizedOptionDexId
+      ? backendDexIds.includes(normalizedOptionDexId as BackendDexId)
+      : false;
+  });
+
+  return dedupeRouteOptions(
+    filteredOptions.length > 0 ? filteredOptions : [fallbackOption],
+  );
+};
+
+const getMissingBackendDexIds = (
+  routeOptions: RouteOption[],
+  backendDexIds: readonly BackendDexId[],
+): BackendDexId[] => {
+  const coveredDexIds = new Set(
+    routeOptions.flatMap((option) => {
+      const normalizedDexId = normalizeDexId(option.dexId || option.dexName);
+
+      return normalizedDexId &&
+        backendDexIds.includes(normalizedDexId as BackendDexId)
+        ? [normalizedDexId as BackendDexId]
+        : [];
+    }),
+  );
+
+  return backendDexIds.filter((backendDexId) => !coveredDexIds.has(backendDexId));
+};
+
+async function fetchBackendQuote(
+  body: Record<string, unknown>,
+  timeoutMs = PRIMARY_BACKEND_QUOTE_TIMEOUT_MS,
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const requestBody = buildBackendQuoteBody(body);
     const response = await fetch(`${BACKEND_URL}/api/swap/quote`, {
@@ -247,6 +362,7 @@ async function fetchBackendQuote(body: Record<string, unknown>) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
       cache: "no-store",
+      signal: controller.signal,
     });
 
     if (response.status === 404) {
@@ -269,13 +385,91 @@ async function fetchBackendQuote(body: Record<string, unknown>) {
       throw error;
     }
 
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new BackendQuoteError(
+        `Swap backend quote timed out after ${Math.round(timeoutMs / 1000)}s`,
+        504,
+      );
+    }
+
     console.warn("[swap/quote] Backend quote unavailable:", error);
     throw new BackendQuoteError(
       "Swap backend unavailable",
       502,
       error instanceof Error ? error.message : String(error),
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
+}
+
+async function fetchBackendQuotesByDex(params: {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  slippageTolerance: number;
+  backendDexIds: readonly BackendDexId[];
+}) {
+  const { backendDexIds, ...baseBody } = params;
+
+  const results = await Promise.all(
+    backendDexIds.map(async (backendDexId) => {
+      try {
+        const quote = await fetchBackendQuote(
+          {
+            ...baseBody,
+            dexId: backendDexId,
+          },
+          BACKEND_DEX_FALLBACK_TIMEOUT_MS,
+        );
+
+        return {
+          quote,
+          error: null as BackendQuoteError | null,
+        };
+      } catch (error) {
+        const backendError =
+          error instanceof BackendQuoteError
+            ? error
+            : new BackendQuoteError(
+                "Swap backend unavailable",
+                502,
+                error instanceof Error ? error.message : String(error),
+              );
+
+        console.warn(`[swap/quote] ${backendDexId} quote unavailable:`, {
+          status: backendError.status,
+          message: backendError.message,
+        });
+
+        return {
+          quote: null,
+          error: backendError,
+        };
+      }
+    }),
+  );
+
+  const quotes = results.flatMap((result) =>
+    result.quote ? [result.quote] : [],
+  );
+
+  if (quotes.length === 0) {
+    const firstError = results.find((result) => result.error)?.error;
+    if (firstError) {
+      throw firstError;
+    }
+
+    return {
+      quotes: [],
+      routeOptions: [],
+    };
+  }
+
+  return {
+    quotes,
+    routeOptions: dedupeRouteOptions(quotes.map(routeOptionFromQuote)),
+  };
 }
 
 async function fetchBackendQuotes(params: {
@@ -285,7 +479,10 @@ async function fetchBackendQuotes(params: {
   slippageTolerance: number;
   dexId?: string;
   backendDexIds?: readonly BackendDexId[];
-}) {
+}): Promise<{
+  quotes: BackendQuote[];
+  routeOptions: RouteOption[];
+}> {
   const { dexId, backendDexIds = BACKEND_DEX_IDS, ...baseBody } = params;
 
   if (dexId) {
@@ -294,26 +491,96 @@ async function fetchBackendQuotes(params: {
       !normalizedDexId ||
       !backendDexIds.includes(normalizedDexId as BackendDexId)
     ) {
-      return [];
+      return {
+        quotes: [],
+        routeOptions: [],
+      };
     }
 
     const quote = await fetchBackendQuote({
       ...baseBody,
       dexId: normalizedDexId,
     });
-    return quote ? [quote] : [];
+
+    if (!quote) {
+      return {
+        quotes: [],
+        routeOptions: [],
+      };
+    }
+
+    return {
+      quotes: [quote],
+      routeOptions: [routeOptionFromQuote(quote)],
+    };
   }
 
-  const quotes = await Promise.all(
-    backendDexIds.map((backendDexId) =>
-      fetchBackendQuote({
-        ...baseBody,
-        dexId: backendDexId,
-      }),
-    ),
+  const aggregateQuote = await fetchBackendQuote(baseBody);
+
+  if (!aggregateQuote) {
+    return {
+      quotes: [],
+      routeOptions: [],
+    };
+  }
+
+  const aggregateRouteOptions = buildBackendRouteOptions(
+    aggregateQuote,
+    backendDexIds,
+  );
+  const missingBackendDexIds = getMissingBackendDexIds(
+    aggregateRouteOptions,
+    backendDexIds,
   );
 
-  return quotes.filter((quote): quote is BackendQuote => quote !== null);
+  if (missingBackendDexIds.length === 0) {
+    return {
+      quotes: [aggregateQuote],
+      routeOptions: aggregateRouteOptions,
+    };
+  }
+
+  try {
+    const fallbackResult = await fetchBackendQuotesByDex({
+      ...baseBody,
+      backendDexIds: missingBackendDexIds,
+    });
+
+    return {
+      quotes: dedupeQuotesByDex([aggregateQuote, ...fallbackResult.quotes]),
+      routeOptions: dedupeRouteOptions([
+        ...aggregateRouteOptions,
+        ...fallbackResult.routeOptions,
+      ]),
+    };
+  } catch {
+    return {
+      quotes: [aggregateQuote],
+      routeOptions: aggregateRouteOptions,
+    };
+  }
+}
+
+const waitForNull = (timeoutMs: number) =>
+  new Promise<null>((resolve) => {
+    setTimeout(() => resolve(null), timeoutMs);
+  });
+
+async function fetchOptionalTowerQuote(params: {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  slippageBps: number;
+}) {
+  try {
+    return await Promise.race([
+      getTowerDexQuote(params),
+      waitForNull(OPTIONAL_TOWER_QUOTE_TIMEOUT_MS),
+    ]);
+  } catch (error) {
+    console.warn("[swap/quote] Tower quote unavailable:", error);
+    return null;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -340,7 +607,10 @@ export async function POST(request: NextRequest) {
 
     if (!inputToken || !outputToken || !inputAmount) {
       return NextResponse.json(
-        { success: false, error: "Missing inputToken, outputToken, or inputAmount" },
+        {
+          success: false,
+          error: "Missing inputToken, outputToken, or inputAmount",
+        },
         { status: 400 },
       );
     }
@@ -358,19 +628,97 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const towerPairSupported =
+      isTowerDexEnabled() &&
+      isTowerDexSupportedPair(resolvedInputToken, resolvedOutputToken);
+    const towerDexRequested = normalizedRequestedDexId === TOWER_DEX_ID;
+
+    if (towerDexRequested) {
+      const towerQuote = towerPairSupported
+        ? await fetchOptionalTowerQuote({
+            inputToken: resolvedInputToken,
+            outputToken: resolvedOutputToken,
+            inputAmount,
+            slippageBps: slippageTolerance,
+          })
+        : null;
+
+      if (!towerQuote) {
+        return NextResponse.json(
+          { success: false, error: "No valid Tower route found" },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...towerQuote,
+          routeOptions: [routeOptionFromQuote(towerQuote)],
+        },
+      });
+    }
+
     const backendDexIds = getBackendDexIds(
       resolvedInputToken,
       resolvedOutputToken,
     );
-    const backendQuotes = await fetchBackendQuotes({
-      inputToken: resolvedInputToken,
-      outputToken: resolvedOutputToken,
-      inputAmount,
-      slippageTolerance,
-      backendDexIds,
-    });
+    const backendDexRequest =
+      normalizedRequestedDexId && normalizedRequestedDexId !== TOWER_DEX_ID
+        ? normalizedRequestedDexId
+        : undefined;
+    const shouldFetchTowerQuote =
+      !normalizedRequestedDexId && towerPairSupported;
 
-    const candidateQuotes = backendQuotes;
+    const optionalTowerQuotePromise = shouldFetchTowerQuote
+      ? fetchOptionalTowerQuote({
+          inputToken: resolvedInputToken,
+          outputToken: resolvedOutputToken,
+          inputAmount,
+          slippageBps: slippageTolerance,
+        })
+      : null;
+
+    let backendResult: { quotes: BackendQuote[]; routeOptions: RouteOption[] };
+    let optionalTowerQuote: TowerDexQuote | null = null;
+
+    try {
+      backendResult = await fetchBackendQuotes({
+        inputToken: resolvedInputToken,
+        outputToken: resolvedOutputToken,
+        inputAmount,
+        slippageTolerance,
+        backendDexIds,
+        dexId: backendDexRequest,
+      });
+    } catch (error) {
+      if (optionalTowerQuotePromise) {
+        const fallbackTowerQuote = await optionalTowerQuotePromise;
+
+        if (fallbackTowerQuote) {
+          return NextResponse.json({
+            success: true,
+            data: {
+              ...fallbackTowerQuote,
+              routeOptions: [routeOptionFromQuote(fallbackTowerQuote)],
+            },
+          });
+        }
+      }
+
+      throw error;
+    }
+
+    if (optionalTowerQuotePromise) {
+      optionalTowerQuote = await Promise.race([
+        optionalTowerQuotePromise,
+        waitForNull(OPTIONAL_TOWER_QUOTE_JOIN_GRACE_MS),
+      ]);
+    }
+
+    const candidateQuotes = optionalTowerQuote
+      ? [...backendResult.quotes, optionalTowerQuote]
+      : backendResult.quotes;
 
     if (candidateQuotes.length === 0) {
       return NextResponse.json(
@@ -379,24 +727,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const routeOptions = Array.from(
-      candidateQuotes.reduce((optionsByDexId, quote) => {
-        const option = routeOptionFromQuote(quote);
-        const existingOption = optionsByDexId.get(option.dexId);
-
-        if (
-          !existingOption ||
-          BigInt(option.outputAmount || "0") > BigInt(existingOption.outputAmount || "0")
-        ) {
-          optionsByDexId.set(option.dexId, option);
-        }
-
-        return optionsByDexId;
-      }, new Map<string, RouteOption>()).values(),
-    );
+    const routeOptions = dedupeRouteOptions([
+      ...backendResult.routeOptions,
+      ...(optionalTowerQuote
+        ? [routeOptionFromQuote(optionalTowerQuote)]
+        : []),
+    ]);
     const requestedQuote = normalizedRequestedDexId
-      ? candidateQuotes.find((quote) => routeOptionFromQuote(quote).dexId === normalizedRequestedDexId)
+      ? candidateQuotes.find(
+          (quote) => routeOptionFromQuote(quote).dexId === normalizedRequestedDexId,
+        )
       : null;
+
     if (normalizedRequestedDexId && !requestedQuote) {
       return NextResponse.json(
         {
@@ -411,7 +753,9 @@ export async function POST(request: NextRequest) {
     const bestQuote =
       requestedQuote ||
       candidateQuotes.reduce((best, quote) =>
-        BigInt(quote.outputAmount || "0") > BigInt(best.outputAmount || "0") ? quote : best,
+        BigInt(quote.outputAmount || "0") > BigInt(best.outputAmount || "0")
+          ? quote
+          : best,
       );
 
     return NextResponse.json({
@@ -443,3 +787,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+
+

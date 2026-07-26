@@ -23,18 +23,13 @@ import {
 import { createPublicClient, createWalletClient, http, Chain as ViemChain } from "viem";
 import { getSupportedTokens } from "@/lib/bridgeService";
 
-// Map Chain IDs to reliable RPC endpoints (using public and well-maintained endpoints)
-const RELIABLE_RPC_ENDPOINTS: Record<number, string> = {
-  5042002: "https://rpc.testnet.arc.network", // Arc Testnet - primary
-  84532: "https://sepolia.base.org", // Base Sepolia
-  11155420: "https://sepolia.optimism.io", // Optimism Sepolia
-  43113: "https://api.avax-test.network/ext/bc/C/rpc", // Avalanche Fuji
-  421614: "https://sepolia-rollup.arbitrum.io/rpc", // Arbitrum Sepolia
-  11155111: "https://ethereum-sepolia-rpc.allthatnode.com", // Ethereum Sepolia
-  59141: "https://rpc.sepolia.linea.build", // Linea Sepolia
-  80002: "https://rpc-amoy.polygon.technology", // Polygon Amoy
-  14601: "https://rpc.testnet.soniclabs.com", // Sonic Testnet
-  1301: "https://sepolia.unichain.org", // Unichain Sepolia
+const RETRYABLE_RPC_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+
+const getBridgeRpcUrl = (chainId: number) => `/api/rpc/${chainId}`;
+
+const getBridgeRpcUrls = (chainId: number) => {
+  const primaryUrl = getBridgeRpcUrl(chainId);
+  return [primaryUrl];
 };
 
 // Map chain IDs to chain name keys for token lookup
@@ -100,32 +95,32 @@ export interface BridgeResponseBody {
 /**
  * Create a Bridge Kit adapter with custom RPC endpoints for server-side use
  */
-function createServerBridgeAdapter(): any {
+async function createServerBridgeAdapter(): Promise<any> {
   // Get all supported chains as full Viem Chain objects with all properties
   const supportedChains = Object.values(CIRCLE_CHAIN_OBJECTS);
 
   const adapterOptions = {
     getPublicClient: ({ chain }: { chain: ViemChain }) => {
-      const rpcUrl = RELIABLE_RPC_ENDPOINTS[chain.id as keyof typeof RELIABLE_RPC_ENDPOINTS];
-      if (!rpcUrl) {
+      const rpcUrls = getBridgeRpcUrls(chain.id);
+      if (!rpcUrls.length) {
         throw new Error(`No RPC configured for chain: ${chain.name} (${chain.id})`);
       }
       return createPublicClient({
         chain,
-        transport: http(rpcUrl, {
+        transport: http(rpcUrls[0], {
           retryCount: 5,
           timeout: 30000, // 30 second timeout for server-side
         }),
       });
     },
     getWalletClient: ({ chain }: { chain: ViemChain }) => {
-      const rpcUrl = RELIABLE_RPC_ENDPOINTS[chain.id as keyof typeof RELIABLE_RPC_ENDPOINTS];
-      if (!rpcUrl) {
+      const rpcUrls = getBridgeRpcUrls(chain.id);
+      if (!rpcUrls.length) {
         throw new Error(`No RPC configured for chain: ${chain.name} (${chain.id})`);
       }
       return createWalletClient({
         chain,
-        transport: http(rpcUrl, {
+        transport: http(rpcUrls[0], {
           retryCount: 5,
           timeout: 30000,
         }),
@@ -202,7 +197,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const kit = new BridgeKit();
 
     // Create adapter with server-side RPC configuration
-    const adapter = createServerBridgeAdapter();
+    const adapter = await createServerBridgeAdapter();
 
     // Execute the bridge transaction
     // Use viem Chain objects from Circle's chain definitions
