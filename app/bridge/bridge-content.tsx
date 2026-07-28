@@ -1693,10 +1693,6 @@ export default function BridgePageContent({
                             {destinationChainName}
                           </span>
                         </p>
-                        <p className="text-sm text-[#7dd3a8]">
-                          {bridgeHook.message ||
-                            "Circle Forwarder confirmed the destination mint."}
-                        </p>
                       </>
                     ) : (
                       <>

@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
-import {
-  buildTowerDexSwapTransaction,
-  isTowerDexQuote,
-  type TowerDexQuote,
-} from "@/lib/towerDex";
 
 const BACKEND_URL = resolveSwapBackendUrl();
 const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
@@ -21,32 +16,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-
-    if (isTowerDexQuote(body?.quote)) {
-      const quote = body.quote as TowerDexQuote;
-      const userAddress =
-        typeof body?.userAddress === "string" ? body.userAddress : "";
-
-      if (!userAddress) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Missing userAddress for Tower DEX swap build",
-          },
-          { status: 400 },
-        );
-      }
-
-      const transactions = await buildTowerDexSwapTransaction({
-        quote,
-        userAddress,
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: transactions,
-      });
-    }
 
     const response = await fetch(`${BACKEND_URL}/api/swap/build-tx`, {
       method: "POST",
@@ -75,3 +44,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

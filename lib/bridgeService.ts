@@ -1585,7 +1585,9 @@ export async function bridgeTokens(
         preparedSolanaRecipient = await prepareSolanaBridgeRecipient(
           requestedDestinationAddress,
         );
-        resolvedDestinationAddress = preparedSolanaRecipient.ataAddress;
+        // AppKit expects the Solana owner wallet address as recipientAddress;
+        // it derives the USDC ATA internally when building the CCTP burn.
+        resolvedDestinationAddress = preparedSolanaRecipient.ownerAddress;
       } catch (error) {
         return {
           success: false,
@@ -1606,6 +1608,7 @@ export async function bridgeTokens(
       hasCustomClients: !!request.publicClient,
       useForwarder: resolvedUseForwarder,
       solanaRecipientPrepared: Boolean(preparedSolanaRecipient),
+      solanaRecipientAta: preparedSolanaRecipient?.ataAddress,
     });
 
     // Use Circle's recommended client-side bridge with browser wallet

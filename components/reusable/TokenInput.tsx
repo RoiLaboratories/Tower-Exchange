@@ -7,6 +7,8 @@ interface TokenInputProps {
   onChange: (value: string) => void;
   onClear: () => void;
   usdValueLabel: string;
+  isLoading?: boolean;
+  loadingLabel?: string;
 }
 
 const MAX_FONT_SIZE = 36;
@@ -17,10 +19,13 @@ const TokenInput = ({
   onChange,
   onClear,
   usdValueLabel,
+  isLoading = false,
+  loadingLabel = "Loading quote",
 }: TokenInputProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLSpanElement>(null);
   const [fontSize, setFontSize] = useState(MAX_FONT_SIZE);
+  const measuredValue = isLoading ? "..." : value || "0.00";
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -28,7 +33,7 @@ const TokenInput = ({
     if (!container || !mirror) return;
 
     // Available width: container minus the clear-button space (24px)
-    const hasClear = value !== "0.00" && value !== "";
+    const hasClear = !isLoading && value !== "0.00" && value !== "";
     const availableWidth = container.clientWidth - (hasClear ? 28 : 4);
 
     // Binary-search for the largest font size that fits
@@ -44,7 +49,7 @@ const TokenInput = ({
       }
     }
     setFontSize(lo);
-  }, [value]);
+  }, [isLoading, value]);
 
   return (
     <div
@@ -66,7 +71,7 @@ const TokenInput = ({
           pointerEvents: "none",
         }}
       >
-        {value || "0.00"}
+        {measuredValue}
       </span>
 
       <style jsx>{`
@@ -79,27 +84,70 @@ const TokenInput = ({
           -moz-appearance: textfield;
           appearance: textfield;
         }
+        @keyframes tokenInputDotPulse {
+          0%,
+          80%,
+          100% {
+            opacity: 0.35;
+            transform: translateY(0);
+          }
+          40% {
+            opacity: 1;
+            transform: translateY(-2px);
+          }
+        }
+        .quote-loading-dot {
+          display: inline-block;
+          animation: tokenInputDotPulse 1s infinite ease-in-out;
+        }
+        .quote-loading-dot:nth-child(2) {
+          animation-delay: 0.12s;
+        }
+        .quote-loading-dot:nth-child(3) {
+          animation-delay: 0.24s;
+        }
       `}</style>
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={(e) => {
-          if (value === "0.00") onChange("");
-          e.target.select();
-        }}
-        onBlur={() => {
-          if (value === "") onChange("0.00");
-        }}
-        style={{
-          fontSize: `${fontSize}px`,
-          height: `${MAX_FONT_SIZE + 4}px`,
-          transition: "font-size 0.15s ease",
-        }}
-        className="block w-full min-w-0 bg-transparent pr-6 text-right font-semibold text-foreground outline-none"
-        placeholder="0.00"
-      />
-      {value !== "0.00" && value !== "" && (
+
+      {isLoading ? (
+        <div
+          aria-live="polite"
+          aria-label={loadingLabel}
+          style={{
+            fontSize: `${fontSize}px`,
+            height: `${MAX_FONT_SIZE + 4}px`,
+            transition: "font-size 0.15s ease",
+          }}
+          className="flex w-full min-w-0 items-center justify-end bg-transparent pr-1 text-right font-semibold text-foreground outline-none"
+        >
+          <span aria-hidden="true" className="inline-flex items-center gap-0.5">
+            <span className="quote-loading-dot">.</span>
+            <span className="quote-loading-dot">.</span>
+            <span className="quote-loading-dot">.</span>
+          </span>
+        </div>
+      ) : (
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={(e) => {
+            if (value === "0.00") onChange("");
+            e.target.select();
+          }}
+          onBlur={() => {
+            if (value === "") onChange("0.00");
+          }}
+          style={{
+            fontSize: `${fontSize}px`,
+            height: `${MAX_FONT_SIZE + 4}px`,
+            transition: "font-size 0.15s ease",
+          }}
+          className="block w-full min-w-0 bg-transparent pr-6 text-right font-semibold text-foreground outline-none"
+          placeholder="0.00"
+        />
+      )}
+
+      {!isLoading && value !== "0.00" && value !== "" && (
         <button
           onClick={onClear}
           className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg"
@@ -107,7 +155,13 @@ const TokenInput = ({
           ×
         </button>
       )}
-      <p className="text-sm text-muted-foreground truncate">{usdValueLabel}</p>
+      <p
+        className={`text-sm truncate ${
+          isLoading ? "font-medium text-primary" : "text-muted-foreground"
+        }`}
+      >
+        {isLoading ? loadingLabel : usdValueLabel}
+      </p>
     </div>
   );
 };

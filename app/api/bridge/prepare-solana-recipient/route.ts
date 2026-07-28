@@ -1,5 +1,7 @@
+import { Buffer } from "node:buffer";
+
 import { NextRequest, NextResponse } from "next/server";
-import { createAssociatedTokenAccountInstruction } from "@solana/spl-token";
+import { createAssociatedTokenAccountIdempotentInstruction } from "@solana/spl-token";
 import {
   Connection,
   Keypair,
@@ -18,6 +20,11 @@ export const dynamic = "force-dynamic";
 
 const SOLANA_COMMITMENT = "confirmed" as const;
 const SOLANA_DEFAULT_RPC_URL = "https://api.devnet.solana.com";
+const BASE58_ALPHABET =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const BASE58_ALPHABET_MAP = new Map(
+  [...BASE58_ALPHABET].map((char, index) => [char, index]),
+);
 
 const getSolanaRpcUrl = () =>
   process.env.SOLANA_DEVNET_RPC_URL ||
@@ -25,6 +32,56 @@ const getSolanaRpcUrl = () =>
   process.env.SOLANA_RPC_URL ||
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
   SOLANA_DEFAULT_RPC_URL;
+
+const decodeBase58 = (value: string) => {
+  if (!/^[1-9A-HJ-NP-Za-km-z]+$/.test(value)) {
+    throw new Error("Value is not base58 encoded.");
+  }
+
+  const bytes = [0];
+
+  for (const char of value) {
+    const digit = BASE58_ALPHABET_MAP.get(char);
+
+    if (digit === undefined) {
+      throw new Error("Invalid base58 character in Solana ATA sponsor key.");
+    }
+
+    let carry = digit;
+
+    for (let index = 0; index < bytes.length; index += 1) {
+      const nextValue = bytes[index] * 58 + carry;
+      bytes[index] = nextValue & 0xff;
+      carry = nextValue >> 8;
+    }
+
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+
+  for (const char of value) {
+    if (char !== "1") {
+      break;
+    }
+
+    bytes.push(0);
+  }
+
+  return Uint8Array.from(bytes.reverse());
+};
+
+const parseByteValue = (value: unknown) => {
+  const parsed =
+    typeof value === "number" ? value : Number.parseInt(String(value).trim(), 10);
+
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 255) {
+    throw new Error("Invalid Solana ATA sponsor key byte.");
+  }
+
+  return parsed;
+};
 
 const parseSponsorSecretKey = (rawValue: string) => {
   const trimmed = rawValue.trim();
@@ -34,19 +91,25 @@ const parseSponsorSecretKey = (rawValue: string) => {
   }
 
   if (trimmed.startsWith("[")) {
-    return Uint8Array.from(JSON.parse(trimmed) as number[]);
+    const parsed = JSON.parse(trimmed) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      throw new Error("Solana ATA sponsor key JSON must be an array.");
+    }
+
+    return Uint8Array.from(parsed.map(parseByteValue));
   }
 
   if (trimmed.includes(",")) {
-    return Uint8Array.from(
-      trimmed.split(",").map((value) => {
-        const parsed = Number.parseInt(value.trim(), 10);
-        if (!Number.isFinite(parsed)) {
-          throw new Error("Invalid Solana ATA sponsor key byte.");
-        }
-        return parsed;
-      }),
-    );
+    return Uint8Array.from(trimmed.split(",").map(parseByteValue));
+  }
+
+  if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(trimmed)) {
+    const decodedBase58 = decodeBase58(trimmed);
+
+    if (decodedBase58.length === 64) {
+      return decodedBase58;
+    }
   }
 
   return Uint8Array.from(Buffer.from(trimmed, "base64"));
@@ -63,10 +126,20 @@ const getSponsorKeypair = () => {
   }
 
   try {
-    return Keypair.fromSecretKey(parseSponsorSecretKey(secretKey));
+    const secretKeyBytes = parseSponsorSecretKey(secretKey);
+
+    if (secretKeyBytes.length !== 64) {
+      throw new Error(
+        `Solana ATA sponsor key must decode to a 64-byte secret key, received ${secretKeyBytes.length} bytes.`,
+      );
+    }
+
+    return Keypair.fromSecretKey(secretKeyBytes);
   } catch (error) {
     console.error("Invalid Solana ATA sponsor secret key:", error);
-    return null;
+    throw new Error(
+      "Configured Solana ATA sponsor secret key is invalid. Use a Solana keypair secret key as a JSON array, comma-separated byte list, base58 string, or base64 string. Do not use the public wallet address.",
+    );
   }
 };
 
@@ -98,6 +171,7 @@ const ensureRecipientUsdcAccount = async (ownerAddress: string) => {
   }
 
   const sponsor = getSponsorKeypair();
+
   if (!sponsor) {
     throw new Error(
       "This Solana wallet is not ready to receive bridged USDC yet. Configure SOLANA_ATA_SPONSOR_SECRET_KEY so Tower can initialize the recipient USDC account automatically.",
@@ -108,7 +182,7 @@ const ensureRecipientUsdcAccount = async (ownerAddress: string) => {
   const mintPublicKey = new PublicKey(SOLANA_DEVNET_USDC_MINT);
 
   const transaction = new Transaction().add(
-    createAssociatedTokenAccountInstruction(
+    createAssociatedTokenAccountIdempotentInstruction(
       sponsor.publicKey,
       ataPublicKey,
       ownerPublicKey,

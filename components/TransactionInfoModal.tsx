@@ -389,15 +389,11 @@ const TransactionInfoModal = ({
                     icon={details.sourceTokenIcon}
                     badgeIcon={details.sourceChainIcon}
                   />
-                  {details.kind === "swap" ? (
-                    <>
-                      <ArrowRight className="h-6 w-6 text-white" />
-                      <HeaderLogo
-                        icon={details.destinationTokenIcon}
-                        badgeIcon={details.destinationChainIcon}
-                      />
-                    </>
-                  ) : null}
+                  <ArrowRight className="h-6 w-6 text-white" />
+                  <HeaderLogo
+                    icon={details.destinationTokenIcon}
+                    badgeIcon={details.destinationChainIcon}
+                  />
                 </div>
 
                 <h2 className="max-w-full truncate whitespace-nowrap text-[0.95rem] font-semibold leading-tight text-white sm:text-[1.45rem]">
