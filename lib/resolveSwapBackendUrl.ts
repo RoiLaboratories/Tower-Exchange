@@ -1,5 +1,5 @@
 const LOCAL_SWAP_BACKEND_URL = "http://localhost:3001";
-const PRODUCTION_SWAP_BACKEND_URL = "https://tower-backend.vercel.app";
+const PRODUCTION_SWAP_BACKEND_URL = "https://tower-backend.up.railway.app";
 
 export function resolveSwapBackendUrl() {
   if (process.env.BACKEND_URL) {
