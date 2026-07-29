@@ -71,9 +71,6 @@ const RECEIPT_POLL_INTERVAL_MS = 1000;
 const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Swaps are temporarily paused for maintenance.";
-const SWAP_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
-  cirBTC: 8,
-};
 
 type JsonRpcResponse<T> = {
   result?: T;
@@ -1377,10 +1374,7 @@ const SwapCard = ({
 
         setRouteOptions(nextRouteOptions);
 
-        const receiveTokenDecimals = TOKEN_DECIMALS[receiveToken.symbol] || 18;
-        const displayPrecision =
-          SWAP_DISPLAY_DECIMALS[receiveToken.symbol] ??
-          Math.min(receiveTokenDecimals, 6);
+        const displayPrecision = 2;
         const outputAmountForDisplay =
           bestRouteOption?.outputAmount || quoteData.outputAmount;
         const quoteAmount = Number.parseFloat(
@@ -2914,7 +2908,6 @@ const SwapCard = ({
                 routeOptions={routeOptions}
                 inputUsdValue={sellAmountUsdValue}
                 outputTokenUsdPrice={receiveTokenWithLivePrice?.usdPrice}
-                outputTokenSymbol={receiveToken?.symbol}
                 availableRouterIds={availableRouterIds}
               />
             </div>
@@ -2922,10 +2915,10 @@ const SwapCard = ({
         </motion.div>
 
         {/* Token Quick Access Buttons */}
-        <div className="grid grid-cols-2 gap-3 mt-4 w-full max-w-[440px] mx-auto">
+        <div className="mx-auto mt-4 grid w-full max-w-[440px] grid-cols-2 justify-items-center gap-3">
           <motion.button
             onClick={() => setSellToken(sellToken)}
-            className="flex min-w-0 items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm"
+            className="flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -2948,7 +2941,7 @@ const SwapCard = ({
           {receiveToken && (
             <motion.button
               onClick={() => setReceiveToken(receiveToken)}
-              className="flex min-w-0 items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm"
+              className="flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
