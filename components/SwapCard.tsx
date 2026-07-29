@@ -2915,10 +2915,10 @@ const SwapCard = ({
         </motion.div>
 
         {/* Token Quick Access Buttons */}
-        <div className="mx-auto mt-4 grid w-full max-w-[440px] grid-cols-2 justify-items-center gap-3">
+        <div className={`mx-auto mt-4 grid w-full max-w-[440px] justify-items-center gap-3 ${receiveToken ? "grid-cols-2" : "grid-cols-1"}`}>
           <motion.button
             onClick={() => setSellToken(sellToken)}
-            className="flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm"
+            className={`flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full bg-[#191A1C] border border-border px-2 py-3 text-xs hover:bg-secondary transition-colors sm:gap-2 sm:px-5 sm:text-sm ${receiveToken ? "" : "max-w-[214px]"}`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
