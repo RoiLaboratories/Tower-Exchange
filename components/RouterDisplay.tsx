@@ -302,7 +302,7 @@ export default function RouterDisplay({
             <motion.div
               key={router.id}
               role="listitem"
-              className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left transition-colors ${
+              className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-left transition-colors sm:gap-3 sm:px-3 ${
                 isSelected
                   ? `
     border border-[#56697c]
@@ -313,7 +313,7 @@ export default function RouterDisplay({
                   : "border border-transparent"
               }`}
             >
-              <span className="flex min-w-0 flex-1 items-center gap-2.5">
+              <span className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
                 <Image
                   src={router.logo}
                   alt={`${router.name} logo`}
@@ -321,17 +321,17 @@ export default function RouterDisplay({
                   height={18}
                   className="h-[18px] w-[18px] shrink-0 object-contain"
                 />
-                <span className="truncate text-sm font-medium text-white/90">
+                <span className="min-w-[3.4rem] truncate text-sm font-medium text-white/90 sm:min-w-0">
                   {router.name}
                 </span>
                 {isBestPrice && (
-                  <span className="rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium text-[#8fbce7]">
+                  <span className="shrink-0 rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium leading-none text-[#8fbce7]">
                     Best Price
                   </span>
                 )}
               </span>
-              <span className="flex min-w-[150px] shrink-0 flex-col items-end text-right leading-tight sm:min-w-[168px]">
-                <span className="flex w-full items-center justify-end gap-2">
+              <span className="flex min-w-[7.4rem] shrink-0 flex-col items-end text-right leading-tight sm:min-w-[168px]">
+                <span className="flex w-full min-w-0 items-center justify-end gap-1.5 sm:gap-2">
                   <span className="whitespace-nowrap text-[10px] font-normal tabular-nums leading-none text-[#07D54F]">
                     {routeAddedValue}
                   </span>
