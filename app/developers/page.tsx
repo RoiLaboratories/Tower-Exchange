@@ -104,12 +104,12 @@ export default function DevelopersPage() {
           </div>
         </motion.div>
 
-        {/* Protocol Logos Row with Figma Edge Fade Gradient - Wraps on Mobile, Fade Mask on Desktop only */}
+        {/* Protocol Logos Marquee */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="w-full max-w-[900px] mx-auto my-12 sm:my-14 flex flex-wrap md:flex-nowrap items-center justify-center md:justify-between px-4 sm:px-8 gap-6 sm:gap-8 md:gap-4 min-h-[44px] h-auto"
+          className="relative w-full max-w-[900px] mx-auto my-12 sm:my-14 overflow-hidden flex items-center min-h-[44px] h-auto"
           style={
             isMobile
               ? {}
@@ -121,65 +121,97 @@ export default function DevelopersPage() {
                 }
           }
         >
-          {/* Circle Logo */}
-          <div
-            className="h-7 sm:h-8 w-[110px] sm:w-[130px] md:w-[150px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
-            style={{
-              maskImage: `url('/assets/developer/developer-circle.svg')`,
-              WebkitMaskImage: `url('/assets/developer/developer-circle.svg')`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
+          <motion.div
+            className="flex w-max"
+            animate={{ x: ["0%", "-50%"] }}
+            transition={{
+              ease: "linear",
+              duration: 30,
+              repeat: Infinity,
             }}
-          />
+          >
+            {[...Array(2)].map((_, i) => (
+              <div
+                key={i}
+                className="flex gap-12 sm:gap-16 md:gap-24 items-center shrink-0 pr-12 sm:pr-16 md:pr-24"
+              >
+                {/* Circle Logo */}
+                <div
+                  className="h-7 sm:h-8 w-[110px] sm:w-[130px] md:w-[150px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  style={{
+                    maskImage: `url('/assets/developer/developer-circle.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-circle.svg')`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
 
-          {/* Arc Logo */}
-          <div
-            className="h-7 sm:h-8 w-[70px] sm:w-[85px] md:w-[100px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
-            style={{
-              maskImage: `url('/assets/developer/developer-arc.svg')`,
-              WebkitMaskImage: `url('/assets/developer/developer-arc.svg')`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
-            }}
-          />
+                {/* Arc Logo */}
+                <div
+                  className="h-7 sm:h-8 w-[70px] sm:w-[85px] md:w-[100px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  style={{
+                    maskImage: `url('/assets/developer/developer-arc.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-arc.svg')`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
 
-          {/* Gate DEX Logo */}
-          <div
-            className="h-7 sm:h-8 w-[130px] sm:w-[160px] md:w-[185px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
-            style={{
-              maskImage: `url('/assets/developer/developer-gate-dex.svg')`,
-              WebkitMaskImage: `url('/assets/developer/developer-gate-dex.svg')`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
-            }}
-          />
+                {/* Gate DEX Logo */}
+                <div
+                  className="h-7 sm:h-8 w-[130px] sm:w-[160px] md:w-[185px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  style={{
+                    maskImage: `url('/assets/developer/developer-gate-dex.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-gate-dex.svg')`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
 
-          {/* Hibachi Logo */}
-          <div
-            className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
-            style={{
-              maskImage: `url('/assets/developer/developer-hibachi.svg')`,
-              WebkitMaskImage: `url('/assets/developer/developer-hibachi.svg')`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
-            }}
-          />
+                {/* Hibachi Logo */}
+                <div
+                  className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  style={{
+                    maskImage: `url('/assets/developer/developer-hibachi.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-hibachi.svg')`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
+
+                {/* XyloNet Logo */}
+                <div
+                  className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  style={{
+                    maskImage: `url('/assets/developer/developer-xylonet.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-xylonet.svg')`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                  }}
+                />
+              </div>
+            ))}
+          </motion.div>
         </motion.div>
 
         {/* Feature Cards Stack (Figma: width 1011px, rx 25.4px, fill #191A1C, border #26282D, gap 34px) */}
