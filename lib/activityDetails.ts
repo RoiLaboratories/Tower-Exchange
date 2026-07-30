@@ -174,7 +174,7 @@ export const buildTransactionInfoDetails = (
     sourceAddress: row.wallet_address,
     destinationAddress: row.wallet_address,
     sourceTokenIcon: getTokenIcon(row.source_currency_ticker),
-    destinationTokenIcon: destinationToken ? getTokenIcon(destinationToken) : null,
+    destinationTokenIcon: getTokenIcon(destinationToken || row.source_currency_ticker),
     sourceChainIcon: getChainLogoByName(row.source_network_name) ?? arcLogo,
     destinationChainIcon:
       getChainLogoByName(destinationNetworkName) ?? arcLogo,

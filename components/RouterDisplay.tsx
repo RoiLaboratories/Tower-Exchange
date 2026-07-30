@@ -2,7 +2,7 @@
 
 import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
-import { Info } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { formatUnits } from "viem";
 
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
@@ -18,13 +18,14 @@ interface RouteOption {
   dexName: string;
   outputAmount: string;
   routeType: string;
+  isFallback?: boolean;
 }
 
 interface RouterDisplayProps {
   selectedRouterId?: string;
   routeOptions?: RouteOption[];
+  inputUsdValue?: number;
   outputTokenUsdPrice?: number;
-  outputTokenSymbol?: string;
   availableRouterIds?: string[];
 }
 
@@ -62,9 +63,7 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
   },
 ];
 
-const ROUTE_OUTPUT_DISPLAY_DECIMALS: Partial<Record<string, number>> = {
-  cirBTC: 8,
-};
+const ROUTE_OUTPUT_DISPLAY_DECIMALS = 2;
 
 const normalizeRouterId = (id = "") => {
   const normalizedId = id.toLowerCase();
@@ -83,32 +82,34 @@ const outputAmountToBigInt = (amount?: string) => {
   }
 };
 
-const formatRouteTokenAmount = (amount?: string, outputTokenSymbol?: string) => {
+const routeTokenAmountFromOutput = (amount?: string) => {
   const rawAmount = outputAmountToBigInt(amount);
 
   if (rawAmount <= 0n) {
-    return "-";
+    return null;
   }
 
   const tokenAmount = Number.parseFloat(formatUnits(rawAmount, 18));
-  if (!Number.isFinite(tokenAmount)) {
+  return Number.isFinite(tokenAmount) ? tokenAmount : null;
+};
+
+const formatRouteTokenAmount = (amount?: string) => {
+  const tokenAmount = routeTokenAmountFromOutput(amount);
+
+  if (tokenAmount === null) {
     return "-";
   }
 
-  const maximumFractionDigits =
-    ROUTE_OUTPUT_DISPLAY_DECIMALS[outputTokenSymbol || ""] ?? 6;
-  const formattedAmount = tokenAmount.toLocaleString("en-US", {
+  return tokenAmount.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits,
+    maximumFractionDigits: ROUTE_OUTPUT_DISPLAY_DECIMALS,
   });
-
-  return formattedAmount;
 };
 
-const formatRouteUsdValue = (amount?: string, outputTokenUsdPrice?: number) => {
-  const rawAmount = outputAmountToBigInt(amount);
+const getRouteUsdValue = (amount?: string, outputTokenUsdPrice?: number) => {
+  const tokenAmount = routeTokenAmountFromOutput(amount);
 
-  if (rawAmount <= 0n) {
+  if (tokenAmount === null) {
     return null;
   }
 
@@ -116,19 +117,40 @@ const formatRouteUsdValue = (amount?: string, outputTokenUsdPrice?: number) => {
     return null;
   }
 
-  const tokenAmount = Number.parseFloat(formatUnits(rawAmount, 18));
-  if (!Number.isFinite(tokenAmount)) {
+  const usdValue = tokenAmount * outputTokenUsdPrice;
+  return Number.isFinite(usdValue) && usdValue > 0 ? usdValue : null;
+};
+
+const formatRouteUsdValue = (usdValue: number | null) =>
+  usdValue === null ? null : formatUsdAmount(usdValue, 1);
+
+const formatRouteAddedValue = (
+  routeUsdValue: number | null,
+  inputUsdValue?: number,
+) => {
+  if (
+    routeUsdValue === null ||
+    typeof inputUsdValue !== "number" ||
+    !Number.isFinite(inputUsdValue) ||
+    inputUsdValue <= 0
+  ) {
     return null;
   }
 
-  return formatUsdAmount(tokenAmount, outputTokenUsdPrice);
+  const addedValue = routeUsdValue - inputUsdValue;
+
+  if (!Number.isFinite(addedValue) || addedValue <= 0) {
+    return null;
+  }
+
+  return `+${formatUsdAmount(addedValue, 1)}`;
 };
 
 export default function RouterDisplay({
   selectedRouterId,
   routeOptions = [],
+  inputUsdValue,
   outputTokenUsdPrice,
-  outputTokenSymbol,
   availableRouterIds = [],
 }: RouterDisplayProps) {
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
@@ -156,7 +178,7 @@ export default function RouterDisplay({
       : SUPPORTED_ROUTERS.filter((router) => routeOptionByDexId.has(router.id))
   ).map((router, index) => ({ router, index }));
 
-  const displayedRoutes = routersToDisplay
+  const allQuotedRoutes = routersToDisplay
     .map(({ router, index }) => {
       const option = routeOptionByDexId.get(router.id) ?? null;
       const outputAmount = outputAmountToBigInt(option?.outputAmount);
@@ -173,6 +195,11 @@ export default function RouterDisplay({
     .sort((leftRoute, rightRoute) => {
       if (leftRoute.hasQuote && rightRoute.hasQuote) {
         if (leftRoute.outputAmount === rightRoute.outputAmount) {
+          const leftFallback = leftRoute.option?.isFallback === true;
+          const rightFallback = rightRoute.option?.isFallback === true;
+          if (leftFallback !== rightFallback) {
+            return leftFallback ? 1 : -1;
+          }
           return leftRoute.index - rightRoute.index;
         }
 
@@ -186,17 +213,25 @@ export default function RouterDisplay({
       return leftRoute.index - rightRoute.index;
     });
 
-  if (displayedRoutes.length === 0) {
+  if (allQuotedRoutes.length === 0) {
     return null;
   }
 
-  const bestQuotedRoute = displayedRoutes.find((route) => route.hasQuote) ?? null;
+  const displayedRoutes = allQuotedRoutes.slice(0, 3);
+  const bestQuotedRoute = allQuotedRoutes[0] ?? null;
   const bestOutputAmount = bestQuotedRoute?.outputAmount ?? 0n;
+  const bestPriceRouterId = bestQuotedRoute?.router.id;
   const normalizedSelectedRouterId = selectedRouterId
     ? normalizeRouterId(selectedRouterId)
     : undefined;
-  const dexCount = displayedRoutes.length;
-  const dexNamesLabel = displayedRoutes.map(({ router }) => router.name).join(", ");
+  const dexCount = allQuotedRoutes.length;
+  const primaryDexName = allQuotedRoutes[0]?.router.name || "Router";
+  const otherDexNames = allQuotedRoutes.slice(1).map(({ router }) => router.name);
+  const dexNamesLabel = otherDexNames.length
+    ? `${primaryDexName} and ${otherDexNames.length} other${
+        otherDexNames.length === 1 ? "" : "s"
+      }`
+    : primaryDexName;
 
   return (
     <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
@@ -217,7 +252,7 @@ export default function RouterDisplay({
             className="inline-grid h-3.5 min-w-6 shrink-0 place-items-center rounded-full border border-white/10 bg-[#2E2E2E] px-1 text-white"
             aria-label={`${dexCount} DEX routes available`}
           >
-            <span className="flex items-center justify-center gap-0.5 translate-y-[0.5px] text-[9px] font-bold leading-none" >
+            <span className="flex translate-y-[0.5px] items-center justify-center gap-0.5 text-[9px] font-bold leading-none">
               <span>{dexCount}</span>
               <Image
                 src={routeIcon}
@@ -228,10 +263,27 @@ export default function RouterDisplay({
               />
             </span>
           </span>
-          <span className="truncate text-[11px] font-medium text-white/80">
-            <span className="text-[9px] font-normal text-white/45">Via</span>{" "}
-            <span>{dexNamesLabel}</span>
-          </span>
+          {otherDexNames.length > 0 ? (
+            <details className="group/routes relative min-w-0">
+              <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-white/80 outline-none [&::-webkit-details-marker]:hidden">
+                <span className="text-[9px] font-normal text-white/45">Via</span>
+                <span className="truncate">{dexNamesLabel}</span>
+                <ChevronDown className="h-3 w-3 shrink-0 text-white/55 transition-transform group-open/routes:rotate-180" />
+              </summary>
+              <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-white/10 bg-[#08090a] px-2 py-1.5 text-[11px] text-white/80 shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
+                {otherDexNames.map((name) => (
+                  <div key={name} className="whitespace-nowrap px-2 py-1">
+                    {name}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : (
+            <span className="truncate text-[11px] font-medium text-white/80">
+              <span className="text-[9px] font-normal text-white/45">Via</span>{" "}
+              <span>{dexNamesLabel}</span>
+            </span>
+          )}
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info
               className="h-3.5 w-3.5 text-white/70 outline-none"
@@ -253,19 +305,27 @@ export default function RouterDisplay({
       <div className="space-y-1 p-1.5">
         {displayedRoutes.map(({ router, option, outputAmount, hasQuote }) => {
           const isBestPrice =
-            hasQuote && outputAmount > 0n && outputAmount === bestOutputAmount;
+            hasQuote &&
+            outputAmount > 0n &&
+            outputAmount === bestOutputAmount &&
+            router.id === bestPriceRouterId;
           const isSelected =
             normalizedSelectedRouterId === router.id ||
             (!normalizedSelectedRouterId && isBestPrice);
-          const routeUsdValue = hasQuote
-            ? formatRouteUsdValue(option?.outputAmount, outputTokenUsdPrice)
+          const routeUsdAmount = hasQuote
+            ? getRouteUsdValue(option?.outputAmount, outputTokenUsdPrice)
             : null;
+          const routeUsdValue = formatRouteUsdValue(routeUsdAmount);
+          const routeAddedValue = formatRouteAddedValue(
+            routeUsdAmount,
+            inputUsdValue,
+          );
 
           return (
             <motion.div
               key={router.id}
               role="listitem"
-              className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-sm px-3 py-2 text-left transition-colors ${
+              className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-left transition-colors sm:gap-3 sm:px-3 ${
                 isSelected
                   ? `
     border border-[#56697c]
@@ -276,7 +336,7 @@ export default function RouterDisplay({
                   : "border border-transparent"
               }`}
             >
-              <span className="flex min-w-0 items-center gap-2.5">
+              <span className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
                 <Image
                   src={router.logo}
                   alt={`${router.name} logo`}
@@ -284,22 +344,29 @@ export default function RouterDisplay({
                   height={18}
                   className="h-[18px] w-[18px] shrink-0 object-contain"
                 />
-                <span className="truncate text-sm font-medium text-white/90">
+                <span className="min-w-[3.4rem] truncate text-sm font-medium text-white/90 sm:min-w-0">
                   {router.name}
                 </span>
                 {isBestPrice && (
-                  <span className="rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium text-[#8fbce7]">
+                  <span className="shrink-0 rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium leading-none text-[#8fbce7]">
                     Best Price
                   </span>
                 )}
               </span>
-              <span className="flex shrink-0 flex-col items-end text-right leading-tight">
-                <span
-                  className={`text-sm tabular-nums ${
-                    hasQuote ? "text-white/90" : "text-white/45"
-                  }`}
-                >
-                  {formatRouteTokenAmount(option?.outputAmount, outputTokenSymbol)}
+              <span className="flex min-w-[7.4rem] shrink-0 flex-col items-end text-right leading-tight sm:min-w-[168px]">
+                <span className="flex w-full min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+                  {isBestPrice && routeAddedValue ? (
+                    <span className="whitespace-nowrap text-[10px] font-normal tabular-nums leading-none text-[#07D54F]">
+                      {routeAddedValue}
+                    </span>
+                  ) : null}
+                  <span
+                    className={`text-sm tabular-nums ${
+                      hasQuote ? "text-white/90" : "text-white/45"
+                    }`}
+                  >
+                    {formatRouteTokenAmount(option?.outputAmount)}
+                  </span>
                 </span>
                 {routeUsdValue ? (
                   <span className="text-[11px] tabular-nums text-white/55">

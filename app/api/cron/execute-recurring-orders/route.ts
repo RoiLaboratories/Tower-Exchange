@@ -22,8 +22,13 @@ const isAuthorizedCronRequest = (request: NextRequest) => {
   return authorization === `Bearer ${cronSecret}`;
 };
 
-export async function GET(request: NextRequest) {
+async function handleRecurringOrderCron(request: NextRequest) {
   if (!isAuthorizedCronRequest(request)) {
+    console.error("Recurring order cron unauthorized request", {
+      hasAuthorization: Boolean(request.headers.get("authorization")),
+      userAgent: request.headers.get("user-agent"),
+    });
+
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -33,10 +38,18 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!functionUrl || !invokeKey) {
+    const missing = {
+      supabaseUrl: !functionUrl,
+      invokeKey: !invokeKey,
+    };
+
+    console.error("Recurring order cron missing required environment", missing);
+
     return NextResponse.json(
       {
         error:
           "Recurring order cron is missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+        missing,
       },
       { status: 500 }
     );
@@ -50,7 +63,7 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${invokeKey}`,
       },
       body: JSON.stringify({
-        trigger: "vercel-cron",
+        trigger: "app-cron",
         requestedAt: new Date().toISOString(),
       }),
     });
@@ -76,19 +89,28 @@ export async function GET(request: NextRequest) {
       console.error("Recurring order cron failed:", logPayload);
     }
 
-    return NextResponse.json(
-      logPayload,
-      { status: response.ok ? 200 : 502 }
-    );
+    return NextResponse.json(logPayload, { status: response.ok ? 200 : 502 });
   } catch (error) {
+    const details = error instanceof Error ? error.message : String(error);
+
+    console.error("Recurring order cron invoke error:", details);
+
     return NextResponse.json(
       {
         error: "Failed to invoke recurring order executor.",
-        details: error instanceof Error ? error.message : String(error),
+        details,
       },
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleRecurringOrderCron(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleRecurringOrderCron(request);
 }
 
 export async function HEAD() {

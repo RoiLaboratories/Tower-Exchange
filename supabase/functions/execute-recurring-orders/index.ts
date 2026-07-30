@@ -51,7 +51,7 @@ const supabaseServiceKey = denoRuntime.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 const swapBackendUrl =
   denoRuntime.env.get("TOWER_BACKEND_URL") ||
   denoRuntime.env.get("NEXT_PUBLIC_BACKEND_URL") ||
-  "https://tower-backend.vercel.app";
+  "https://tower-backend.up.railway.app";
 const swapBackendApiKey =
   denoRuntime.env.get("TOWER_BACKEND_API_KEY") ||
   denoRuntime.env.get("BACKEND_API_KEY") ||
@@ -170,18 +170,31 @@ function normalizeDexId(value?: string): string {
   return normalized;
 }
 
+function normalizeHttpUrl(rawUrl: string): string {
+  const trimmedUrl = rawUrl.trim().replace(/\/+$/, "");
+
+  if (!trimmedUrl) {
+    return "";
+  }
+
+  const urlWithProtocol = /^https?:\/\//i.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
+
+  return new URL(urlWithProtocol).toString().replace(/\/+$/, "");
+}
+
 function getSwapBackendUrl(): string {
-  const normalizedUrl = swapBackendUrl.replace(/\/$/, "");
+  const normalizedUrl = normalizeHttpUrl(swapBackendUrl);
 
   if (/tower-exchange-ai/i.test(normalizedUrl)) {
     throw new Error(
-      "TOWER_BACKEND_URL points to the Tower-Exchange-AI service. Recurring orders require the swap backend URL, for example https://tower-backend.vercel.app."
+      "TOWER_BACKEND_URL points to the Tower-Exchange-AI service. Recurring orders require the swap backend URL, for example https://tower-backend.up.railway.app."
     );
   }
 
   return normalizedUrl;
 }
-
 function buildBackendHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

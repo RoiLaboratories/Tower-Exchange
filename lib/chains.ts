@@ -9,6 +9,7 @@ import lineaSepoliaLogo from "@/public/assets/Linea-Token_Round.svg";
 import polygonAmoyLogo from "@/public/assets/polygon.svg";
 import sonicTestnetLogo from "@/public/assets/S_token.svg";
 import unichainSepoliaLogo from "@/public/assets/Mainnet.svg";
+import solanaLogo from "@/public/assets/solana.svg";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
 
 export type AppChain = {
@@ -25,6 +26,12 @@ export const CHAINS: AppChain[] = [
     name: "Arc Testnet",
     color: "#00AEEF",
     logo: arcTestnetLogo,
+  },
+  {
+    id: "solana",
+    name: "Solana Devnet",
+    color: "#14F195",
+    logo: solanaLogo,
   },
   {
     id: "base-sepolia",
@@ -82,12 +89,37 @@ export const CHAINS: AppChain[] = [
   },
 ];
 
+const CHAIN_NAME_ALIASES: Record<string, string> = {
+  arc: "arc-testnet",
+  "arc testnet": "arc-testnet",
+  "arc-testnet": "arc-testnet",
+  solana: "solana",
+  "solana devnet": "solana",
+  "solana-devnet": "solana",
+};
+
+const normalizeChainLookupValue = (value: string) =>
+  value.trim().toLowerCase().replace(/\s+/g, " ");
+
 /** Look up a chain logo by network name (as stored in the DB), e.g. "Ethereum Sepolia" */
 export const getChainLogoByName = (
-  networkName: string,
+  networkName: string | null | undefined,
 ): StaticImageData | null => {
+  if (!networkName) {
+    return null;
+  }
+
+  const normalizedNetworkName = normalizeChainLookupValue(networkName);
+  const aliasId = CHAIN_NAME_ALIASES[normalizedNetworkName];
+
+  if (aliasId) {
+    return getChainLogoById(aliasId);
+  }
+
   const match = CHAINS.find(
-    (c) => c.name.toLowerCase() === networkName.toLowerCase(),
+    (c) =>
+      normalizeChainLookupValue(c.name) === normalizedNetworkName ||
+      normalizeChainLookupValue(c.id) === normalizedNetworkName,
   );
   return match?.logo ?? null;
 };

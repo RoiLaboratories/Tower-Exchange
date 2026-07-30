@@ -43,6 +43,7 @@ export interface SwapRouteOption {
   routeType: 'single' | 'multi' | 'split';
   gasEstimate?: string;
   quote: SwapQuote;
+  isFallback?: boolean;
 }
 
 export interface SwapTransaction {
@@ -76,7 +77,7 @@ interface UseTowerSwapOptions {
 }
 
 const DEFAULT_BACKEND_URL = '';
-const QUOTE_REQUEST_TIMEOUT_MS = 12_000;
+const QUOTE_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
@@ -345,3 +346,4 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
 }
 
 export default useTowerSwap;
+
