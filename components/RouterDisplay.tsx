@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
 import { ChevronDown, Info } from "lucide-react";
@@ -153,6 +154,25 @@ export default function RouterDisplay({
   outputTokenUsdPrice,
   availableRouterIds = [],
 }: RouterDisplayProps) {
+  const routesDetailsRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: PointerEvent) => {
+      if (
+        routesDetailsRef.current &&
+        routesDetailsRef.current.hasAttribute("open") &&
+        !routesDetailsRef.current.contains(event.target as Node)
+      ) {
+        routesDetailsRef.current.removeAttribute("open");
+      }
+    };
+
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
+  }, []);
+
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
     const dexId = normalizeRouterId(option.dexId);
     const existingOption = optionsByDexId.get(dexId);
@@ -257,14 +277,14 @@ export default function RouterDisplay({
               <Image
                 src={routeIcon}
                 alt=""
-                width={8}
-                height={8}
-                className="h-[8px] w-[8px] shrink-0 object-contain"
+                width={7}
+                height={7}
+                className="h-[7px] w-[7px] shrink-0 object-contain"
               />
             </span>
           </span>
           {otherDexNames.length > 0 ? (
-            <details className="group/routes relative min-w-0">
+            <details ref={routesDetailsRef} className="group/routes relative min-w-0">
               <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-white/80 outline-none [&::-webkit-details-marker]:hidden">
                 <span className="text-[9px] font-normal text-white/45">Via</span>
                 <span className="truncate">{dexNamesLabel}</span>
