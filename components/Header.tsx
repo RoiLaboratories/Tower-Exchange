@@ -122,7 +122,7 @@ const Header = () => {
     { name: "Trade", path: null, dropdown: true }, // Trade is now a dropdown
     { name: "Tower AI", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
-    { name: "Developers", path: "/developers" },
+    // { name: "Developers", path: "/developers" },
     { name: "Faucet", path: "/faucet" },
     {
       name: "Bell Points",

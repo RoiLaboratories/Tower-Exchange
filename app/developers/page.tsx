@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { notFound } from "next/navigation";
 import { motion } from "framer-motion";
 import { Database, Zap, Network } from "lucide-react";
 
@@ -33,6 +34,7 @@ const features = [
 ];
 
 export default function DevelopersPage() {
+  notFound();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
