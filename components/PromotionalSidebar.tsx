@@ -181,7 +181,7 @@ export default function PromotionalSidebar() {
                   e.stopPropagation();
                   handleCloseSlide(slide.id);
                 }}
-                className="absolute top-2.5 right-2.5 xl:top-3.5 xl:right-3.5 w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-black/40 xl:bg-white/5 p-0 text-gray-300 transition-colors hover:text-white hover:bg-black/60 xl:hover:bg-white/10 z-10"
+                className="absolute top-2.5 right-2.5 xl:top-3.5 xl:right-3.5 w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 p-0 text-gray-300 transition-colors hover:text-white hover:bg-white/10 xl:hover:bg-white/10 z-10"
                 aria-label="Close promotion"
               >
                 <X size={16} />

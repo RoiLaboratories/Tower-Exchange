@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
 import { ChevronDown, Info } from "lucide-react";
@@ -163,6 +164,25 @@ export default function RouterDisplay({
   outputTokenSymbol,
   availableRouterIds = [],
 }: RouterDisplayProps) {
+  const routesDetailsRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: PointerEvent) => {
+      if (
+        routesDetailsRef.current &&
+        routesDetailsRef.current.hasAttribute("open") &&
+        !routesDetailsRef.current.contains(event.target as Node)
+      ) {
+        routesDetailsRef.current.removeAttribute("open");
+      }
+    };
+
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
+  }, []);
+
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
     const dexId = normalizeRouterId(option.dexId);
     const existingOption = optionsByDexId.get(dexId);
@@ -274,7 +294,7 @@ export default function RouterDisplay({
             </span>
           </span>
           {otherDexNames.length > 0 ? (
-            <details className="group/routes relative min-w-0">
+            <details ref={routesDetailsRef} className="group/routes relative min-w-0">
               <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-white/80 outline-none [&::-webkit-details-marker]:hidden">
                 <span className="text-[9px] font-normal text-white/45">Via</span>
                 <span className="truncate">{dexNamesLabel}</span>

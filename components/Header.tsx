@@ -115,13 +115,14 @@ const Header = () => {
   const tradeOptions = [
     { name: "Swap", path: "/" },
     { name: "Bridge", path: "/bridge" },
+    { name: "Recurring Orders", path: "/recurring-orders" },
   ];
 
   const navItems = [
     { name: "Trade", path: null, dropdown: true }, // Trade is now a dropdown
     { name: "Tower AI", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
-    { name: "Recurring Orders", path: "/recurring-orders" },
+    // { name: "Developers", path: "/developers" },
     { name: "Faucet", path: "/faucet" },
     {
       name: "Bell Points",
@@ -223,7 +224,7 @@ const Header = () => {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
-                            className="absolute left-0 mt-2 w-40 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
+                            className="absolute left-0 mt-2 w-45 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
                           >
                             <div className="p-2">
                               {tradeOptions.map((option) => (
@@ -259,7 +260,7 @@ const Header = () => {
                     onClick={() => handleNavigation(item.path as string, item.disabled)}
                     disabled={item.disabled}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      pathname === item.path
+                      pathname === item.path || (item.path === "/developers" && pathname === "/developer")
                         ? "bg-primary/20 text-primary"
                         : "text-muted-foreground hover:text-foreground"
                     } ${
@@ -519,7 +520,7 @@ const Header = () => {
                         onClick={() => handleNavigation(item.path as string, item.disabled)}
                         disabled={item.disabled}
                         className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors ${
-                          pathname === item.path
+                          pathname === item.path || (item.path === "/developers" && pathname === "/developer")
                             ? "bg-primary/20 text-primary"
                             : "text-foreground hover:bg-secondary"
                         } ${item.disabled ? "cursor-not-allowed opacity-50" : ""}`}
