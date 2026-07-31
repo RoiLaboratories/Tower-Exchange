@@ -71,6 +71,15 @@ const RECEIPT_POLL_INTERVAL_MS = 1000;
 const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Swaps are temporarily paused for maintenance.";
+const OUTPUT_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
+  USDC: 2,
+  EURC: 2,
+  USDT: 2,
+  cirBTC: 8,
+};
+
+const getOutputDisplayDecimals = (symbol?: SwapTokenSymbol | null) =>
+  symbol ? (OUTPUT_DISPLAY_DECIMALS[symbol] ?? 6) : 6;
 
 type JsonRpcResponse<T> = {
   result?: T;
@@ -1374,7 +1383,7 @@ const SwapCard = ({
 
         setRouteOptions(nextRouteOptions);
 
-        const displayPrecision = 2;
+        const displayPrecision = getOutputDisplayDecimals(receiveToken.symbol);
         const outputAmountForDisplay =
           bestRouteOption?.outputAmount || quoteData.outputAmount;
         const quoteAmount = Number.parseFloat(
@@ -2908,6 +2917,7 @@ const SwapCard = ({
                 routeOptions={routeOptions}
                 inputUsdValue={sellAmountUsdValue}
                 outputTokenUsdPrice={receiveTokenWithLivePrice?.usdPrice}
+                outputTokenSymbol={receiveToken?.symbol}
                 availableRouterIds={availableRouterIds}
               />
             </div>

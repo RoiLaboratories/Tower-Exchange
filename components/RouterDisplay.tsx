@@ -26,6 +26,7 @@ interface RouterDisplayProps {
   routeOptions?: RouteOption[];
   inputUsdValue?: number;
   outputTokenUsdPrice?: number;
+  outputTokenSymbol?: string;
   availableRouterIds?: string[];
 }
 
@@ -63,7 +64,15 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
   },
 ];
 
-const ROUTE_OUTPUT_DISPLAY_DECIMALS = 2;
+const ROUTE_OUTPUT_DISPLAY_DECIMALS: Record<string, number> = {
+  USDC: 2,
+  EURC: 2,
+  USDT: 2,
+  cirBTC: 8,
+};
+
+const getRouteOutputDisplayDecimals = (symbol?: string) =>
+  symbol ? (ROUTE_OUTPUT_DISPLAY_DECIMALS[symbol] ?? 6) : 6;
 
 const normalizeRouterId = (id = "") => {
   const normalizedId = id.toLowerCase();
@@ -93,7 +102,7 @@ const routeTokenAmountFromOutput = (amount?: string) => {
   return Number.isFinite(tokenAmount) ? tokenAmount : null;
 };
 
-const formatRouteTokenAmount = (amount?: string) => {
+const formatRouteTokenAmount = (amount?: string, outputTokenSymbol?: string) => {
   const tokenAmount = routeTokenAmountFromOutput(amount);
 
   if (tokenAmount === null) {
@@ -102,7 +111,7 @@ const formatRouteTokenAmount = (amount?: string) => {
 
   return tokenAmount.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: ROUTE_OUTPUT_DISPLAY_DECIMALS,
+    maximumFractionDigits: getRouteOutputDisplayDecimals(outputTokenSymbol),
   });
 };
 
@@ -151,6 +160,7 @@ export default function RouterDisplay({
   routeOptions = [],
   inputUsdValue,
   outputTokenUsdPrice,
+  outputTokenSymbol,
   availableRouterIds = [],
 }: RouterDisplayProps) {
   const routeOptionByDexId = routeOptions.reduce((optionsByDexId, option) => {
@@ -365,7 +375,7 @@ export default function RouterDisplay({
                       hasQuote ? "text-white/90" : "text-white/45"
                     }`}
                   >
-                    {formatRouteTokenAmount(option?.outputAmount)}
+                    {formatRouteTokenAmount(option?.outputAmount, outputTokenSymbol)}
                   </span>
                 </span>
                 {routeUsdValue ? (

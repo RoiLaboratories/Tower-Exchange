@@ -1,13 +1,238 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
+
+import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import { supabase, type ActivityRow } from "@/lib/supabase";
+import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
 
+type Timeframe = "24H" | "7D" | "30D" | "ALL";
+
+type ChartPoint = {
+  label: string;
+  value: number;
+};
+
+const timeframes: Timeframe[] = ["24H", "7D", "30D", "ALL"];
+
+const TIMEFRAME_CONFIG: Record<
+  Timeframe,
+  { bucketCount: number; durationMs: number | null }
+> = {
+  "24H": { bucketCount: 12, durationMs: 24 * 60 * 60 * 1000 },
+  "7D": { bucketCount: 7, durationMs: 7 * 24 * 60 * 60 * 1000 },
+  "30D": { bucketCount: 10, durationMs: 30 * 24 * 60 * 60 * 1000 },
+  ALL: { bucketCount: 12, durationMs: null },
+};
+
+const FALLBACK_CHARTS: Record<Timeframe, number[]> = {
+  "24H": [0, 0, 12, 12, 19, 25, 25, 34, 42, 42, 51, 51],
+  "7D": [0, 18, 18, 43, 67, 67, 94],
+  "30D": [0, 21, 44, 44, 73, 101, 138, 138, 166, 202],
+  ALL: [0, 24, 58, 91, 125, 168, 215, 266, 318, 384, 443, 512],
+};
+
+const formatTimestampLabel = (timestamp?: string | null) => {
+  if (!timestamp) {
+    return "No activity yet";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+};
+
+const formatBucketLabel = (timestamp: number, timeframe: Timeframe) => {
+  const date = new Date(timestamp);
+
+  if (timeframe === "24H") {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+    }).format(date);
+  }
+
+  if (timeframe === "ALL") {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      year: "2-digit",
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
+
+const getActivityUsdAmount = (activity: ActivityRow) => {
+  const amount = Number(activity.amount_usd ?? activity.amount ?? 0);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+};
+
+const isSuccessfulVolumeActivity = (activity: ActivityRow) =>
+  activity.status === "Successful" && getActivityUsdAmount(activity) > 0;
+
+const getTimeframeStart = (
+  activities: ActivityRow[],
+  timeframe: Timeframe,
+  now: number,
+) => {
+  const { durationMs } = TIMEFRAME_CONFIG[timeframe];
+
+  if (durationMs !== null) {
+    return now - durationMs;
+  }
+
+  const earliestTimestamp = activities.reduce<number | null>((earliest, activity) => {
+    const timestamp = new Date(activity.timestamp).getTime();
+
+    if (!Number.isFinite(timestamp)) {
+      return earliest;
+    }
+
+    return earliest === null ? timestamp : Math.min(earliest, timestamp);
+  }, null);
+
+  return earliestTimestamp ?? now - 365 * 24 * 60 * 60 * 1000;
+};
+
+const buildFallbackChart = (timeframe: Timeframe): ChartPoint[] => {
+  const values = FALLBACK_CHARTS[timeframe];
+  return values.map((value, index) => ({
+    label: String(index + 1),
+    value,
+  }));
+};
+
+const buildVolumeChart = (
+  activities: ActivityRow[],
+  timeframe: Timeframe,
+): { chartData: ChartPoint[]; totalVolume: number; latestTimestamp: string | null } => {
+  const successfulActivities = activities.filter(isSuccessfulVolumeActivity);
+
+  if (successfulActivities.length === 0) {
+    return {
+      chartData: buildFallbackChart(timeframe),
+      totalVolume: 0,
+      latestTimestamp: null,
+    };
+  }
+
+  const now = Date.now();
+  const { bucketCount } = TIMEFRAME_CONFIG[timeframe];
+  const start = getTimeframeStart(successfulActivities, timeframe, now);
+  const bucketSize = Math.max((now - start) / bucketCount, 1);
+  const buckets = Array.from({ length: bucketCount }, () => 0);
+  let latestTimestamp: string | null = null;
+
+  successfulActivities.forEach((activity) => {
+    const timestamp = new Date(activity.timestamp).getTime();
+
+    if (!Number.isFinite(timestamp) || timestamp < start || timestamp > now) {
+      return;
+    }
+
+    const bucketIndex = Math.min(
+      bucketCount - 1,
+      Math.max(0, Math.floor((timestamp - start) / bucketSize)),
+    );
+    buckets[bucketIndex] += getActivityUsdAmount(activity);
+
+    if (
+      !latestTimestamp ||
+      new Date(activity.timestamp).getTime() > new Date(latestTimestamp).getTime()
+    ) {
+      latestTimestamp = activity.timestamp;
+    }
+  });
+
+  let runningTotal = 0;
+  const chartData = buckets.map((bucketValue, index) => {
+    runningTotal += bucketValue;
+    const bucketTimestamp = start + bucketSize * index;
+
+    return {
+      label: formatBucketLabel(bucketTimestamp, timeframe),
+      value: Number(runningTotal.toFixed(2)),
+    };
+  });
+
+  return {
+    chartData,
+    totalVolume: runningTotal,
+    latestTimestamp,
+  };
+};
+
 export const PortfolioAnalysis = () => {
-  const [timeframe, setTimeframe] = useState("7D");
-  const timeframes = ["24H", "7D", "30D", "ALL"];
+  const [timeframe, setTimeframe] = useState<Timeframe>("7D");
+  const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const { user } = useRainbowKitAuth();
+  const walletAddress = user?.wallet?.address ?? null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchActivities = async () => {
+      if (!walletAddress) {
+        setActivities([]);
+        return;
+      }
+
+      setIsLoadingActivities(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("activities")
+          .select("*")
+          .eq("wallet_address", walletAddress.toLowerCase())
+          .order("timestamp", { ascending: true })
+          .limit(500);
+
+        if (error) {
+          console.error("Error fetching portfolio activity chart data:", error);
+          if (isMounted) {
+            setActivities([]);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setActivities((data || []) as ActivityRow[]);
+        }
+      } catch (error) {
+        console.error("Unable to load portfolio activity chart data:", error);
+        if (isMounted) {
+          setActivities([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingActivities(false);
+        }
+      }
+    };
+
+    fetchActivities();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [walletAddress]);
+
+  const { chartData, totalVolume, latestTimestamp } = useMemo(
+    () => buildVolumeChart(activities, timeframe),
+    [activities, timeframe],
+  );
 
   const positions = [
     {
@@ -91,20 +316,37 @@ export const PortfolioAnalysis = () => {
 
         <div className="mb-4">
           <div className="text-xl font-bold text-white sm:text-2xl lg:text-[1.4rem] xl:text-2xl">
-            $44,238 USD
+            {isLoadingActivities ? "Loading..." : `${formatUsdAmount(totalVolume, 1)} USD`}
           </div>
-          <div className="text-xs text-gray-400 sm:text-sm">Jan , 2026 8:00 AM</div>
+          <div className="text-xs text-gray-400 sm:text-sm">
+            {formatTimestampLabel(latestTimestamp)}
+          </div>
         </div>
 
         <div className="relative h-24 sm:h-32">
-          <svg className="h-full w-full" viewBox="0 0 400 100">
-            <polyline
-              points="0,60 50,40 100,70 150,50 200,20 250,40 300,70 350,50 400,30"
-              fill="none"
-              stroke="#7BB8FF"
-              strokeWidth="2"
-            />
-          </svg>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={chartData}
+              margin={{ top: 8, right: 4, left: 4, bottom: 4 }}
+            >
+              <defs>
+                <linearGradient id="portfolio-volume-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7BB8FF" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#7BB8FF" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#7BB8FF"
+                strokeWidth={2}
+                fill="url(#portfolio-volume-gradient)"
+                fillOpacity={1}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
