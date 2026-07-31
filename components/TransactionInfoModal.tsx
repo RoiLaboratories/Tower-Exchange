@@ -27,6 +27,7 @@ import xylonetLogo from "@/public/assets/xylonetlogo.svg";
 import circleLogo from "@/public/assets/circlelogo.svg";
 import fromAddressIcon from "@/public/assets/fromaddress icon.svg";
 import toAddressIcon from "@/public/assets/toaddress icon.svg";
+import towerLogo from "@/public/assets/Tower Logo.svg";
 
 type EthereumProvider = {
   request?: (args: { method: string; params?: unknown }) => Promise<unknown>;
@@ -69,6 +70,10 @@ const getRouteLogo = (routeLabel: string): ActivityDetailsImage => {
 
   if (normalizedRouteLabel.includes("unitflow")) {
     return unitflowLogo;
+  }
+
+  if (normalizedRouteLabel.includes("tower")) {
+    return towerLogo;
   }
 
   if (
