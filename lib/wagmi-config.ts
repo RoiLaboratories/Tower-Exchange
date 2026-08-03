@@ -164,7 +164,7 @@ const connectors = walletConnectProjectId
         },
         {
           groupName: "Recommended",
-          wallets: [metaMaskWallet, rabbyWallet, bitgetWallet, coinbaseWallet],
+          wallets: [ bitgetWallet, rabbyWallet, metaMaskWallet, coinbaseWallet],
         },
         {
           groupName: "Other wallets",

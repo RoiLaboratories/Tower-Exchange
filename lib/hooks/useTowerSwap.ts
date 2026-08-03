@@ -77,7 +77,7 @@ interface UseTowerSwapOptions {
 }
 
 const DEFAULT_BACKEND_URL = '';
-const QUOTE_REQUEST_TIMEOUT_MS = 30_000;
+const QUOTE_REQUEST_TIMEOUT_MS = 15_000;
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend

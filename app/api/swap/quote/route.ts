@@ -61,8 +61,8 @@ const SWAPS_DISABLED_RESPONSE = {
 const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow", "tower-dex"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
-const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 25_000;
-const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 8_000;
+const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 10_000;
+const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 3_000;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const USDC_ADDRESS = TOKEN_CONTRACTS.USDC.toLowerCase();
 
