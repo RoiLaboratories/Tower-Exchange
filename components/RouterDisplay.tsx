@@ -202,11 +202,23 @@ export default function RouterDisplay({
     new Set(availableRouterIds.map((routerId) => normalizeRouterId(routerId))),
   );
   const availableRouterIdSet = new Set(normalizedAvailableRouterIds);
-  const routersToDisplay = (
-    normalizedAvailableRouterIds.length > 0
-      ? SUPPORTED_ROUTERS.filter((router) => availableRouterIdSet.has(router.id))
-      : SUPPORTED_ROUTERS.filter((router) => routeOptionByDexId.has(router.id))
-  ).map((router, index) => ({ router, index }));
+  const routeIdsFromOptions = Array.from(routeOptionByDexId.keys());
+  const routerCandidates = [
+    ...SUPPORTED_ROUTERS.filter((router) =>
+      availableRouterIdSet.size === 0
+        ? routeIdsFromOptions.includes(router.id)
+        : availableRouterIdSet.has(router.id),
+    ),
+    ...routeIdsFromOptions
+      .filter((routeId) => !SUPPORTED_ROUTERS.some((router) => router.id === routeId))
+      .map((routeId) => ({
+        id: routeId,
+        aliases: [routeId],
+        name: routeId,
+        logo: towerLogo,
+      })),
+  ];
+  const routersToDisplay = routerCandidates.map((router, index) => ({ router, index }));
 
   const allQuotedRoutes = routersToDisplay
     .map(({ router, index }) => {
@@ -214,7 +226,12 @@ export default function RouterDisplay({
       const outputAmount = outputAmountToBigInt(option?.outputAmount);
 
       return {
-        router,
+        router: {
+          ...router,
+          id: router.id,
+          name: router.name,
+          logo: router.logo,
+        },
         option,
         outputAmount,
         hasQuote: outputAmount > 0n,
