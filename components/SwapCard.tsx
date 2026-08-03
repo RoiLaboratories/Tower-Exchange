@@ -23,7 +23,7 @@ import {
   ARC_CHAIN_HEX,
   ARC_ADD_NETWORK_PARAMS,
 } from "@/lib/arcNetwork";
-import { useTowerSwap, type SwapRouteOption } from "@/lib/hooks/useTowerSwap";
+import { useTowerSwap, type SwapQuote, type SwapRouteOption } from "@/lib/hooks/useTowerSwap";
 import {
   getSupportedCounterpartyTokens,
   isSupportedSwapPair,
@@ -433,6 +433,68 @@ const routeOutputAmountToBigInt = (amount?: string) => {
   } catch {
     return 0n;
   }
+};
+
+const getRouteOptionCandidates = (
+  quoteData: SwapQuote,
+  selectedDexId: string,
+  currentBestRouteOption: SwapRouteOption | null,
+): SwapRouteOption[] => {
+  const routeOptionEntries = Array.isArray(quoteData.routeOptions)
+    ? quoteData.routeOptions
+    : [];
+
+  const candidates = routeOptionEntries
+    .map((option) => {
+      const normalizedDexId = normalizeSwapRouteDexId(option.dexId);
+      const fallbackDexId = normalizedDexId === "unknown" ? selectedDexId : normalizedDexId;
+      const outputAmount =
+        option.outputAmount || option.quote?.outputAmount || quoteData.outputAmount;
+      const dexName =
+        option.dexName ||
+        option.quote?.route?.hops?.[0]?.dexName ||
+        option.quote?.route?.hops?.[0]?.dexId ||
+        quoteData.route?.hops?.[0]?.dexName ||
+        quoteData.route?.hops?.[0]?.dexId ||
+        fallbackDexId;
+
+      return {
+        ...option,
+        dexId: fallbackDexId,
+        dexName,
+        outputAmount,
+        quote: option.quote || quoteData,
+      } as SwapRouteOption;
+    })
+    .filter((option) => {
+      const normalizedDexId = normalizeSwapRouteDexId(option.dexId);
+      if (!normalizedDexId || normalizedDexId === "unknown") {
+        return false;
+      }
+
+      const outputAmount = option.outputAmount || option.quote?.outputAmount || quoteData.outputAmount;
+      return routeOutputAmountToBigInt(outputAmount) > 0n;
+    });
+
+  const hasNonFallbackOptions = candidates.some(
+    (option) => option.isFallback !== true,
+  );
+  const filteredCandidates = hasNonFallbackOptions
+    ? candidates.filter((option) => option.isFallback !== true)
+    : candidates;
+
+  if (
+    currentBestRouteOption &&
+    !filteredCandidates.some(
+      (candidate) =>
+        normalizeSwapRouteDexId(candidate.dexId) ===
+        normalizeSwapRouteDexId(currentBestRouteOption.dexId),
+    )
+  ) {
+    filteredCandidates.push(currentBestRouteOption);
+  }
+
+  return filteredCandidates;
 };
 
 const mergeRouteOptionsByDex = (
@@ -1348,20 +1410,11 @@ const SwapCard = ({
           gasEstimate: quoteData.gasEstimate,
           quote: quoteData,
         };
-        const filteredRouteOptions = quoteData.routeOptions?.length
-          ? quoteData.routeOptions.filter((option) => {
-              const normalizedDexId = normalizeSwapRouteDexId(option.dexId);
-              return (
-                normalizedDexId &&
-                normalizedDexId !== "unknown" &&
-                option.isFallback !== true &&
-                routeOutputAmountToBigInt(option.outputAmount) > 0n
-              );
-            })
-          : [];
-        const actualRouteOptions = filteredRouteOptions.length > 0
-          ? filteredRouteOptions
-          : [currentBestRouteOption];
+        const actualRouteOptions = getRouteOptionCandidates(
+          quoteData,
+          selectedDexId,
+          currentBestRouteOption,
+        );
         const nextRouteOptions = mergeRouteOptionsByDex([], actualRouteOptions);
         const bestRouteOption =
           getBestRouteOption(
