@@ -61,8 +61,8 @@ const SWAPS_DISABLED_RESPONSE = {
 const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow", "tower-dex"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
-const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 60_000;
-const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 15_000;
+const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 180_000;
+const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 30_000;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const USDC_ADDRESS = TOKEN_CONTRACTS.USDC.toLowerCase();
 
@@ -580,6 +580,15 @@ export async function POST(request: NextRequest) {
     );
     const backendDexRequest = normalizedRequestedDexId || undefined;
 
+    console.info("[swap/quote] quote request received", {
+      inputToken: resolvedInputToken,
+      outputToken: resolvedOutputToken,
+      inputAmount,
+      dexId: backendDexRequest,
+      backendDexIds,
+      backendUrl: BACKEND_URL,
+    });
+
     let backendResult: { quotes: BackendQuote[]; routeOptions: RouteOption[] };
 
     try {
@@ -619,6 +628,13 @@ export async function POST(request: NextRequest) {
       );
 
     const routeOptions = dedupeRouteOptions(backendResult.routeOptions);
+
+    console.info("[swap/quote] backend quote summary", {
+      quotesFound: candidateQuotes.length,
+      routeOptionsFound: routeOptions.length,
+      requestedDex: normalizedRequestedDexId,
+      bestOutputAmount: bestQuoteCandidate?.outputAmount,
+    });
 
     if (normalizedRequestedDexId && !requestedQuote) {
       return NextResponse.json(
