@@ -950,6 +950,7 @@ const SwapCard = ({
   const quoteRequestIdRef = useRef(0);
   const activeQuoteKeyRef = useRef<string | null>(null);
   const inFlightQuoteKeyRef = useRef<string | null>(null);
+  const quoteRefreshKeyRef = useRef<string | null>(null);
   const lastSuccessfulQuoteRef = useRef<{
     sellAmountValue: string;
     sellTokenSymbol: SwapTokenSymbol;
@@ -1497,14 +1498,29 @@ const SwapCard = ({
       availableRouterIds,
     ],
   );
+  const getQuoteForSwapRef = useRef(getQuoteForSwap);
+
+  useEffect(() => {
+    getQuoteForSwapRef.current = getQuoteForSwap;
+  }, [getQuoteForSwap]);
+
   useEffect(() => {
     if (!shouldFetchSwapQuotes || swapState === "loading") {
+      quoteRefreshKeyRef.current = null;
       return;
     }
 
+    const refreshKey = `${sellToken.symbol}:${receiveToken?.symbol ?? "none"}:${sellAmount}:${slippageTolerance}`;
+
+    if (quoteRefreshKeyRef.current === refreshKey) {
+      return;
+    }
+
+    quoteRefreshKeyRef.current = refreshKey;
+
     let intervalId: number | null = null;
     const refreshQuotes = () => {
-      getQuoteForSwap(sellAmount);
+      getQuoteForSwapRef.current(sellAmount);
     };
     const debounceId = window.setTimeout(() => {
       refreshQuotes();
@@ -1515,12 +1531,13 @@ const SwapCard = ({
     }, 350);
 
     return () => {
+      quoteRefreshKeyRef.current = null;
       window.clearTimeout(debounceId);
       if (intervalId !== null) {
         window.clearInterval(intervalId);
       }
     };
-  }, [getQuoteForSwap, sellAmount, shouldFetchSwapQuotes, swapState]);
+  }, [sellAmount, shouldFetchSwapQuotes, swapState, sellToken.symbol, receiveToken?.symbol, slippageTolerance]);
 
   // Simulate DEX aggregator calculation
   const handleSellAmountChange = (value: string) => {
