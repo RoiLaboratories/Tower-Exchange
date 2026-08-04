@@ -1558,9 +1558,6 @@ const SwapCard = ({
       } catch {
         activeQuoteKeyRef.current = null;
       }
-      setReceiveAmount("0.00");
-      setRouteOptions([]);
-      setSelectedRouterId(undefined);
       setIsRouteSearchPending(true);
       return;
     }
