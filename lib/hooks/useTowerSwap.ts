@@ -76,7 +76,11 @@ interface UseTowerSwapOptions {
   backendUrl?: string;
 }
 
-const DEFAULT_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+const DEFAULT_BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://tower-backend.up.railway.app'
+    : '');
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
