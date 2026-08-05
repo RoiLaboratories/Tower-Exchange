@@ -503,49 +503,48 @@ const mergeRouteOptionsByDex = (
 ) => {
   const optionsByDexId = new Map<string, SwapRouteOption>();
 
-  const upsert = (option: SwapRouteOption) => {
+  const normalizeOption = (option: SwapRouteOption) => {
     const normalizedDexId = normalizeSwapRouteDexId(option.dexId);
-    const existingOption = optionsByDexId.get(normalizedDexId);
 
-    if (!existingOption) {
-      optionsByDexId.set(normalizedDexId, {
-        ...option,
-        dexId: normalizedDexId,
-      });
-      return;
+    if (!normalizedDexId || normalizedDexId === "unknown") {
+      return null;
     }
 
-    const existingAmount = routeOutputAmountToBigInt(existingOption.outputAmount);
-    const optionAmount = routeOutputAmountToBigInt(option.outputAmount);
-    const existingIsFallback = existingOption.isFallback === true;
-    const optionIsFallback = option.isFallback === true;
+    const outputAmount = option.outputAmount || option.quote?.outputAmount;
 
-    if (existingIsFallback && !optionIsFallback) {
-      optionsByDexId.set(normalizedDexId, {
-        ...option,
-        dexId: normalizedDexId,
-      });
-      return;
+    if (routeOutputAmountToBigInt(outputAmount) <= 0n) {
+      return null;
     }
 
-    if (!existingIsFallback && optionIsFallback) {
-      return;
-    }
-
-    if (optionAmount > existingAmount) {
-      optionsByDexId.set(normalizedDexId, {
-        ...option,
-        dexId: normalizedDexId,
-      });
-    }
+    return {
+      ...option,
+      dexId: normalizedDexId,
+      outputAmount,
+    } as SwapRouteOption;
   };
 
   for (const option of existing) {
-    upsert(option);
+    const normalizedOption = normalizeOption(option);
+    if (normalizedOption) {
+      optionsByDexId.set(normalizedOption.dexId, normalizedOption);
+    }
   }
 
   for (const option of incoming) {
-    upsert(option);
+    const normalizedOption = normalizeOption(option);
+    if (!normalizedOption) {
+      continue;
+    }
+
+    const existingOption = optionsByDexId.get(normalizedOption.dexId);
+    const existingIsFallback = existingOption?.isFallback === true;
+    const incomingIsFallback = normalizedOption.isFallback === true;
+
+    if (existingOption && !existingIsFallback && incomingIsFallback) {
+      continue;
+    }
+
+    optionsByDexId.set(normalizedOption.dexId, normalizedOption);
   }
 
   return Array.from(optionsByDexId.values());
@@ -1096,7 +1095,7 @@ const SwapCard = ({
     sellAmount !== "0.00" &&
     Boolean(receiveToken) &&
     isSupportedSwapPair(sellToken.symbol, receiveToken?.symbol);
-  const isReceiveQuoteLoading = hasValidSwapQuoteInput && isRouteSearchPending;
+  const isReceiveQuoteLoading = Boolean(receiveToken) && isRouteSearchPending;
   const bestDisplayedRouteOption = getBestRouteOption(routeOptions);
   const receiveUsdValueLabel = (() => {
     if (!receiveToken) {
@@ -1318,6 +1317,7 @@ const SwapCard = ({
   const getQuoteForSwap = useCallback(
     async (sellAmountValue: string, routerId?: string) => {
       let quoteKey: string | null = null;
+      let didCommitQuote = false;
 
       try {
         if (SWAPS_DISABLED) {
@@ -1385,8 +1385,8 @@ const SwapCard = ({
         );
 
         if (!quoteData) {
-          if (!shouldPreserveCurrentQuote && activeQuoteKeyRef.current === quoteKey) {
-            resetSwapQuote();
+          if (activeQuoteKeyRef.current === quoteKey) {
+            setIsRouteSearchPending(!shouldPreserveCurrentQuote);
           }
           return;
         }
@@ -1416,7 +1416,13 @@ const SwapCard = ({
           selectedDexId,
           currentBestRouteOption,
         );
-        const nextRouteOptions = mergeRouteOptionsByDex([], actualRouteOptions);
+        const previousRouteOptionsForSameQuote = shouldPreserveCurrentQuote
+          ? lastSuccessfulRouteOptionsRef.current
+          : [];
+        const nextRouteOptions = mergeRouteOptionsByDex(
+          previousRouteOptionsForSameQuote,
+          actualRouteOptions,
+        );
         const bestRouteOption =
           getBestRouteOption(
             nextRouteOptions,
@@ -1468,6 +1474,7 @@ const SwapCard = ({
         lastSuccessfulRouteOptionsRef.current = nextRouteOptions;
 
         setReceiveAmount(nextReceiveAmount);
+        didCommitQuote = true;
         setIsRouteSearchPending(false);
       } catch (error) {
         console.error("Error getting swap quote:", error);
@@ -1477,11 +1484,11 @@ const SwapCard = ({
           lastSuccessfulQuoteRef.current?.sellTokenSymbol === sellToken.symbol &&
           lastSuccessfulQuoteRef.current?.receiveTokenSymbol === receiveToken?.symbol;
 
-        if (activeQuoteKeyRef.current === quoteKey && !shouldPreserveCurrentQuote) {
-          resetSwapQuote();
+        if (activeQuoteKeyRef.current === quoteKey) {
+          setIsRouteSearchPending(!shouldPreserveCurrentQuote);
         }
       } finally {
-        if (activeQuoteKeyRef.current === quoteKey) {
+        if (activeQuoteKeyRef.current === quoteKey && didCommitQuote) {
           setIsRouteSearchPending(false);
         }
         if (inFlightQuoteKeyRef.current === quoteKey) {
@@ -1528,7 +1535,7 @@ const SwapCard = ({
         refreshQuotes,
         QUOTE_REFRESH_INTERVAL_MS,
       );
-    }, 350);
+    }, 150);
 
     return () => {
       quoteRefreshKeyRef.current = null;

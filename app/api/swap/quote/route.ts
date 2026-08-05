@@ -61,8 +61,8 @@ const SWAPS_DISABLED_RESPONSE = {
 const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow", "tower-dex"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
 const XYLONET_NATIVE_USDC_DECIMALS = 6;
-const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 180_000;
-const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 30_000;
+const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 12_000;
+const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 8_000;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const USDC_ADDRESS = TOKEN_CONTRACTS.USDC.toLowerCase();
 
@@ -512,21 +512,38 @@ async function fetchBackendQuotes(params: {
     };
   }
 
-  const aggregateQuote = await fetchBackendQuote(baseBody);
+  try {
+    const aggregateQuote = await fetchBackendQuote(
+      baseBody,
+      PRIMARY_BACKEND_QUOTE_TIMEOUT_MS,
+    );
 
-  if (!aggregateQuote) {
-    return {
-      quotes: [],
-      routeOptions: [],
-    };
+    if (aggregateQuote) {
+      const routeOptions = buildBackendRouteOptions(aggregateQuote, backendDexIds);
+      const quotesFromRouteOptions = routeOptions.flatMap((option) =>
+        option.quote ? [option.quote as BackendQuote] : [],
+      );
+      const quotes = dedupeQuotesByDex([
+        aggregateQuote,
+        ...quotesFromRouteOptions,
+      ]);
+
+      return {
+        quotes: quotes.length > 0 ? quotes : [aggregateQuote],
+        routeOptions,
+      };
+    }
+  } catch (error) {
+    console.warn(
+      "[swap/quote] aggregate quote unavailable, falling back to per-DEX quotes:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
-  const routeOptions = buildBackendRouteOptions(aggregateQuote, backendDexIds);
-
-  return {
-    quotes: [aggregateQuote],
-    routeOptions,
-  };
+  return fetchBackendQuotesByDex({
+    ...baseBody,
+    backendDexIds,
+  });
 }
 
 export async function POST(request: NextRequest) {
