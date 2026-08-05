@@ -76,7 +76,7 @@ interface UseTowerSwapOptions {
   backendUrl?: string;
 }
 
-const DEFAULT_BACKEND_URL = '';
+const DEFAULT_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend

@@ -855,6 +855,7 @@ const SwapCard = ({
   const [sellAmount, setSellAmount] = useState("0.00");
   const [receiveAmount, setReceiveAmount] = useState("0.00");
   const [isRouteSearchPending, setIsRouteSearchPending] = useState(false);
+  const [quoteFailureMessage, setQuoteFailureMessage] = useState<string | null>(null);
   const [sellToken, setSellToken] = useState<SwapToken>(SWAP_TOKENS[0]);
   const [receiveToken, setReceiveToken] = useState<SwapToken | null>(null);
   const [tokenUsdPrices, setTokenUsdPrices] = useState<Record<SwapTokenSymbol, number>>({
@@ -965,6 +966,7 @@ const SwapCard = ({
     lastSuccessfulRouteOptionsRef.current = [];
     setReceiveAmount("0.00");
     setIsRouteSearchPending(false);
+    setQuoteFailureMessage(null);
     setRouteOptions([]);
     setSelectedRouterId(undefined);
   }, []);
@@ -1095,7 +1097,7 @@ const SwapCard = ({
     sellAmount !== "0.00" &&
     Boolean(receiveToken) &&
     isSupportedSwapPair(sellToken.symbol, receiveToken?.symbol);
-  const isReceiveQuoteLoading = Boolean(receiveToken) && isRouteSearchPending;
+  const isReceiveQuoteLoading = Boolean(receiveToken) && isRouteSearchPending && !quoteFailureMessage;
   const bestDisplayedRouteOption = getBestRouteOption(routeOptions);
   const receiveUsdValueLabel = (() => {
     if (!receiveToken) {
@@ -1116,9 +1118,11 @@ const SwapCard = ({
 
     return formatUsdAmount(receiveAmount, receiveTokenWithLivePrice?.usdPrice || 0);
   })();
-  const effectiveReceiveUsdValueLabel = isReceiveQuoteLoading
-    ? "Searching for best route"
-    : receiveUsdValueLabel;
+  const effectiveReceiveUsdValueLabel = quoteFailureMessage
+    ? quoteFailureMessage
+    : isReceiveQuoteLoading
+      ? "Searching for best route"
+      : receiveUsdValueLabel;
   const fetchSwapTokenBalance = useCallback(async (tokenSymbol: SwapTokenSymbol) => {
     const tokenAddress = TOKEN_CONTRACTS[tokenSymbol];
 
@@ -1364,6 +1368,7 @@ const SwapCard = ({
 
         activeQuoteKeyRef.current = quoteKey;
         inFlightQuoteKeyRef.current = quoteKey;
+        setQuoteFailureMessage(null);
         if (!shouldPreserveCurrentQuote) {
           setIsRouteSearchPending(true);
         }
@@ -1386,7 +1391,10 @@ const SwapCard = ({
 
         if (!quoteData) {
           if (activeQuoteKeyRef.current === quoteKey) {
-            setIsRouteSearchPending(!shouldPreserveCurrentQuote);
+            setIsRouteSearchPending(false);
+            if (!shouldPreserveCurrentQuote) {
+              setQuoteFailureMessage("Quote unavailable. Try again.");
+            }
           }
           return;
         }
@@ -1473,6 +1481,7 @@ const SwapCard = ({
         };
         lastSuccessfulRouteOptionsRef.current = nextRouteOptions;
 
+        setQuoteFailureMessage(null);
         setReceiveAmount(nextReceiveAmount);
         didCommitQuote = true;
         setIsRouteSearchPending(false);
@@ -1485,7 +1494,10 @@ const SwapCard = ({
           lastSuccessfulQuoteRef.current?.receiveTokenSymbol === receiveToken?.symbol;
 
         if (activeQuoteKeyRef.current === quoteKey) {
-          setIsRouteSearchPending(!shouldPreserveCurrentQuote);
+          setIsRouteSearchPending(false);
+          if (!shouldPreserveCurrentQuote) {
+            setQuoteFailureMessage("Quote unavailable. Try again.");
+          }
         }
       } finally {
         if (activeQuoteKeyRef.current === quoteKey && didCommitQuote) {
@@ -1565,6 +1577,7 @@ const SwapCard = ({
       } catch {
         activeQuoteKeyRef.current = null;
       }
+      setQuoteFailureMessage(null);
       setIsRouteSearchPending(true);
       return;
     }
