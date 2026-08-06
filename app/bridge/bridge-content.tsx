@@ -945,12 +945,15 @@ export default function BridgePageContent({
     Boolean(toChainId) && (toChainId === "solana" || fromChainId === "solana");
   const isDestinationAddressMissing =
     requiresManualDestinationAddress && !destinationBridgeAddress;
+  const isSameChainBridgeRoute =
+    Boolean(fromChainId && toChainId) && fromChainId === toChainId;
   const isBridgeActionDisabled =
     !fromChainId ||
     !toChainId ||
     !fromAmount ||
     parseFloat(fromAmount) <= 0 ||
     isDestinationAddressMissing ||
+    isSameChainBridgeRoute ||
     isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
@@ -1043,6 +1046,9 @@ export default function BridgePageContent({
       return "Bridge";
     }
 
+    if (isSameChainBridgeRoute) {
+      return "Select Different Chain";
+    }
 
     if (isDestinationAddressMissing) {
       return toChainId === "solana"

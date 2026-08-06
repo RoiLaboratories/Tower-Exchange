@@ -106,6 +106,10 @@ export default function BridgeSelectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const side = searchParams.get("side") === "to" ? "to" : "from";
+  const oppositeSide = side === "to" ? "from" : "to";
+  const oppositeChainId = searchParams.get(`${oppositeSide}Chain`);
+  const oppositeTokenSymbol = searchParams.get(`${oppositeSide}Token`);
+  const oppositeSelectionLabel = side === "to" ? "source" : "destination";
 
   const [chainSearch, setChainSearch] = useState("");
   const [tokenSearch, setTokenSearch] = useState("");
@@ -168,6 +172,14 @@ export default function BridgeSelectContent() {
     });
   }, [tokenSearch, tokens]);
 
+  const isSameAsOppositeChain = (chainId: string) =>
+    chainId !== "all" && chainId === oppositeChainId;
+
+  const isSameAsOppositeSide = (token: SupportedToken) =>
+    selectedChainId !== "all" &&
+    selectedChainId === oppositeChainId &&
+    token.symbol.toLowerCase() === (oppositeTokenSymbol ?? "").toLowerCase();
+
   return (
     <main className="flex-1 flex items-center justify-center py-10 px-4 min-h-screen">
       <motion.div
@@ -205,36 +217,55 @@ export default function BridgeSelectContent() {
                 </p>
               ) : (
                 <div className="pb-16">
-                  {visibleChains.map((chain) => (
-                    <button
-                      key={chain.id}
-                      type="button"
-                      onClick={() => setSelectedChainId(chain.id)}
-                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
-                        selectedChainId === chain.id
-                          ? "bg-[#18191c] text-foreground"
-                          : "text-muted-foreground hover:bg-[#18191c]"
-                      }`}
-                    >
-                      <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
-                        {chain.logo ? (
-                          <Image
-                            src={chain.logo}
-                            alt={`${chain.name} logo`}
-                            width={20}
-                            height={20}
-                            className="h-5 w-5 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span
-                            className="inline-flex h-full w-full rounded-full"
-                            style={{ backgroundColor: chain.color }}
-                          />
+                  {visibleChains.map((chain) => {
+                    const isUnavailable = isSameAsOppositeChain(chain.id);
+
+                    return (
+                      <button
+                        key={chain.id}
+                        type="button"
+                        disabled={isUnavailable}
+                        aria-disabled={isUnavailable}
+                        onClick={() => {
+                          if (isUnavailable) {
+                            return;
+                          }
+
+                          setSelectedChainId(chain.id);
+                        }}
+                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
+                          isUnavailable
+                            ? "cursor-not-allowed text-muted-foreground opacity-45"
+                            : selectedChainId === chain.id
+                              ? "bg-[#18191c] text-foreground"
+                              : "text-muted-foreground hover:bg-[#18191c]"
+                        }`}
+                      >
+                        <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
+                          {chain.logo ? (
+                            <Image
+                              src={chain.logo}
+                              alt={`${chain.name} logo`}
+                              width={20}
+                              height={20}
+                              className="h-5 w-5 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span
+                              className="inline-flex h-full w-full rounded-full"
+                              style={{ backgroundColor: chain.color }}
+                            />
+                          )}
+                        </span>
+                        <span>{chain.name}</span>
+                        {isUnavailable && (
+                          <span className="ml-auto text-[10px] capitalize text-muted-foreground">
+                            {oppositeSelectionLabel}
+                          </span>
                         )}
-                      </span>
-                      <span>{chain.name}</span>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -320,56 +351,74 @@ export default function BridgeSelectContent() {
                 Token not found
               </p>
             ) : (
-              filteredTokens.map((token) => (
-                <button
-                  key={token.symbol}
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-[#18191c] transition-colors"
-                  onClick={() => {
-                    const current = new URLSearchParams(
-                      Array.from(searchParams.entries())
-                    );
-                    current.set(`${side}Token`, token.symbol);
-                    if (selectedChainId) {
-                      current.set(`${side}Chain`, selectedChainId);
-                    }
-                    router.push(`/bridge?${current.toString()}`);
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#232428] overflow-hidden">
-                      {token.logo ? (
-                        <Image
-                          src={token.logo}
-                          alt={`${token.symbol} logo`}
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 object-contain"
-                        />
-                      ) : (
-                        <span className="text-xs font-semibold text-foreground">
-                          {token.symbol[0]}
+              filteredTokens.map((token) => {
+                const isUnavailable = isSameAsOppositeSide(token);
+
+                return (
+                  <button
+                    key={token.symbol}
+                    type="button"
+                    disabled={isUnavailable}
+                    aria-disabled={isUnavailable}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      isUnavailable
+                        ? "cursor-not-allowed opacity-45"
+                        : "hover:bg-[#18191c]"
+                    }`}
+                    onClick={() => {
+                      if (isUnavailable) {
+                        return;
+                      }
+
+                      const current = new URLSearchParams(
+                        Array.from(searchParams.entries())
+                      );
+                      current.set(`${side}Token`, token.symbol);
+                      if (selectedChainId) {
+                        current.set(`${side}Chain`, selectedChainId);
+                      }
+                      router.push(`/bridge?${current.toString()}`);
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#232428] overflow-hidden">
+                        {token.logo ? (
+                          <Image
+                            src={token.logo}
+                            alt={`${token.symbol} logo`}
+                            width={32}
+                            height={32}
+                            className="h-8 w-8 object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs font-semibold text-foreground">
+                            {token.symbol[0]}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-foreground">
+                          {token.symbol}
                         </span>
-                      )}
+                        <span className="text-xs text-muted-foreground">
+                          {token.name}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium text-foreground">
-                        {token.symbol}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {token.name}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {selectedChainId && selectedChainId !== "all"
-                      ? (token.chainAddresses[selectedChainId] || "N/A").slice(0, 6) +
-                        "..." +
-                        (token.chainAddresses[selectedChainId] || "N/A").slice(-4)
-                      : "Multiple"}
-                  </span>
-                </button>
-              ))
+                    <span className="text-xs text-muted-foreground">
+                      {isUnavailable
+                        ? side === "to"
+                          ? "Selected as source"
+                          : "Selected as destination"
+                        : selectedChainId && selectedChainId !== "all"
+                          ? (token.chainAddresses[selectedChainId] || "N/A").slice(0, 6) +
+                            "..." +
+                            (token.chainAddresses[selectedChainId] || "N/A").slice(-4)
+                          : "Multiple"}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </section>
@@ -416,39 +465,56 @@ export default function BridgeSelectContent() {
                   Chain not found
                 </p>
               ) : (
-                visibleChains.map((chain) => (
-                  <button
-                    key={chain.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedChainId(chain.id);
-                      setIsChainModalOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-3 px-5 py-3 text-sm text-left transition-colors ${
-                      selectedChainId === chain.id
-                        ? "bg-[#18191c] text-foreground"
-                        : "text-muted-foreground hover:bg-[#18191c]"
-                    }`}
-                  >
-                    <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
-                      {chain.logo ? (
-                        <Image
-                          src={chain.logo}
-                          alt={`${chain.name} logo`}
-                          width={20}
-                          height={20}
-                          className="h-5 w-5 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span
-                          className="inline-flex h-full w-full rounded-full"
-                          style={{ backgroundColor: chain.color }}
-                        />
+                visibleChains.map((chain) => {
+                  const isUnavailable = isSameAsOppositeChain(chain.id);
+
+                  return (
+                    <button
+                      key={chain.id}
+                      type="button"
+                      disabled={isUnavailable}
+                      aria-disabled={isUnavailable}
+                      onClick={() => {
+                        if (isUnavailable) {
+                          return;
+                        }
+
+                        setSelectedChainId(chain.id);
+                        setIsChainModalOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 px-5 py-3 text-sm text-left transition-colors ${
+                        isUnavailable
+                          ? "cursor-not-allowed text-muted-foreground opacity-45"
+                          : selectedChainId === chain.id
+                            ? "bg-[#18191c] text-foreground"
+                            : "text-muted-foreground hover:bg-[#18191c]"
+                      }`}
+                    >
+                      <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
+                        {chain.logo ? (
+                          <Image
+                            src={chain.logo}
+                            alt={`${chain.name} logo`}
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="inline-flex h-full w-full rounded-full"
+                            style={{ backgroundColor: chain.color }}
+                          />
+                        )}
+                      </span>
+                      <span>{chain.name}</span>
+                      {isUnavailable && (
+                        <span className="ml-auto text-[10px] capitalize text-muted-foreground">
+                          {oppositeSelectionLabel}
+                        </span>
                       )}
-                    </span>
-                    <span>{chain.name}</span>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
           </motion.div>
