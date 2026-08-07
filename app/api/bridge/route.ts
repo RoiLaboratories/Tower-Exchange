@@ -21,16 +21,55 @@ import {
   UnichainSepolia,
 } from "@circle-fin/bridge-kit/chains";
 import { createPublicClient, createWalletClient, http, Chain as ViemChain } from "viem";
-import { getSupportedTokens } from "@/lib/bridgeService";
+const getSupportedTokens = () => [
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    chainAddresses: {
+      "arc-testnet": "0x3600000000000000000000000000000000000000",
+      "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "optimism-sepolia": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+      "avalanche-fuji": "0x5425890298aed601595a70ab815c96711a31bc65",
+      "arbitrum-sepolia": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+      "ethereum-sepolia": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "linea-sepolia": "0xfece4462d57bd51a6a552365a011b95f0e16d9b7",
+      "polygon-amoy": "0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582",
+      "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
+      "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
+      solana: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    } as Record<string, string>,
+  },
+];
+
 
 const RETRYABLE_RPC_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
-const getBridgeRpcUrl = (chainId: number) => `/api/rpc/${chainId}`;
+const DIRECT_RPC_URLS: Record<number, string> = {
+  5042002: "https://rpc.testnet.arc.network",
+  84532: "https://sepolia.base.org",
+  11155420: "https://sepolia.optimism.io",
+  43113: "https://api.avax-test.network/ext/bc/C/rpc",
+  421614: "https://sepolia-rollup.arbitrum.io/rpc",
+  11155111: "https://sepolia.drpc.org",
+  59141: "https://rpc.sepolia.linea.build",
+  80002: "https://rpc-amoy.polygon.technology",
+  14601: "https://rpc.testnet.soniclabs.com",
+  1301: "https://sepolia.unichain.org",
+};
+
+const getBridgeRpcUrl = (chainId: number) => {
+  const directRpc = DIRECT_RPC_URLS[chainId];
+  if (directRpc) return directRpc;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return `${baseUrl}/api/rpc/${chainId}`;
+};
 
 const getBridgeRpcUrls = (chainId: number) => {
   const primaryUrl = getBridgeRpcUrl(chainId);
   return [primaryUrl];
 };
+
 
 // Map chain IDs to chain name keys for token lookup
 const CHAIN_ID_TO_TOKEN_KEY: Record<number, string> = {

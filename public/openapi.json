@@ -1,0 +1,394 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Tower Public Developer API",
+    "description": "High-performance, developer-friendly Public APIs for Web3 cross-chain bridges, optimal swap routing, DEX liquidity, and wallet balance indexing. Authenticated using Tower Developer API Keys issued via the Tower Dev Console.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Tower Developer Support",
+      "url": "https://tower.exchange"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://tower-exchange.vercel.app",
+      "description": "Production API Gateway"
+    }
+  ],
+  "security": [
+    { "BearerAuth": [] },
+    { "ApiKeyAuth": [] }
+  ],
+  "paths": {
+    "/api/public/prices": {
+      "get": {
+        "summary": "Fetch Token Prices",
+        "description": "Retrieves real-time USD market prices for supported stablecoins (USDC, EURC, USDT). Open to any valid API key.",
+        "operationId": "getPrices",
+        "responses": {
+          "200": {
+            "description": "Successful price data response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "usd-coin": {
+                      "type": "object",
+                      "properties": { "usd": { "type": "number", "example": 1.0 } }
+                    },
+                    "eurc": {
+                      "type": "object",
+                      "properties": { "usd": { "type": "number", "example": 1.08 } }
+                    },
+                    "tether": {
+                      "type": "object",
+                      "properties": { "usd": { "type": "number", "example": 1.0 } }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" }
+        }
+      }
+    },
+    "/api/public/wallet/balance": {
+      "post": {
+        "summary": "Get Wallet Balance",
+        "description": "Queries token or native asset balance for an address on supported EVM chains and Solana Devnet.",
+        "operationId": "getWalletBalance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["address", "chainId", "rpcUrl"],
+                "properties": {
+                  "address": { "type": "string", "example": "0xa54FFd258815Ee711bA0d3Dbb7fA786AEA6095Fb" },
+                  "chainId": { "type": "string", "example": "arbitrum-sepolia" },
+                  "rpcUrl": { "type": "string", "example": "https://sepolia-rollup.arbitrum.io/rpc" },
+                  "tokenAddress": { "type": "string", "example": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d" },
+                  "balanceType": { "type": "string", "enum": ["token", "native"], "example": "token" }
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Formatted token or native balance",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "balance": { "type": "string", "example": "100.500000" }
+                    }
+                  }
+                }
+              }
+            },
+            "400": { "$ref": "#/components/responses/BadRequestError" },
+            "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          }
+        }
+      }
+    },
+    "/api/public/swap/dexes": {
+      "get": {
+        "summary": "List Supported DEXes",
+        "description": "Returns details, contract router addresses, and fee configurations for active DEX routers (Synthra, UnitFlow, Tower DEX).",
+        "operationId": "getSwapDexes",
+        "responses": {
+          "200": {
+            "description": "List of available DEX routers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "synthra" },
+                          "name": { "type": "string", "example": "Synthra" },
+                          "routerAddress": { "type": "string", "example": "0xA545bCB1Bd7985c59ea162aB1748A0803434C31b" },
+                          "enabled": { "type": "boolean", "example": true }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
+    "/api/public/swap/quote": {
+      "post": {
+        "summary": "Get Swap Quote",
+        "description": "Fetches optimal swap quotes across Synthra, UnitFlow, and Tower DEX with route options, price impact, and fee breakdown. Required scope: `swaps`.",
+        "operationId": "getSwapQuote",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["inputToken", "outputToken", "inputAmount"],
+                "properties": {
+                  "inputToken": { "type": "string", "example": "USDC" },
+                  "outputToken": { "type": "string", "example": "cirBTC" },
+                  "inputAmount": { "type": "string", "example": "1000000" },
+                  "slippageTolerance": { "type": "number", "example": 50 },
+                  "dexId": { "type": "string", "example": "synthra" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Best quote object with route options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inputToken": { "type": "string" },
+                        "outputToken": { "type": "string" },
+                        "outputAmount": { "type": "string" },
+                        "priceImpact": { "type": "number" },
+                        "routeOptions": { "type": "array", "items": { "type": "object" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/ScopeForbiddenError" }
+        }
+      }
+    },
+    "/api/public/swap/build-tx": {
+      "post": {
+        "summary": "Build Swap Transaction",
+        "description": "Constructs unsigned raw transaction payloads (`to`, `data`, `value`, `gasLimit`) for ERC-20 approval and swap execution via TowerSwapExecutor. Required scope: `swaps`.",
+        "operationId": "buildSwapTx",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["quote", "userAddress"],
+                "properties": {
+                  "quote": { "type": "object", "description": "Quote object returned from /api/public/swap/quote" },
+                  "userAddress": { "type": "string", "example": "0xa54FFd258815Ee711bA0d3Dbb7fA786AEA6095Fb" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unsigned transaction payloads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "approval": { "type": "object" },
+                        "swap": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/ScopeForbiddenError" }
+        }
+      }
+    },
+    "/api/public/rpc/{chainId}": {
+      "post": {
+        "summary": "JSON-RPC Node Proxy",
+        "description": "Proxies standard JSON-RPC requests (e.g. `eth_blockNumber`, `eth_call`) to supported EVM chains with automatic RPC fallback.",
+        "operationId": "proxyJsonRpc",
+        "parameters": [
+          {
+            "name": "chainId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "421614" },
+            "description": "Chain ID (e.g. 5042002 for Arc Testnet, 421614 for Arbitrum Sepolia)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jsonrpc", "method", "params", "id"],
+                "properties": {
+                  "jsonrpc": { "type": "string", "example": "2.0" },
+                  "method": { "type": "string", "example": "eth_blockNumber" },
+                  "params": { "type": "array", "example": [] },
+                  "id": { "type": "integer", "example": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Standard JSON-RPC response" },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
+    "/api/public/bridge": {
+      "post": {
+        "summary": "Initiate Cross-Chain Bridge",
+        "description": "Executes cross-chain CCTP USDC token transfer across supported chains via Circle BridgeKit. Required scope: `bridges`.",
+        "operationId": "bridgeToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["fromChainId", "toChainId", "amount", "token", "recipientAddress"],
+                "properties": {
+                  "fromChainId": { "type": "integer", "example": 5042002 },
+                  "toChainId": { "type": "integer", "example": 84532 },
+                  "amount": { "type": "string", "example": "1.00" },
+                  "token": { "type": "string", "example": "USDC" },
+                  "recipientAddress": { "type": "string", "example": "0xa54FFd258815Ee711bA0d3Dbb7fA786AEA6095Fb" },
+                  "senderAddress": { "type": "string", "example": "0xa54FFd258815Ee711bA0d3Dbb7fA786AEA6095Fb" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bridge transaction status response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "status": { "type": "string", "example": "pending" },
+                    "estimatedTime": { "type": "string", "example": "2-5 minutes" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/ScopeForbiddenError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "Pass your Developer API Key as a Bearer token: `Authorization: Bearer twr_live_...`"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Pass your Developer API Key via header: `x-api-key: twr_live_...`"
+      }
+    },
+    "responses": {
+      "BadRequestError": {
+        "description": "Bad Request - Invalid parameters",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "example": false },
+                "error": { "type": "string", "example": "Missing required fields" }
+              }
+            }
+          }
+        }
+      },
+      "UnauthorizedError": {
+        "description": "Unauthorized - Missing or invalid API key",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "example": false },
+                "error": { "type": "string", "example": "Invalid API key" }
+              }
+            }
+          }
+        }
+      },
+      "ScopeForbiddenError": {
+        "description": "Forbidden - API key lacks required scope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "example": false },
+                "error": { "type": "string", "example": "Scope 'swaps' is required for this endpoint." }
+              }
+            }
+          }
+        }
+      },
+      "RateLimitError": {
+        "description": "Too Many Requests - Rate limit or monthly quota exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean", "example": false },
+                "error": { "type": "string", "example": "API key rate limit of 60 requests/minute exceeded." }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
