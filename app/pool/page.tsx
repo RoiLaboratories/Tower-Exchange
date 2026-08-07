@@ -64,7 +64,7 @@ export default function PoolPage() {
         onClose={() => setModalOpen(false)}
         feature="Pool"
         title="Pools Are Coming Soon"
-        description="Tower liquidity pools are in development. Soon you'll be able to add liquidity, earn fees, and manage positions — all in one place."
+        description="Tower liquidity pools are in development. Soon you'll be able to add liquidity, earn fees, and manage positions all in one place."
         ctaLabel="Explore Swap"
         ctaPath="/"
       />
