@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { withDevApiAuth, handleCorsPreflight } from "@/lib/server/devApiMiddleware";
 import { POST as internalBridgePost } from "@/app/api/bridge/route";
 
@@ -11,3 +11,10 @@ export const POST = withDevApiAuth(
     return internalBridgePost(request);
   }
 );
+
+export function GET() {
+  return NextResponse.json(
+    { success: false, error: "Method GET not allowed. Use POST /api/public/bridge.", status: 405 },
+    { status: 405 }
+  );
+}

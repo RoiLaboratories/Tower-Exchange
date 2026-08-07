@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { withDevApiAuth, handleCorsPreflight } from "@/lib/server/devApiMiddleware";
 import { GET as internalPricesGet } from "@/app/api/prices/route";
 
@@ -11,3 +11,10 @@ export const GET = withDevApiAuth(
     return internalPricesGet();
   }
 );
+
+export function POST() {
+  return NextResponse.json(
+    { success: false, error: "Method POST not allowed. Use GET /api/public/prices.", status: 405 },
+    { status: 405 }
+  );
+}

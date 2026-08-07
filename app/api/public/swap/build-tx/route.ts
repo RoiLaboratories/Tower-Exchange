@@ -8,7 +8,6 @@ export const POST = withDevApiAuth(
   "/api/public/swap/build-tx",
   { requiredScope: "swaps", computeUnits: 3 },
   async (request: NextRequest) => {
-    // Clone request to perform validation if needed, or pass through
     try {
       const cloned = request.clone();
       const body = await cloned.json().catch(() => null);
@@ -29,3 +28,10 @@ export const POST = withDevApiAuth(
     return internalSwapBuildTxPost(request);
   }
 );
+
+export function GET() {
+  return NextResponse.json(
+    { success: false, error: "Method GET not allowed. Use POST /api/public/swap/build-tx.", status: 405 },
+    { status: 405 }
+  );
+}
