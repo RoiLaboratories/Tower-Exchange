@@ -48,6 +48,7 @@ import {
   getConnectedSolanaProvider,
   type SolanaWalletProvider,
 } from "@/lib/solanaWalletStore";
+import { ARC_ADD_NETWORK_PARAMS } from "@/lib/arcNetwork";
 
 // Chain mapping for viem
 const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
@@ -1033,6 +1034,176 @@ async function restoreActiveWalletChain(
     console.warn("Unable to check wallet network after bridge:", error);
   }
 }
+
+const getWalletErrorCode = (error: unknown) =>
+  error && typeof error === "object" && "code" in error
+    ? (error as { code?: number }).code
+    : undefined;
+
+const toWalletChainHex = (chainId: number) => `0x${chainId.toString(16)}`;
+
+const normalizeWalletChainHex = (chainId: string | number) => {
+  if (typeof chainId === "number") {
+    return toWalletChainHex(chainId).toLowerCase();
+  }
+
+  const trimmed = chainId.trim().toLowerCase();
+  const normalized = trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+  return `0x${BigInt(normalized).toString(16)}`;
+};
+
+const getBridgeRpcProxyUrl = (chainId: number) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return `${window.location.origin}/api/rpc/${chainId}`;
+};
+
+const getWalletAddChainParams = (
+  chainKey: string,
+  chainConfig: (typeof SUPPORTED_CHAINS)[keyof typeof SUPPORTED_CHAINS],
+) => {
+  if (chainKey === "arc-testnet") {
+    const proxyRpcUrl = getBridgeRpcProxyUrl(chainConfig.chainId);
+    if (proxyRpcUrl) {
+      return [
+        {
+          ...ARC_ADD_NETWORK_PARAMS[0],
+          rpcUrls: [proxyRpcUrl, ...ARC_ADD_NETWORK_PARAMS[0].rpcUrls],
+        },
+      ];
+    }
+
+    return ARC_ADD_NETWORK_PARAMS;
+  }
+
+  const viemChain = VIEM_CHAIN_MAP[chainConfig.chainId];
+  if (!viemChain) {
+    return null;
+  }
+
+  const proxyRpcUrl = getBridgeRpcProxyUrl(chainConfig.chainId);
+  const rpcUrls = proxyRpcUrl
+    ? [proxyRpcUrl]
+    : viemChain.rpcUrls.default.http.filter(
+        (url): url is string => typeof url === "string" && url.length > 0,
+      );
+  const blockExplorerUrl = viemChain.blockExplorers?.default?.url;
+
+  return [
+    {
+      chainId: toWalletChainHex(chainConfig.chainId),
+      chainName: chainConfig.name,
+      nativeCurrency: viemChain.nativeCurrency,
+      rpcUrls,
+      ...(blockExplorerUrl ? { blockExplorerUrls: [blockExplorerUrl] } : {}),
+    },
+  ];
+};
+
+export async function ensureWalletOnBridgeChain(
+  chainKey: string,
+  walletClient?: BridgeRequest["walletClient"],
+): Promise<void> {
+  if (chainKey === "solana") {
+    return;
+  }
+
+  const chainConfig = SUPPORTED_CHAINS[chainKey as keyof typeof SUPPORTED_CHAINS];
+  if (!chainConfig) {
+    throw new Error(`Unsupported chain: ${chainKey}`);
+  }
+
+  const provider = getEvmRequestProvider(walletClient);
+  if (!provider) {
+    throw new Error(
+      "No wallet provider found. Please connect your wallet and try again.",
+    );
+  }
+
+  const targetChainHex = toWalletChainHex(chainConfig.chainId);
+  const normalizedTargetChainHex = normalizeWalletChainHex(targetChainHex);
+  const addChainParams = getWalletAddChainParams(chainKey, chainConfig);
+
+  try {
+    const currentChainId = await provider.request({ method: "eth_chainId" });
+    if (
+      typeof currentChainId === "string" &&
+      normalizeWalletChainHex(currentChainId) === normalizedTargetChainHex
+    ) {
+      return;
+    }
+  } catch (error) {
+    console.warn("Unable to read wallet chain before bridge switch:", error);
+  }
+
+  const switchToTargetChain = async () => {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: targetChainHex }],
+    });
+  };
+
+  const addOrUpdateTargetChain = async () => {
+    if (!addChainParams) {
+      return;
+    }
+
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: addChainParams as any,
+    });
+  };
+
+  try {
+    try {
+      await addOrUpdateTargetChain();
+    } catch (addError) {
+      if (getWalletErrorCode(addError) === 4001) {
+        throw new Error(
+          `Please approve adding ${chainConfig.name} to your wallet to continue bridging.`,
+        );
+      }
+
+      console.warn(
+        `Unable to refresh ${chainConfig.name} network config in wallet:`,
+        addError,
+      );
+    }
+
+    await switchToTargetChain();
+  } catch (switchError) {
+    if (getWalletErrorCode(switchError) === 4902) {
+      try {
+        await addOrUpdateTargetChain();
+        await switchToTargetChain();
+      } catch (retryError) {
+        if (getWalletErrorCode(retryError) === 4001) {
+          throw new Error(
+            `Please approve switching to ${chainConfig.name} in your wallet to continue bridging.`,
+          );
+        }
+
+        throw retryError;
+      }
+    } else if (getWalletErrorCode(switchError) === 4001) {
+      throw new Error(
+        `Please approve switching to ${chainConfig.name} in your wallet to continue bridging.`,
+      );
+    } else {
+      throw switchError;
+    }
+  }
+
+  const currentChainId = await provider.request({ method: "eth_chainId" });
+  if (
+    typeof currentChainId !== "string" ||
+    normalizeWalletChainHex(currentChainId) !== normalizedTargetChainHex
+  ) {
+    throw new Error(`Please switch to ${chainConfig.name} to continue bridging.`);
+  }
+}
 /**
  * Circle's bridge fee configuration
  * Circle automatically deducts a fee (~0.00013 USDC) from the bridge amount.
@@ -1646,6 +1817,32 @@ export async function bridgeTokens(
       };
     }
 
+    if (request.fromChain !== "solana") {
+      try {
+        const provider = getEvmRequestProvider(request.walletClient);
+        if (provider) {
+          const accounts = (await provider.request({
+            method: "eth_requestAccounts",
+          })) as string[];
+          console.log("Wallet accounts confirmed before bridge:", accounts[0]);
+        }
+      } catch (error) {
+        console.warn("Could not confirm wallet accounts:", error);
+      }
+
+      try {
+        await ensureWalletOnBridgeChain(
+          request.fromChain,
+          request.walletClient,
+        );
+      } catch (error) {
+        return {
+          success: false,
+          error: getBridgeErrorMessage(error),
+        };
+      }
+    }
+
     let fromAdapter: any = null;
     let toAdapter: any = null;
 
@@ -1702,20 +1899,6 @@ export async function bridgeTokens(
         success: false,
         error: `${request.token} bridging is not yet supported. Only USDC can be bridged at this time.`,
       };
-    }
-
-    // Ensure wallet is properly connected by requesting accounts before bridge
-    try {
-      const provider = getEvmRequestProvider(request.walletClient);
-      if (request.fromChain !== "solana" && provider) {
-        const accounts = (await provider.request({
-          method: "eth_requestAccounts",
-        })) as string[];
-        console.log("Wallet accounts confirmed before bridge:", accounts[0]);
-      }
-    } catch (e) {
-      console.warn("Could not confirm wallet accounts:", e);
-      // Continue anyway - wallet might still be connected from adapter
     }
 
     const customFee = getConfiguredCustomBridgeFee(request.fromChain);

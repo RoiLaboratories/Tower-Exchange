@@ -17,9 +17,10 @@ import {
   X,
   Wallet,
 } from "lucide-react";
+import { useWalletClient } from "wagmi";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
-import { SUPPORTED_CHAINS, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
+import { SUPPORTED_CHAINS, ensureWalletOnBridgeChain, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
 import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
@@ -230,6 +231,7 @@ export default function BridgePageContent({
     openConnectModal: openSolanaConnectModal,
   } = useSolanaWallet();
   const bridgeHook = useBridge();
+  const { data: walletClient } = useWalletClient();
   const calculateBridgeDetails = bridgeHook.calculateBridgeDetails;
 
   const [fromAmount, setFromAmount] = useState("0.00");
@@ -725,6 +727,19 @@ export default function BridgePageContent({
       return;
     }
 
+    if (fromChainId && fromChainId !== "solana") {
+      try {
+        await ensureWalletOnBridgeChain(fromChainId, walletClient);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to switch to the source chain. Please try again.";
+        bridgeHook.reportError(message);
+        return;
+      }
+    }
+
     openBridgeStepsModal();
     const result = await bridgeHook.executeBridge({
       fromChain: fromChainId || "",
@@ -869,6 +884,7 @@ export default function BridgePageContent({
     openBridgeStepsModal,
     openSolanaConnectModal,
     solanaAddress,
+    walletClient,
   ]);
 
   useEffect(() => {
