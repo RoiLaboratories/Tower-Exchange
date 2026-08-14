@@ -13,7 +13,7 @@ import {
   type AIAgentBridgeRequest,
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
-import { registerBridgeActivity, registerBridgeFee, supabase } from "@/lib/supabase";
+import { registerBridgeActivity, registerBridgeFee, insertActivity } from "@/lib/supabase";
 import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2, Menu, X } from "lucide-react";
@@ -186,9 +186,7 @@ const logAiSwapActivity = async ({
       quote.inputToken,
     );
 
-    const { data, error } = await supabase
-      .from("activities")
-      .insert({
+    const { data, error, success } = await insertActivity({
         wallet_address: walletAddress.toLowerCase(),
         type: "Swap",
         source_currency_ticker: sourceSymbol ?? "Token",
@@ -200,11 +198,9 @@ const logAiSwapActivity = async ({
         amount_usd: amount,
         transaction_hash: transactionHash || null,
         timestamp: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+      });
 
-    if (error) {
+    if (!success || error) {
       console.error("Error logging AI swap activity:", error);
       return null;
     }

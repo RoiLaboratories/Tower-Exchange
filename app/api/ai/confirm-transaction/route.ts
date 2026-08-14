@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/server/devApiSupabase";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_TOWER_AI_API ||
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Store confirmation in Supabase
-    const { error: dbError } = await supabase
+    const { error: dbError } = await supabaseAdmin
       .from("transaction_confirmations")
       .insert({
         wallet_address,
@@ -93,7 +93,7 @@ The swap has completed successfully. Your tokens are now in your wallet.`;
     }
 
     // Log confirmation to history
-    const { error: historyError } = await supabase
+    const { error: historyError } = await supabaseAdmin
       .from("ai_db")
       .insert({
         user_id: wallet_address,

@@ -44,7 +44,7 @@ import TransactionStepsModal, {
   type TransactionStep,
 } from "./TransactionStepsModal";
 import {
-  supabase,
+  insertActivity,
 } from "@/lib/supabase";
 import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
@@ -1033,9 +1033,7 @@ const SwapCard = ({
         if (!user?.wallet?.address) return null;
         const amountUsd = (parseFloat(sellAmount) || 0) * sellTokenWithLivePrice.usdPrice;
         const resolvedRouteLabel = routeLabel || getActiveSwapRouteName();
-        const { data, error } = await supabase
-          .from("activities")
-          .insert({
+        const { data, error, success } = await insertActivity({
             wallet_address: user.wallet.address.toLowerCase(),
             type:
               resolvedRouteLabel && resolvedRouteLabel !== "Swap"
@@ -1050,12 +1048,10 @@ const SwapCard = ({
             amount_usd: amountUsd || null,
             transaction_hash: txHash || null,
             timestamp: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
+          });
 
-        if (error) {
-          throw error;
+        if (!success || error) {
+          throw new Error(error || "Failed to insert activity");
         }
 
         return data?.id ?? null;

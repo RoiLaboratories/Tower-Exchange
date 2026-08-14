@@ -123,7 +123,7 @@ export const RecurringSell = () => {
         endDate: order.end_date,
       });
 
-      await updateRecurringOrder(order.id, {
+      await updateRecurringOrder(order.id, walletAddress, {
         onchain_order_key: authorization.orderKey,
         executor_address: authorization.executorAddress,
         ...(authorization.approvalHash && {
@@ -160,7 +160,7 @@ export const RecurringSell = () => {
       }
     } catch (err) {
       if (createdOrderId) {
-        await updateRecurringOrder(createdOrderId, { is_active: false }).catch((updateError) => {
+        await updateRecurringOrder(createdOrderId, walletAddress, { is_active: false }).catch((updateError) => {
           console.error("Error deactivating unauthorized recurring sell:", updateError);
         });
       }

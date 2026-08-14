@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 import { formatUsdAmount } from "@/lib/formatUsdAmount";
-import { supabase, type ActivityRow } from "@/lib/supabase";
+import { fetchActivitiesByWallet, type ActivityRow } from "@/lib/supabase";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 import usdcLogo from "@/public/assets/usdc.svg";
 import ethLogo from "@/public/assets/Eth_logo_3-removebg-preview.png";
@@ -192,14 +192,12 @@ export const PortfolioAnalysis = () => {
       setIsLoadingActivities(true);
 
       try {
-        const { data, error } = await supabase
-          .from("activities")
-          .select("*")
-          .eq("wallet_address", walletAddress.toLowerCase())
-          .order("timestamp", { ascending: true })
-          .limit(500);
+        const { data, error, success } = await fetchActivitiesByWallet(
+          walletAddress,
+          { limit: 500, ascending: true },
+        );
 
-        if (error) {
+        if (!success || error) {
           console.error("Error fetching portfolio activity chart data:", error);
           if (isMounted) {
             setActivities([]);

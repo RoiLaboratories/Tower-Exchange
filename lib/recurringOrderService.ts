@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { userApiFetch } from "./userApi";
 
 export interface RecurringOrder {
   id: string;
@@ -154,35 +154,33 @@ export const createRecurringOrder = async (
   );
   const normalizedEndDate = calculateEndDate(endDate);
 
-  const { data, error } = await supabase
-    .from("recurring_orders")
-    .insert({
-      wallet_address: walletAddress,
-      order_type: orderType,
-      source_token: sourceToken,
-      target_token: targetToken,
-      amount,
-      frequency,
-      start_date: nextExecutionDate,
-      end_date: normalizedEndDate,
-      next_execution_date: nextExecutionDate,
-      is_active: true,
-      ...(signature && { signature }),
-    })
-    .select()
-    .single();
+  const result = await userApiFetch<{ data: RecurringOrder }>(
+    "/api/user/recurring-orders",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        wallet_address: walletAddress,
+        order_type: orderType,
+        source_token: sourceToken,
+        target_token: targetToken,
+        amount,
+        frequency,
+        start_date: nextExecutionDate,
+        end_date: normalizedEndDate,
+        next_execution_date: nextExecutionDate,
+        is_active: true,
+        ...(signature && { signature }),
+      }),
+    },
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok || !result.data?.data) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error creating recurring order:", errorMessage);
     throw new Error(`Failed to create recurring order: ${errorMessage}`);
   }
 
-  if (!data) {
-    throw new Error("Failed to create recurring order: No data returned from database");
-  }
-
-  return data;
+  return result.data.data;
 };
 
 /**
@@ -192,46 +190,41 @@ export const getRecurringOrders = async (
   walletAddress: string,
   activeOnly = true
 ): Promise<RecurringOrder[]> => {
-  let query = supabase
-    .from("recurring_orders")
-    .select("*")
-    .eq("wallet_address", walletAddress);
-
-  if (activeOnly) {
-    query = query.eq("is_active", true);
-  }
-
-  const { data, error } = await query.order("created_at", {
-    ascending: false,
+  const params = new URLSearchParams({
+    walletAddress,
+    activeOnly: activeOnly ? "true" : "false",
   });
+  const result = await userApiFetch<{ data: RecurringOrder[] }>(
+    `/api/user/recurring-orders?${params.toString()}`,
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error fetching recurring orders:", errorMessage);
     throw new Error(`Failed to fetch recurring orders: ${errorMessage}`);
   }
 
-  return data || [];
+  return result.data?.data || [];
 };
 
 /**
  * Get a specific recurring order
  */
 export const getRecurringOrder = async (
-  orderId: string
+  orderId: string,
+  walletAddress: string,
 ): Promise<RecurringOrder | null> => {
-  const { data, error } = await supabase
-    .from("recurring_orders")
-    .select("*")
-    .eq("id", orderId)
-    .single();
+  const params = new URLSearchParams({ walletAddress });
+  const result = await userApiFetch<{ data: RecurringOrder }>(
+    `/api/user/recurring-orders/${orderId}?${params.toString()}`,
+  );
 
-  if (error) {
-    console.error("Error fetching recurring order:", error);
+  if (!result.ok || !result.data?.data) {
+    console.error("Error fetching recurring order:", result.error);
     return null;
   }
 
-  return data;
+  return result.data.data;
 };
 
 /**
@@ -239,26 +232,27 @@ export const getRecurringOrder = async (
  */
 export const updateRecurringOrder = async (
   orderId: string,
+  walletAddress: string,
   updates: Partial<RecurringOrder>
 ): Promise<RecurringOrder> => {
-  const { data, error } = await supabase
-    .from("recurring_orders")
-    .update(updates)
-    .eq("id", orderId)
-    .select()
-    .single();
+  const result = await userApiFetch<{ data: RecurringOrder }>(
+    `/api/user/recurring-orders/${orderId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...updates,
+        wallet_address: walletAddress,
+      }),
+    },
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok || !result.data?.data) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error updating recurring order:", errorMessage);
     throw new Error(`Failed to update recurring order: ${errorMessage}`);
   }
 
-  if (!data) {
-    throw new Error("Failed to update recurring order: No data returned");
-  }
-
-  return data;
+  return result.data.data;
 };
 
 /**
@@ -271,20 +265,23 @@ export const logOrderCancellation = async (
   targetToken: string,
   orderType: "buy" | "sell"
 ): Promise<void> => {
-  const { error } = await supabase.from("activities").insert({
-    wallet_address: walletAddress.toLowerCase(),
-    type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Cancelled`,
-    source_currency_ticker: sourceToken,
-    destination_currency_ticker: targetToken,
-    source_network_name: "Arc",
-    destination_network_name: "Arc",
-    status: "Successful",
-    amount: 0,
+  const result = await userApiFetch("/api/user/activities", {
+    method: "POST",
+    body: JSON.stringify({
+      wallet_address: walletAddress.toLowerCase(),
+      type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Cancelled`,
+      source_currency_ticker: sourceToken,
+      destination_currency_ticker: targetToken,
+      source_network_name: "Arc",
+      destination_network_name: "Arc",
+      status: "Successful",
+      amount: 0,
+    }),
   });
 
-  if (error) {
-    console.error("Error logging order cancellation:", error);
-    throw new Error(`Failed to log order cancellation: ${error.message}`);
+  if (!result.ok) {
+    console.error("Error logging order cancellation:", result.error);
+    throw new Error(`Failed to log order cancellation: ${result.error}`);
   }
 };
 
@@ -298,20 +295,23 @@ export const logOrderCreation = async (
   orderType: "buy" | "sell",
   amount: number
 ): Promise<void> => {
-  const { error } = await supabase.from("activities").insert({
-    wallet_address: walletAddress.toLowerCase(),
-    type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Created`,
-    source_currency_ticker: sourceToken,
-    destination_currency_ticker: targetToken,
-    source_network_name: "Arc",
-    destination_network_name: "Arc",
-    status: "Successful",
-    amount: amount,
+  const result = await userApiFetch("/api/user/activities", {
+    method: "POST",
+    body: JSON.stringify({
+      wallet_address: walletAddress.toLowerCase(),
+      type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Created`,
+      source_currency_ticker: sourceToken,
+      destination_currency_ticker: targetToken,
+      source_network_name: "Arc",
+      destination_network_name: "Arc",
+      status: "Successful",
+      amount,
+    }),
   });
 
-  if (error) {
-    console.error("Error logging order creation:", error);
-    throw new Error(`Failed to log order creation: ${error.message}`);
+  if (!result.ok) {
+    console.error("Error logging order creation:", result.error);
+    throw new Error(`Failed to log order creation: ${result.error}`);
   }
 };
 
@@ -323,20 +323,17 @@ export const cancelRecurringOrder = async (
   walletAddress: string
 ): Promise<void> => {
   // Get order details before canceling for activity logging
-  const order = await getRecurringOrder(orderId);
+  const order = await getRecurringOrder(orderId, walletAddress);
 
   if (!order) {
     throw new Error("Order not found");
   }
 
-  // Update order status
-  const { error } = await supabase
-    .from("recurring_orders")
-    .update({ is_active: false })
-    .eq("id", orderId);
-
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  try {
+    await updateRecurringOrder(orderId, walletAddress, { is_active: false });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     console.error("Error canceling recurring order:", errorMessage);
     throw new Error(`Failed to cancel recurring order: ${errorMessage}`);
   }
@@ -359,14 +356,18 @@ export const cancelRecurringOrder = async (
 /**
  * Delete a recurring order
  */
-export const deleteRecurringOrder = async (orderId: string): Promise<void> => {
-  const { error } = await supabase
-    .from("recurring_orders")
-    .delete()
-    .eq("id", orderId);
+export const deleteRecurringOrder = async (
+  orderId: string,
+  walletAddress: string,
+): Promise<void> => {
+  const params = new URLSearchParams({ walletAddress });
+  const result = await userApiFetch(
+    `/api/user/recurring-orders/${orderId}?${params.toString()}`,
+    { method: "DELETE" },
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error deleting recurring order:", errorMessage);
     throw new Error(`Failed to delete recurring order: ${errorMessage}`);
   }
@@ -376,21 +377,24 @@ export const deleteRecurringOrder = async (orderId: string): Promise<void> => {
  * Get execution history for a recurring order
  */
 export const getOrderExecutions = async (
-  recurringOrderId: string
+  recurringOrderId: string,
+  walletAddress: string,
 ): Promise<RecurringOrderExecution[]> => {
-  const { data, error } = await supabase
-    .from("recurring_order_executions")
-    .select("*")
-    .eq("recurring_order_id", recurringOrderId)
-    .order("execution_date", { ascending: false });
+  const params = new URLSearchParams({
+    walletAddress,
+    orderId: recurringOrderId,
+  });
+  const result = await userApiFetch<{ data: RecurringOrderExecution[] }>(
+    `/api/user/recurring-order-executions?${params.toString()}`,
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error fetching order executions:", errorMessage);
     throw new Error(`Failed to fetch order executions: ${errorMessage}`);
   }
 
-  return data || [];
+  return result.data?.data || [];
 };
 
 /**
@@ -399,19 +403,18 @@ export const getOrderExecutions = async (
 export const getWalletExecutions = async (
   walletAddress: string
 ): Promise<RecurringOrderExecution[]> => {
-  const { data, error } = await supabase
-    .from("recurring_order_executions")
-    .select("*")
-    .eq("wallet_address", walletAddress)
-    .order("execution_date", { ascending: false });
+  const params = new URLSearchParams({ walletAddress });
+  const result = await userApiFetch<{ data: RecurringOrderExecution[] }>(
+    `/api/user/recurring-order-executions?${params.toString()}`,
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
+  if (!result.ok) {
+    const errorMessage = result.error || "Unknown error";
     console.error("Error fetching wallet executions:", errorMessage);
     throw new Error(`Failed to fetch wallet executions: ${errorMessage}`);
   }
 
-  return data || [];
+  return result.data?.data || [];
 };
 
 /**
@@ -432,36 +435,34 @@ export const logOrderExecution = async (
     targetAmountUsd?: number | string | null;
   }
 ): Promise<RecurringOrderExecution> => {
-  const { data, error } = await supabase
-    .from("recurring_order_executions")
-    .insert({
-      recurring_order_id: recurringOrderId,
-      wallet_address: walletAddress,
-      amount,
-      source_amount_usd: executionAmounts?.sourceAmountUsd ?? null,
-      target_amount: executionAmounts?.targetAmount ?? null,
-      target_amount_usd: executionAmounts?.targetAmountUsd ?? null,
-      source_token: sourceToken,
-      target_token: targetToken,
-      status,
-      transaction_hash: transactionHash,
-      error_message: errorMessage,
-      execution_date: new Date().toISOString(),
-    })
-    .select()
-    .single();
+  const result = await userApiFetch<{ data: RecurringOrderExecution }>(
+    "/api/user/recurring-order-executions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        recurring_order_id: recurringOrderId,
+        wallet_address: walletAddress,
+        amount,
+        source_amount_usd: executionAmounts?.sourceAmountUsd ?? null,
+        target_amount: executionAmounts?.targetAmount ?? null,
+        target_amount_usd: executionAmounts?.targetAmountUsd ?? null,
+        source_token: sourceToken,
+        target_token: targetToken,
+        status,
+        transaction_hash: transactionHash,
+        error_message: errorMessage,
+        execution_date: new Date().toISOString(),
+      }),
+    },
+  );
 
-  if (error) {
-    const errorMessage = error?.message || JSON.stringify(error) || "Unknown error";
-    console.error("Error logging order execution:", errorMessage);
-    throw new Error(`Failed to log order execution: ${errorMessage}`);
+  if (!result.ok || !result.data?.data) {
+    const message = result.error || "Unknown error";
+    console.error("Error logging order execution:", message);
+    throw new Error(`Failed to log order execution: ${message}`);
   }
 
-  if (!data) {
-    throw new Error("Failed to log order execution: No data returned");
-  }
-
-  return data;
+  return result.data.data;
 };
 
 export const calculateEndDate = (date?: string | null): string | null => {
