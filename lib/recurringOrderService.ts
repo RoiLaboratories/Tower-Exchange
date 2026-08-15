@@ -158,8 +158,8 @@ export const createRecurringOrder = async (
     "/api/user/recurring-orders",
     {
       method: "POST",
+      walletAddress,
       body: JSON.stringify({
-        wallet_address: walletAddress,
         order_type: orderType,
         source_token: sourceToken,
         target_token: targetToken,
@@ -169,7 +169,6 @@ export const createRecurringOrder = async (
         end_date: normalizedEndDate,
         next_execution_date: nextExecutionDate,
         is_active: true,
-        ...(signature && { signature }),
       }),
     },
   );
@@ -196,6 +195,7 @@ export const getRecurringOrders = async (
   });
   const result = await userApiFetch<{ data: RecurringOrder[] }>(
     `/api/user/recurring-orders?${params.toString()}`,
+    { walletAddress },
   );
 
   if (!result.ok) {
@@ -217,6 +217,7 @@ export const getRecurringOrder = async (
   const params = new URLSearchParams({ walletAddress });
   const result = await userApiFetch<{ data: RecurringOrder }>(
     `/api/user/recurring-orders/${orderId}?${params.toString()}`,
+    { walletAddress },
   );
 
   if (!result.ok || !result.data?.data) {
@@ -227,22 +228,41 @@ export const getRecurringOrder = async (
   return result.data.data;
 };
 
+const CLIENT_ORDER_UPDATE_KEYS = [
+  "is_active",
+  "amount",
+  "frequency",
+  "end_date",
+  "next_execution_date",
+] as const;
+
+type ClientOrderUpdate = Pick<
+  RecurringOrder,
+  (typeof CLIENT_ORDER_UPDATE_KEYS)[number]
+>;
+
 /**
- * Update a recurring order
+ * Update client-editable recurring order fields only.
+ * On-chain authorization fields must use markRecurringOrderAuthorized.
  */
 export const updateRecurringOrder = async (
   orderId: string,
   walletAddress: string,
-  updates: Partial<RecurringOrder>
+  updates: Partial<ClientOrderUpdate>,
 ): Promise<RecurringOrder> => {
+  const body: Record<string, unknown> = {};
+  for (const key of CLIENT_ORDER_UPDATE_KEYS) {
+    if (updates[key] !== undefined) {
+      body[key] = updates[key];
+    }
+  }
+
   const result = await userApiFetch<{ data: RecurringOrder }>(
     `/api/user/recurring-orders/${orderId}`,
     {
       method: "PATCH",
-      body: JSON.stringify({
-        ...updates,
-        wallet_address: walletAddress,
-      }),
+      walletAddress,
+      body: JSON.stringify(body),
     },
   );
 
@@ -250,6 +270,44 @@ export const updateRecurringOrder = async (
     const errorMessage = result.error || "Unknown error";
     console.error("Error updating recurring order:", errorMessage);
     throw new Error(`Failed to update recurring order: ${errorMessage}`);
+  }
+
+  return result.data.data;
+};
+
+/**
+ * Persist on-chain authorization proof after authorizeRecurringOrderOnchain.
+ */
+export const markRecurringOrderAuthorized = async (
+  orderId: string,
+  walletAddress: string,
+  authorization: {
+    orderKey: string;
+    executorAddress: string;
+    authorizationHash: string;
+    approvalHash?: string | null;
+  },
+): Promise<RecurringOrder> => {
+  const result = await userApiFetch<{ data: RecurringOrder }>(
+    `/api/user/recurring-orders/${orderId}/authorize`,
+    {
+      method: "POST",
+      walletAddress,
+      body: JSON.stringify({
+        onchain_order_key: authorization.orderKey,
+        executor_address: authorization.executorAddress,
+        authorization_transaction_hash: authorization.authorizationHash,
+        ...(authorization.approvalHash
+          ? { approval_transaction_hash: authorization.approvalHash }
+          : {}),
+      }),
+    },
+  );
+
+  if (!result.ok || !result.data?.data) {
+    const errorMessage = result.error || "Unknown error";
+    console.error("Error authorizing recurring order:", errorMessage);
+    throw new Error(`Failed to authorize recurring order: ${errorMessage}`);
   }
 
   return result.data.data;
@@ -267,8 +325,8 @@ export const logOrderCancellation = async (
 ): Promise<void> => {
   const result = await userApiFetch("/api/user/activities", {
     method: "POST",
+    walletAddress,
     body: JSON.stringify({
-      wallet_address: walletAddress.toLowerCase(),
       type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Cancelled`,
       source_currency_ticker: sourceToken,
       destination_currency_ticker: targetToken,
@@ -297,8 +355,8 @@ export const logOrderCreation = async (
 ): Promise<void> => {
   const result = await userApiFetch("/api/user/activities", {
     method: "POST",
+    walletAddress,
     body: JSON.stringify({
-      wallet_address: walletAddress.toLowerCase(),
       type: `Recurring ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Created`,
       source_currency_ticker: sourceToken,
       destination_currency_ticker: targetToken,
@@ -363,7 +421,7 @@ export const deleteRecurringOrder = async (
   const params = new URLSearchParams({ walletAddress });
   const result = await userApiFetch(
     `/api/user/recurring-orders/${orderId}?${params.toString()}`,
-    { method: "DELETE" },
+    { method: "DELETE", walletAddress },
   );
 
   if (!result.ok) {
@@ -386,6 +444,7 @@ export const getOrderExecutions = async (
   });
   const result = await userApiFetch<{ data: RecurringOrderExecution[] }>(
     `/api/user/recurring-order-executions?${params.toString()}`,
+    { walletAddress },
   );
 
   if (!result.ok) {
@@ -406,6 +465,7 @@ export const getWalletExecutions = async (
   const params = new URLSearchParams({ walletAddress });
   const result = await userApiFetch<{ data: RecurringOrderExecution[] }>(
     `/api/user/recurring-order-executions?${params.toString()}`,
+    { walletAddress },
   );
 
   if (!result.ok) {
@@ -439,9 +499,9 @@ export const logOrderExecution = async (
     "/api/user/recurring-order-executions",
     {
       method: "POST",
+      walletAddress,
       body: JSON.stringify({
         recurring_order_id: recurringOrderId,
-        wallet_address: walletAddress,
         amount,
         source_amount_usd: executionAmounts?.sourceAmountUsd ?? null,
         target_amount: executionAmounts?.targetAmount ?? null,

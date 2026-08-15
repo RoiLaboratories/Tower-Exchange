@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
-import { requireWalletAddress, walletError } from "@/lib/server/wallet";
+import { walletError } from "@/lib/server/wallet";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const { wallet, response } = requireWalletAddress(
-      searchParams.get("walletAddress"),
-    );
+    const { wallet, response } = requireWalletSession(request);
     if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
+      return response ?? walletError("Wallet session required.", 401);
     }
 
+    const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("activeOnly") !== "false";
 
     let query = supabaseAdmin
@@ -44,20 +43,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { wallet, response } = requireWalletSession(request);
+    if (response || !wallet) {
+      return response ?? walletError("Wallet session required.", 401);
+    }
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
     >;
-    const { wallet, response } = requireWalletAddress(
-      body.wallet_address ?? body.walletAddress,
-    );
-    if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
-    }
 
-    const orderType = body.order_type === "buy" || body.order_type === "sell"
-      ? body.order_type
-      : null;
+    const orderType =
+      body.order_type === "buy" || body.order_type === "sell"
+        ? body.order_type
+        : null;
     if (!orderType) {
       return walletError("order_type must be buy or sell.");
     }
@@ -76,7 +75,9 @@ export async function POST(request: NextRequest) {
       typeof body.frequency === "string" ? body.frequency : null;
 
     if (!sourceToken || !targetToken || !frequency || !Number.isFinite(amount)) {
-      return walletError("source_token, target_token, amount, and frequency are required.");
+      return walletError(
+        "source_token, target_token, amount, and frequency are required.",
+      );
     }
 
     const row = {
@@ -98,7 +99,6 @@ export async function POST(request: NextRequest) {
             ? body.start_date
             : new Date().toISOString(),
       is_active: body.is_active !== false,
-      ...(typeof body.signature === "string" ? { signature: body.signature } : {}),
     };
 
     const { data, error } = await supabaseAdmin

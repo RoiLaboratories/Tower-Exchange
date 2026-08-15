@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
-import { requireWalletAddress, walletError } from "@/lib/server/wallet";
+import { walletError } from "@/lib/server/wallet";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Client-editable fields only — server-owned fields are rejected (finding 02). */
 const ALLOWED_UPDATE_KEYS = new Set([
   "is_active",
   "amount",
   "frequency",
   "end_date",
   "next_execution_date",
-  "onchain_order_key",
-  "executor_address",
-  "approval_transaction_hash",
-  "authorization_transaction_hash",
-  "onchain_authorized",
-  "execution_count",
-  "signature",
 ]);
 
 type RouteContext = {
@@ -31,14 +26,12 @@ async function resolveId(context: RouteContext) {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const id = await resolveId(context);
-    const { searchParams } = new URL(request.url);
-    const { wallet, response } = requireWalletAddress(
-      searchParams.get("walletAddress"),
-    );
+    const { wallet, response } = requireWalletSession(request);
     if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
+      return response ?? walletError("Wallet session required.", 401);
     }
+
+    const id = await resolveId(context);
 
     const { data, error } = await supabaseAdmin
       .from("recurring_orders")
@@ -67,17 +60,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
+    const { wallet, response } = requireWalletSession(request);
+    if (response || !wallet) {
+      return response ?? walletError("Wallet session required.", 401);
+    }
+
     const id = await resolveId(context);
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
     >;
-    const { wallet, response } = requireWalletAddress(
-      body.wallet_address ?? body.walletAddress,
-    );
-    if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
-    }
 
     const updates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(body)) {
@@ -118,14 +110,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const id = await resolveId(context);
-    const { searchParams } = new URL(request.url);
-    const { wallet, response } = requireWalletAddress(
-      searchParams.get("walletAddress"),
-    );
+    const { wallet, response } = requireWalletSession(request);
     if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
+      return response ?? walletError("Wallet session required.", 401);
     }
+
+    const id = await resolveId(context);
 
     const { data, error } = await supabaseAdmin
       .from("recurring_orders")

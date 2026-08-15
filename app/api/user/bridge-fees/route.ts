@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
-import { requireWalletAddress, walletError } from "@/lib/server/wallet";
+import { walletError } from "@/lib/server/wallet";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    const { wallet, response } = requireWalletSession(request);
+    if (response || !wallet) {
+      return response ?? walletError("Wallet session required.", 401);
+    }
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
     >;
-    const { wallet, response } = requireWalletAddress(
-      body.wallet_address ?? body.walletAddress,
-    );
-    if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
-    }
 
     const row = {
       wallet_address: wallet,

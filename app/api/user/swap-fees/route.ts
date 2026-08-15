@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
-import { requireWalletAddress, walletError } from "@/lib/server/wallet";
+import { walletError } from "@/lib/server/wallet";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const { wallet, response } = requireWalletAddress(
-      searchParams.get("walletAddress"),
-    );
+    const { wallet, response } = requireWalletSession(request);
     if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
+      return response ?? walletError("Wallet session required.", 401);
     }
 
+    const { searchParams } = new URL(request.url);
     const limitRaw = Number.parseInt(searchParams.get("limit") || "50", 10);
     const limit = Number.isFinite(limitRaw)
       ? Math.min(Math.max(limitRaw, 1), 200)
@@ -43,16 +42,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { wallet, response } = requireWalletSession(request);
+    if (response || !wallet) {
+      return response ?? walletError("Wallet session required.", 401);
+    }
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
     >;
-    const { wallet, response } = requireWalletAddress(
-      body.wallet_address ?? body.walletAddress,
-    );
-    if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
-    }
 
     const row = {
       wallet_address: wallet,
@@ -109,16 +107,15 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const { wallet, response } = requireWalletSession(request);
+    if (response || !wallet) {
+      return response ?? walletError("Wallet session required.", 401);
+    }
+
     const body = (await request.json().catch(() => ({}))) as Record<
       string,
       unknown
     >;
-    const { wallet, response } = requireWalletAddress(
-      body.wallet_address ?? body.walletAddress,
-    );
-    if (response || !wallet) {
-      return response ?? walletError("Valid wallet address is required.");
-    }
 
     const feeId = typeof body.feeId === "string" ? body.feeId : null;
     const transactionHash =

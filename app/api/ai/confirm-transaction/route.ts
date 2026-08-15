@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_TOWER_AI_API ||
@@ -7,7 +8,6 @@ const BACKEND_URL =
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 
 interface ConfirmationRequest {
-  wallet_address: string;
   session_id: string;
   transaction_hash: string;
   block_number: number;
@@ -17,29 +17,39 @@ interface ConfirmationRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: ConfirmationRequest = await request.json();
-    const { wallet_address, session_id, transaction_hash, block_number, status, gas_used } = body;
+    const { wallet, response: sessionError } = requireWalletSession(request);
+    if (sessionError || !wallet) {
+      return (
+        sessionError ??
+        NextResponse.json(
+          { error: "Wallet session required. Please sign in." },
+          { status: 401 },
+        )
+      );
+    }
 
-    // Validation
-    if (!wallet_address || !session_id || !transaction_hash) {
+    const body = (await request.json()) as ConfirmationRequest;
+    const { session_id, transaction_hash, block_number, status, gas_used } =
+      body;
+
+    if (!session_id || !transaction_hash) {
       return NextResponse.json(
         { error: "Missing required fields" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     console.log("Received transaction confirmation:", {
-      wallet_address,
+      wallet_address: wallet,
       session_id,
       transaction_hash,
       status,
     });
 
-    // Store confirmation in Supabase
     const { error: dbError } = await supabaseAdmin
       .from("transaction_confirmations")
       .insert({
-        wallet_address,
+        wallet_address: wallet,
         session_id,
         transaction_hash,
         block_number,
@@ -50,10 +60,8 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error("Error storing confirmation in Supabase:", dbError);
-      // Don't fail the request - the confirmation was successful on-chain
     }
 
-    // Create success message
     const successMessage = `The swap transaction has been confirmed on the blockchain! 
 Transaction Hash: ${transaction_hash}
 Block Number: ${block_number}
@@ -61,7 +69,6 @@ Gas Used: ${gas_used}
 
 The swap has completed successfully. Your tokens are now in your wallet.`;
 
-    // Send confirmation back to AI agent
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -77,9 +84,9 @@ The swap has completed successfully. Your tokens are now in your wallet.`;
       headers,
       body: JSON.stringify({
         message: `[System: Transaction confirmed - ${transaction_hash}] The user's swap transaction has been successfully confirmed on the blockchain.`,
-        userid: wallet_address,
-        session_id: session_id,
-        wallet_address: wallet_address,
+        userid: wallet,
+        session_id,
+        wallet_address: wallet,
         chain_id: 5042002,
         enable_wallet_access: false,
         enable_swap_execution: false,
@@ -89,18 +96,14 @@ The swap has completed successfully. Your tokens are now in your wallet.`;
 
     if (!aiResponse.ok) {
       console.error("Error notifying AI agent of confirmation");
-      // Still return success - confirmation was successful on-chain
     }
 
-    // Log confirmation to history
-    const { error: historyError } = await supabaseAdmin
-      .from("ai_db")
-      .insert({
-        user_id: wallet_address,
-        session_id: session_id,
-        user_query: `[Transaction Confirmed]`,
-        ai_response: successMessage,
-      });
+    const { error: historyError } = await supabaseAdmin.from("ai_db").insert({
+      user_id: wallet,
+      session_id,
+      user_query: `[Transaction Confirmed]`,
+      ai_response: successMessage,
+    });
 
     if (historyError) {
       console.warn("Error logging confirmation to history:", historyError);
@@ -116,7 +119,7 @@ The swap has completed successfully. Your tokens are now in your wallet.`;
     console.error("Error processing transaction confirmation:", error);
     return NextResponse.json(
       { error: "Failed to process transaction confirmation" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

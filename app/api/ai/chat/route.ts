@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
+import { requireWalletSession } from "@/lib/server/walletSession";
+import { normalizeWalletAddress } from "@/lib/server/wallet";
 
 const DEFAULT_TOWER_AI_API =
   "https://tower-exchange-ai-production-3248.up.railway.app";
@@ -1323,7 +1325,37 @@ const enrichBridgeExecution = (
 };
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as AiChatPayload;
+    const { wallet, response: sessionError } = requireWalletSession(request);
+    if (sessionError || !wallet) {
+      return (
+        sessionError ??
+        NextResponse.json(
+          { error: "Wallet session required. Please sign in." },
+          { status: 401 },
+        )
+      );
+    }
+
+    const rawBody = (await request.json()) as AiChatPayload;
+
+    // Bind identity to the authenticated session wallet (finding 03).
+    // Never trust client-supplied userid / wallet_address / free-text victim addresses.
+    const sanitizedMessage =
+      typeof rawBody.message === "string"
+        ? rawBody.message.replace(EVM_ADDRESS_IN_TEXT_PATTERN, (match) => {
+            const normalized = normalizeWalletAddress(match);
+            return normalized && normalized === wallet ? match : wallet;
+          })
+        : rawBody.message;
+
+    const body: AiChatPayload = {
+      ...rawBody,
+      message: sanitizedMessage,
+      wallet_address: wallet,
+      walletAddress: wallet,
+      userid: wallet,
+      userId: wallet,
+    };
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

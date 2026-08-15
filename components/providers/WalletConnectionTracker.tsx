@@ -3,6 +3,10 @@
 import { useRef } from "react";
 import { useAccountEffect } from "wagmi";
 import { trackWalletConnection } from "@/lib/walletConnectionTracking";
+import {
+  ensureWalletSession,
+  logoutWalletSession,
+} from "@/lib/walletSessionClient";
 
 export const WalletConnectionTracker = () => {
   const trackedAddressRef = useRef<string | null>(null);
@@ -10,6 +14,11 @@ export const WalletConnectionTracker = () => {
   useAccountEffect({
     onConnect(data) {
       const normalizedAddress = data.address.toLowerCase();
+
+      // Establish (or refresh) signed wallet session for gated /api/user/* and AI routes.
+      void ensureWalletSession(normalizedAddress).catch((error) => {
+        console.warn("Wallet session sign-in failed:", error);
+      });
 
       if (data.isReconnected) {
         trackedAddressRef.current = normalizedAddress;
@@ -31,6 +40,7 @@ export const WalletConnectionTracker = () => {
     },
     onDisconnect() {
       trackedAddressRef.current = null;
+      void logoutWalletSession();
     },
   });
 

@@ -1,7 +1,10 @@
 /**
  * Browser-safe helpers for wallet-scoped user data APIs.
- * These call Next.js routes that use the service role server-side.
+ * These call Next.js routes that use the service role server-side,
+ * gated by a signed wallet session cookie.
  */
+
+import { ensureWalletSession } from "@/lib/walletSessionClient";
 
 async function parseJson(response: Response) {
   try {
@@ -13,13 +16,32 @@ async function parseJson(response: Response) {
 
 export async function userApiFetch<T = unknown>(
   path: string,
-  init?: RequestInit,
+  init?: RequestInit & { walletAddress?: string },
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
+  const { walletAddress, ...fetchInit } = init || {};
+
+  if (walletAddress) {
+    try {
+      await ensureWalletSession(walletAddress);
+    } catch (error) {
+      return {
+        ok: false,
+        status: 401,
+        data: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Wallet session required",
+      };
+    }
+  }
+
   const response = await fetch(path, {
-    ...init,
+    ...fetchInit,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(init?.headers || {}),
+      ...(fetchInit.headers || {}),
     },
   });
 

@@ -3,6 +3,7 @@
  */
 
 import { userApiFetch } from "./userApi";
+import { ensureWalletSession } from "./walletSessionClient";
 
 export interface AIAgentRequest {
   message: string;
@@ -172,6 +173,12 @@ export const sendMessageToAIAgent = async (
   const url = CHAT_ENDPOINT;
 
   try {
+    const walletForSession =
+      request.wallet_address || request.userid || undefined;
+    if (walletForSession) {
+      await ensureWalletSession(walletForSession);
+    }
+
     // Prepare request with wallet context and defaults
     const payload = {
       ...request,
@@ -184,6 +191,7 @@ export const sendMessageToAIAgent = async (
 
     const response = await fetch(url, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -239,7 +247,9 @@ export const getConversationHistory = async (
     });
     const result = await userApiFetch<{
       data: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[];
-    }>(`/api/user/ai-history?${params.toString()}`);
+    }>(`/api/user/ai-history?${params.toString()}`, {
+      walletAddress: userId,
+    });
 
     if (!result.ok) {
       console.warn("Error fetching chat history from API:", result.error);
@@ -267,8 +277,8 @@ export const saveChatMessageToHistory = async (
       "/api/user/ai-history",
       {
         method: "POST",
+        walletAddress: userId,
         body: JSON.stringify({
-          user_id: userId,
           session_id: sessionId,
           user_query: userQuery,
           ai_response: aiResponse,

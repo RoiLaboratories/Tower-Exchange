@@ -15,6 +15,7 @@ import {
   formatUtcDateTimeLabel,
   getDefaultRecurringExecutionUtc,
   logOrderCreation,
+  markRecurringOrderAuthorized,
   updateRecurringOrder,
 } from "@/lib/recurringOrderService";
 import {
@@ -123,14 +124,11 @@ export const RecurringSell = () => {
         endDate: order.end_date,
       });
 
-      await updateRecurringOrder(order.id, walletAddress, {
-        onchain_order_key: authorization.orderKey,
-        executor_address: authorization.executorAddress,
-        ...(authorization.approvalHash && {
-          approval_transaction_hash: authorization.approvalHash,
-        }),
-        authorization_transaction_hash: authorization.authorizationHash,
-        onchain_authorized: true,
+      await markRecurringOrderAuthorized(order.id, walletAddress, {
+        orderKey: authorization.orderKey,
+        executorAddress: authorization.executorAddress,
+        authorizationHash: authorization.authorizationHash,
+        approvalHash: authorization.approvalHash,
       });
 
       setSelectedSellToken(null);

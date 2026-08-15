@@ -227,6 +227,7 @@ export async function fetchActivitiesByWallet(
     });
     const result = await userApiFetch<{ data: ActivityRow[] }>(
       `/api/user/activities?${params.toString()}`,
+      { walletAddress },
     );
 
     if (!result.ok) {
@@ -245,10 +246,16 @@ export async function insertActivity(
   activity: Record<string, unknown>,
 ): Promise<{ success: boolean; data?: ActivityRow; error?: string }> {
   try {
+    const walletAddress =
+      typeof activity.wallet_address === "string"
+        ? activity.wallet_address
+        : undefined;
+
     const result = await userApiFetch<{ data: ActivityRow }>(
       "/api/user/activities",
       {
         method: "POST",
+        walletAddress,
         body: JSON.stringify(activity),
       },
     );
@@ -340,9 +347,8 @@ export async function registerBridgeFee(
       "/api/user/bridge-fees",
       {
         method: "POST",
+        walletAddress: params.walletAddress,
         body: JSON.stringify({
-          wallet_address: params.walletAddress.toLowerCase(),
-          bridge_activity_id: params.activityId || null,
           from_chain: params.fromChain,
           to_chain: params.toChain,
           source_token_address: params.sourceTokenAddress || null,
@@ -365,6 +371,7 @@ export async function registerBridgeFee(
           block_number: params.blockNumber || null,
           status: params.status || "Recorded",
           error_message: params.errorMessage || null,
+          bridge_activity_id: params.activityId || null,
         }),
       },
     );
@@ -416,8 +423,8 @@ export async function registerSwapFee(
       "/api/user/swap-fees",
       {
         method: "POST",
+        walletAddress: params.walletAddress,
         body: JSON.stringify({
-          wallet_address: params.walletAddress.toLowerCase(),
           token_address: params.tokenAddress.toLowerCase(),
           token_symbol: params.tokenSymbol,
           fee_amount: formattedFeeAmount,
@@ -470,6 +477,7 @@ export async function getSwapFeesByWallet(
     });
     const result = await userApiFetch<{ data: SwapFeeRow[] }>(
       `/api/user/swap-fees?${params.toString()}`,
+      { walletAddress },
     );
 
     if (!result.ok) {
@@ -514,11 +522,11 @@ export async function updateSwapFeeConfirmation(
   try {
     const result = await userApiFetch("/api/user/swap-fees", {
       method: "PATCH",
+      walletAddress,
       body: JSON.stringify({
         feeId,
         transactionHash,
         blockNumber,
-        wallet_address: walletAddress,
       }),
     });
 
