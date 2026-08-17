@@ -15,6 +15,17 @@ export default function PromotionalSidebar() {
 
   const slides = [
     {
+      id: "bridge-solana",
+      heroImage: "/assets/promotional-card-bridge.svg",
+      imageWidthClass: "w-[125px]",
+      title: "Bridge to Solana Devnet",
+      description: "You can now seamlessly bridge your assets directly to third-party wallets on Solana Devnet.",
+      ctaText: "Try it Now",
+      action: () => {
+        router.push("/bridge?fromChain=arc-testnet&fromToken=USDC&toChain=solana&toToken=USDC");
+      }
+    },
+    {
       id: "cirbtc-trade",
       heroImage: "/assets/TradecircBTC.svg",
       imageWidthClass: "w-[100px]",
@@ -28,18 +39,18 @@ export default function PromotionalSidebar() {
           window.dispatchEvent(event);
         }, 50);
       }
-    },
-    {
-      id: "cirbtc-dca",
-      heroImage: "/assets/DCAwithcirBTC.svg",
-      imageWidthClass: "w-[125px]",
-      title: "DCA with $cirBTC",
-      description: "You can now automate $cirBTC purchases with Recurring Orders on Tower.",
-      ctaText: "Try it Now",
-      action: () => {
-        router.push("/recurring-orders?tab=create-buy&payToken=cirBTC");
-      }
     }
+    // {
+    //   id: "cirbtc-dca",
+    //   heroImage: "/assets/DCAwithcirBTC.svg",
+    //   imageWidthClass: "w-[125px]",
+    //   title: "DCA with $cirBTC",
+    //   description: "You can now automate $cirBTC purchases with Recurring Orders on Tower.",
+    //   ctaText: "Try it Now",
+    //   action: () => {
+    //     router.push("/recurring-orders?tab=create-buy&payToken=cirBTC");
+    //   }
+    // }
   ];
 
   const visibleSlides = slides.filter((slide) => !dismissedSlides.includes(slide.id));

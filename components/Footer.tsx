@@ -5,7 +5,7 @@ import { FaTelegram, FaDiscord } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
-const ANALYTICS_URL = "https://datastudio.google.com/u/0/reporting/214111bd-319c-42bd-ac20-89901390632b/page/1nmzF?s=tdNDN-9qBXQ"; // Replace with your analytics URL
+const ANALYTICS_URL = "https://analytics.tower.exchang";
 const DOCS_URL = "https://tower-exchange.gitbook.io/tower"; // Replace with your docs URL
 const TERMS_URL = "#"; // Replace with your terms URL
 
@@ -121,7 +121,7 @@ const Footer = () => {
               <a
                 href={TERMS_URL}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer" 
                 className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
               >
                 <span>Terms & Conditions</span>
