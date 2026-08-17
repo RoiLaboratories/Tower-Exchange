@@ -5,7 +5,7 @@ import { FaTelegram, FaDiscord } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
-const ANALYTICS_URL = "https://analytics.tower.exchang";
+const ANALYTICS_URL = "https://analytics.tower.exchange";
 const DOCS_URL = "https://tower-exchange.gitbook.io/tower"; // Replace with your docs URL
 const TERMS_URL = "#"; // Replace with your terms URL
 
