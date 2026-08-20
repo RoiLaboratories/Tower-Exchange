@@ -12,7 +12,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { supabase, type ActivityRow } from "@/lib/supabase";
+import { fetchActivitiesByWallet, type ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { getChainLogoByName } from "@/lib/chains";
 import arcLogo from "@/public/assets/ARCSvg.svg";
@@ -348,18 +348,16 @@ const ActivityTabModal = ({
 
     const fetchActivities = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("activities")
-        .select("*")
-        .eq("wallet_address", normalizedWalletAddress)
-        .order("timestamp", { ascending: false })
-        .limit(30);
+      const { data, error, success } = await fetchActivitiesByWallet(
+        normalizedWalletAddress,
+        { limit: 30 },
+      );
 
       if (!isMounted) {
         return;
       }
 
-      if (error) {
+      if (!success || error) {
         console.error("Error fetching activity tab rows:", error);
         setActivities([]);
       } else {
@@ -371,25 +369,13 @@ const ActivityTabModal = ({
 
     fetchActivities();
 
-    const channel = supabase
-      .channel(`activity-tab-${normalizedWalletAddress}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "activities",
-          filter: `wallet_address=eq.${normalizedWalletAddress}`,
-        },
-        () => {
-          void fetchActivities();
-        },
-      )
-      .subscribe();
+    const pollId = window.setInterval(() => {
+      void fetchActivities();
+    }, 8000);
 
     return () => {
       isMounted = false;
-      void supabase.removeChannel(channel);
+      window.clearInterval(pollId);
     };
   }, [isOpen, isWalletConnected, walletAddress]);
 

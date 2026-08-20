@@ -58,14 +58,18 @@ export const RecurringOrdersDashboard = () => {
   }, [walletAddress, selectedOrder]);
 
   const loadExecutionHistory = useCallback(async (orderId: string) => {
+    if (!walletAddress) {
+      setExecutionHistory([]);
+      return;
+    }
     try {
-      const executions = await getOrderExecutions(orderId);
+      const executions = await getOrderExecutions(orderId, walletAddress);
       setExecutionHistory(executions);
     } catch (err) {
       console.error("Error loading execution history:", err);
       setExecutionHistory([]);
     }
-  }, []);
+  }, [walletAddress]);
 
   // Load orders on component mount
   useEffect(() => {

@@ -11,6 +11,14 @@ interface WalletConnectButtonProps {
   compact?: boolean;
 }
 
+interface NavItem {
+  name: string;
+  path: string | null;
+  dropdown?: boolean;
+  badge?: string;
+  disabled?: boolean;
+}
+
 const WalletConnectButton = ({
   compact = false,
 }: WalletConnectButtonProps) => {
@@ -118,18 +126,19 @@ const Header = () => {
     { name: "Recurring Orders", path: "/recurring-orders" },
   ];
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { name: "Trade", path: null, dropdown: true }, // Trade is now a dropdown
+    { name: "Pool", path: "/pool" },
     { name: "Tower AI", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
     { name: "Developers", path: "/developers" },
     { name: "Faucet", path: "/faucet" },
-    {
-      name: "Bell Points",
-      path: "/bell-point",
-      badge: "soon",
-      disabled: true,
-    },
+    // {
+    //   name: "Bell Points",
+    //   path: "/bell-point",
+    //   badge: "soon",
+    //   disabled: true,
+    // },
   ];
 
   useEffect(() => {

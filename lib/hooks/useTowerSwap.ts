@@ -76,8 +76,11 @@ interface UseTowerSwapOptions {
   backendUrl?: string;
 }
 
-const DEFAULT_BACKEND_URL = '';
-const QUOTE_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://tower-backend.up.railway.app'
+    : '');
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
@@ -103,10 +106,16 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       setIsLoading(true);
       setError(null);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), QUOTE_REQUEST_TIMEOUT_MS);
-
       try {
+        console.debug('[useTowerSwap] quote request', {
+          backendUrl,
+          inputToken,
+          outputToken,
+          inputAmount,
+          slippageTolerance,
+          dexId,
+        });
+
         const response = await fetch(`${backendUrl}/api/swap/quote`, {
           method: 'POST',
           headers: {
@@ -119,7 +128,6 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
             slippageTolerance,
             dexId,
           }),
-          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -141,19 +149,23 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
         const responseData = await response.json();
         // Backend wraps response in {success, data, timestamp}
         const quote: SwapQuote = responseData.data || responseData;
+        console.debug('[useTowerSwap] quote response received', {
+          inputToken,
+          outputToken,
+          inputAmount,
+          outputAmount: quote.outputAmount,
+          routeOptionsCount: quote.routeOptions?.length ?? 0,
+        });
         return quote;
       } catch (err) {
         const errorMessage =
-          err instanceof Error && err.name === 'AbortError'
-            ? 'Quote request timed out. Please try again.'
-            : err instanceof Error
-              ? err.message
-              : 'Failed to fetch quote';
+          err instanceof Error
+            ? err.message
+            : 'Failed to fetch quote';
         setError(errorMessage);
         console.error('Quote fetch error:', err);
         return null;
       } finally {
-        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     },

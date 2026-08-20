@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_AI_AGENT_URL ||
@@ -7,13 +8,34 @@ const API_KEY = process.env.AI_AGENT_API_KEY || "";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const { wallet, response: sessionError } = requireWalletSession(request);
+    if (sessionError || !wallet) {
+      return (
+        sessionError ??
+        NextResponse.json(
+          { error: "Wallet session required. Please sign in." },
+          { status: 401 },
+        )
+      );
+    }
+
+    const rawBody = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+
+    const body = {
+      ...rawBody,
+      wallet_address: wallet,
+      walletAddress: wallet,
+      userid: wallet,
+      userId: wallet,
+    };
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    // Add API key if available
     if (API_KEY) {
       headers["Authorization"] = `Bearer ${API_KEY}`;
     }
@@ -35,7 +57,7 @@ export async function POST(request: NextRequest) {
     console.error("Error creating AI session:", error);
     return NextResponse.json(
       { error: "Failed to create session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

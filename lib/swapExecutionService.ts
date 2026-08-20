@@ -8,6 +8,7 @@ import {
   ARC_CHAIN_HEX,
   TOKEN_CONTRACTS,
 } from "@/lib/arcNetwork";
+import { ensureWalletSession } from "@/lib/walletSessionClient";
 
 export interface ApprovalTransactionData {
   to: string;
@@ -778,13 +779,15 @@ export const notifyBackendConfirmation = async (
   confirmation: ConfirmationResult
 ): Promise<boolean> => {
   try {
+    await ensureWalletSession(walletAddress);
+
     const response = await fetch("/api/ai/confirm-transaction", {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        wallet_address: walletAddress,
         session_id: sessionId,
         transaction_hash: transactionHash,
         block_number: confirmation.blockNumber,

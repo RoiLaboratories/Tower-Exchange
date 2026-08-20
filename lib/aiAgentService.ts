@@ -2,7 +2,8 @@
  * AI Agent Service - Handles communication with Tower-Exchange-AI backend
  */
 
-import { supabase } from "./supabase";
+import { userApiFetch } from "./userApi";
+import { ensureWalletSession } from "./walletSessionClient";
 
 export interface AIAgentRequest {
   message: string;
@@ -172,6 +173,12 @@ export const sendMessageToAIAgent = async (
   const url = CHAT_ENDPOINT;
 
   try {
+    const walletForSession =
+      request.wallet_address || request.userid || undefined;
+    if (walletForSession) {
+      await ensureWalletSession(walletForSession);
+    }
+
     // Prepare request with wallet context and defaults
     const payload = {
       ...request,
@@ -184,6 +191,7 @@ export const sendMessageToAIAgent = async (
 
     const response = await fetch(url, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -233,21 +241,22 @@ export const getConversationHistory = async (
   Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
 > => {
   try {
-    const { data, error } = await supabase
-      .from("ai_db")
-      .select("created_at, user_query, ai_response")
-      .eq("session_id", sessionId)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true });
+    const params = new URLSearchParams({
+      sessionId,
+      walletAddress: userId,
+    });
+    const result = await userApiFetch<{
+      data: Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[];
+    }>(`/api/user/ai-history?${params.toString()}`, {
+      walletAddress: userId,
+    });
 
-    if (error) {
-      console.warn("Error fetching chat history from Supabase:", error);
+    if (!result.ok) {
+      console.warn("Error fetching chat history from API:", result.error);
       return [];
     }
 
-    return (
-      data as Pick<ChatHistoryItem, "created_at" | "user_query" | "ai_response">[]
-    ) || [];
+    return result.data?.data || [];
   } catch (error) {
     console.warn("Error fetching conversation history:", error);
     return [];
@@ -264,23 +273,25 @@ export const saveChatMessageToHistory = async (
   aiResponse: string
 ): Promise<ChatHistoryItem | null> => {
   try {
-    const { data, error } = await supabase
-      .from("ai_db")
-      .insert({
-        user_id: userId,
-        session_id: sessionId,
-        user_query: userQuery,
-        ai_response: aiResponse,
-      })
-      .select()
-      .single();
+    const result = await userApiFetch<{ data: ChatHistoryItem }>(
+      "/api/user/ai-history",
+      {
+        method: "POST",
+        walletAddress: userId,
+        body: JSON.stringify({
+          session_id: sessionId,
+          user_query: userQuery,
+          ai_response: aiResponse,
+        }),
+      },
+    );
 
-    if (error) {
-      console.error("Error saving chat to Supabase:", error);
+    if (!result.ok || !result.data?.data) {
+      console.error("Error saving chat to API:", result.error);
       return null;
     }
 
-    return data as ChatHistoryItem;
+    return result.data.data;
   } catch (error) {
     console.error("Error saving chat message:", error);
     return null;

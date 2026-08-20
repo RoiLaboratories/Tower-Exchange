@@ -27,6 +27,7 @@ interface RouterDisplayProps {
   routeOptions?: RouteOption[];
   inputUsdValue?: number;
   outputTokenUsdPrice?: number;
+  outputTokenSymbol?: string;
   availableRouterIds?: string[];
 }
 
@@ -64,7 +65,15 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
   },
 ];
 
-const ROUTE_OUTPUT_DISPLAY_DECIMALS = 2;
+const ROUTE_OUTPUT_DISPLAY_DECIMALS: Record<string, number> = {
+  USDC: 2,
+  EURC: 2,
+  USDT: 2,
+  cirBTC: 8,
+};
+
+const getRouteOutputDisplayDecimals = (symbol?: string) =>
+  symbol ? (ROUTE_OUTPUT_DISPLAY_DECIMALS[symbol] ?? 6) : 6;
 
 const normalizeRouterId = (id = "") => {
   const normalizedId = id.toLowerCase();
@@ -94,7 +103,7 @@ const routeTokenAmountFromOutput = (amount?: string) => {
   return Number.isFinite(tokenAmount) ? tokenAmount : null;
 };
 
-const formatRouteTokenAmount = (amount?: string) => {
+const formatRouteTokenAmount = (amount?: string, outputTokenSymbol?: string) => {
   const tokenAmount = routeTokenAmountFromOutput(amount);
 
   if (tokenAmount === null) {
@@ -103,7 +112,7 @@ const formatRouteTokenAmount = (amount?: string) => {
 
   return tokenAmount.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: ROUTE_OUTPUT_DISPLAY_DECIMALS,
+    maximumFractionDigits: getRouteOutputDisplayDecimals(outputTokenSymbol),
   });
 };
 
@@ -152,6 +161,7 @@ export default function RouterDisplay({
   routeOptions = [],
   inputUsdValue,
   outputTokenUsdPrice,
+  outputTokenSymbol,
   availableRouterIds = [],
 }: RouterDisplayProps) {
   const routesDetailsRef = useRef<HTMLDetailsElement | null>(null);
@@ -192,11 +202,23 @@ export default function RouterDisplay({
     new Set(availableRouterIds.map((routerId) => normalizeRouterId(routerId))),
   );
   const availableRouterIdSet = new Set(normalizedAvailableRouterIds);
-  const routersToDisplay = (
-    normalizedAvailableRouterIds.length > 0
-      ? SUPPORTED_ROUTERS.filter((router) => availableRouterIdSet.has(router.id))
-      : SUPPORTED_ROUTERS.filter((router) => routeOptionByDexId.has(router.id))
-  ).map((router, index) => ({ router, index }));
+  const routeIdsFromOptions = Array.from(routeOptionByDexId.keys());
+  const routerCandidates = [
+    ...SUPPORTED_ROUTERS.filter((router) =>
+      availableRouterIdSet.size === 0
+        ? routeIdsFromOptions.includes(router.id)
+        : availableRouterIdSet.has(router.id),
+    ),
+    ...routeIdsFromOptions
+      .filter((routeId) => !SUPPORTED_ROUTERS.some((router) => router.id === routeId))
+      .map((routeId) => ({
+        id: routeId,
+        aliases: [routeId],
+        name: routeId,
+        logo: towerLogo,
+      })),
+  ];
+  const routersToDisplay = routerCandidates.map((router, index) => ({ router, index }));
 
   const allQuotedRoutes = routersToDisplay
     .map(({ router, index }) => {
@@ -204,7 +226,12 @@ export default function RouterDisplay({
       const outputAmount = outputAmountToBigInt(option?.outputAmount);
 
       return {
-        router,
+        router: {
+          ...router,
+          id: router.id,
+          name: router.name,
+          logo: router.logo,
+        },
         option,
         outputAmount,
         hasQuote: outputAmount > 0n,
@@ -255,7 +282,7 @@ export default function RouterDisplay({
 
   return (
     <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
-      <div className="flex items-center justify-between gap-3 border-b border-[#20242a] px-3 py-2">
+      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-[#20242a] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Image
             src={quotesIcon}
@@ -267,43 +294,49 @@ export default function RouterDisplay({
           />
           <span className="text-sm font-semibold text-white">Quotes</span>
         </div>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span
-            className="inline-grid h-3.5 min-w-6 shrink-0 place-items-center rounded-full border border-white/10 bg-[#2E2E2E] px-1 text-white"
-            aria-label={`${dexCount} DEX routes available`}
-          >
-            <span className="flex translate-y-[0.5px] items-center justify-center gap-0.5 text-[9px] font-bold leading-none">
-              <span>{dexCount}</span>
-              <Image
-                src={routeIcon}
-                alt=""
-                width={7}
-                height={7}
-                className="h-[7px] w-[7px] shrink-0 object-contain"
-              />
+        <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
+          <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
+            <span
+              className="inline-flex h-[18px] min-w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#2E2E2E] px-1 text-white"
+              aria-label={`${dexCount} DEX routes available`}
+            >
+              <span className="flex items-center justify-center gap-0.5 text-[9px] font-bold leading-none">
+                <span>{dexCount}</span>
+                <Image
+                  src={routeIcon}
+                  alt=""
+                  width={7}
+                  height={7}
+                  className="h-[7px] w-[7px] shrink-0 object-contain"
+                />
+              </span>
             </span>
-          </span>
-          {otherDexNames.length > 0 ? (
-            <details ref={routesDetailsRef} className="group/routes relative min-w-0">
-              <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-white/80 outline-none [&::-webkit-details-marker]:hidden">
-                <span className="text-[9px] font-normal text-white/45">Via</span>
+            {otherDexNames.length > 0 ? (
+              <details ref={routesDetailsRef} className="group/routes relative min-w-0">
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-white/80 outline-none [&::-webkit-details-marker]:hidden">
+                  <span className="text-[9px] font-normal leading-none text-white/45">
+                    Via
+                  </span>
+                  <span className="truncate">{dexNamesLabel}</span>
+                  <ChevronDown className="h-3 w-3 shrink-0 text-white/55 transition-transform group-open/routes:rotate-180" />
+                </summary>
+                <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-white/10 bg-[#08090a] px-2 py-1.5 text-[11px] text-white/80 shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
+                  {otherDexNames.map((name) => (
+                    <div key={name} className="whitespace-nowrap px-2 py-1">
+                      {name}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              <span className="flex min-w-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-white/80">
+                <span className="text-[9px] font-normal leading-none text-white/45">
+                  Via
+                </span>
                 <span className="truncate">{dexNamesLabel}</span>
-                <ChevronDown className="h-3 w-3 shrink-0 text-white/55 transition-transform group-open/routes:rotate-180" />
-              </summary>
-              <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-white/10 bg-[#08090a] px-2 py-1.5 text-[11px] text-white/80 shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
-                {otherDexNames.map((name) => (
-                  <div key={name} className="whitespace-nowrap px-2 py-1">
-                    {name}
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : (
-            <span className="truncate text-[11px] font-medium text-white/80">
-              <span className="text-[9px] font-normal text-white/45">Via</span>{" "}
-              <span>{dexNamesLabel}</span>
-            </span>
-          )}
+              </span>
+            )}
+          </div>
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info
               className="h-3.5 w-3.5 text-white/70 outline-none"
@@ -385,7 +418,7 @@ export default function RouterDisplay({
                       hasQuote ? "text-white/90" : "text-white/45"
                     }`}
                   >
-                    {formatRouteTokenAmount(option?.outputAmount)}
+                    {formatRouteTokenAmount(option?.outputAmount, outputTokenSymbol)}
                   </span>
                 </span>
                 {routeUsdValue ? (

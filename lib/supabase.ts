@@ -1,9 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
+import { userApiFetch } from "./userApi";
 
 // Supabase configuration
 // Add these to your .env.local file:
 // NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 // NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+//
+// NOTE: Sensitive user tables (activities, fees, orders, ai_db) must go through
+// /api/user/* routes (service role). Do not query those tables with this anon client.
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -211,39 +215,90 @@ export interface SwapFeeRow {
 /**
  * Register a bridge transaction in the activities table
  */
+export async function fetchActivitiesByWallet(
+  walletAddress: string,
+  options?: { limit?: number; ascending?: boolean },
+): Promise<{ success: boolean; data?: ActivityRow[]; error?: string }> {
+  try {
+    const params = new URLSearchParams({
+      walletAddress,
+      limit: String(options?.limit ?? 100),
+      ascending: options?.ascending ? "true" : "false",
+    });
+    const result = await userApiFetch<{ data: ActivityRow[] }>(
+      `/api/user/activities?${params.toString()}`,
+      { walletAddress },
+    );
+
+    if (!result.ok) {
+      return { success: false, error: result.error };
+    }
+
+    return { success: true, data: result.data?.data || [] };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function insertActivity(
+  activity: Record<string, unknown>,
+): Promise<{ success: boolean; data?: ActivityRow; error?: string }> {
+  try {
+    const walletAddress =
+      typeof activity.wallet_address === "string"
+        ? activity.wallet_address
+        : undefined;
+
+    const result = await userApiFetch<{ data: ActivityRow }>(
+      "/api/user/activities",
+      {
+        method: "POST",
+        walletAddress,
+        body: JSON.stringify(activity),
+      },
+    );
+
+    if (!result.ok || !result.data?.data) {
+      return { success: false, error: result.error || "Insert failed" };
+    }
+
+    return { success: true, data: result.data.data };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return { success: false, error: errorMessage };
+  }
+}
+
 export async function registerBridgeActivity(
   params: BridgeActivityParams
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
-    const { data, error } = await supabase
-      .from("activities")
-      .insert([
-        {
-          wallet_address: params.walletAddress.toLowerCase(),
-          type: "Bridge",
-          source_currency_ticker: params.token,
-          source_network_name: params.fromChain,
-          destination_currency_ticker: params.token,
-          destination_network_name: params.toChain,
-          amount: parseFloat(params.amount),
-          amount_usd: parseFloat(params.amount), // USDC is 1:1 with USD
-          transaction_hash: params.transactionHash || null,
-          fee: params.fee ? parseFloat(params.fee) : null,
-          fee_currency_ticker: params.fee ? params.token : null,
-          status: params.status || "Successful",
-          timestamp: new Date().toISOString(),
-        },
-      ])
-      .select("id")
-      .single();
+    const result = await insertActivity({
+      wallet_address: params.walletAddress.toLowerCase(),
+      type: "Bridge",
+      source_currency_ticker: params.token,
+      source_network_name: params.fromChain,
+      destination_currency_ticker: params.token,
+      destination_network_name: params.toChain,
+      amount: parseFloat(params.amount),
+      amount_usd: parseFloat(params.amount), // USDC is 1:1 with USD
+      transaction_hash: params.transactionHash || null,
+      fee: params.fee ? parseFloat(params.fee) : null,
+      fee_currency_ticker: params.fee ? params.token : null,
+      status: params.status || "Successful",
+      timestamp: new Date().toISOString(),
+    });
 
-    if (error) {
-      console.error("Error registering bridge activity:", error);
-      return { success: false, error: error.message };
+    if (!result.success) {
+      console.error("Error registering bridge activity:", result.error);
+      return { success: false, error: result.error };
     }
 
-    const activityId = data?.id;
-    console.log("Bridge activity registered:", data);
+    const activityId = result.data?.id;
+    console.log("Bridge activity registered:", result.data);
     return { success: true, id: activityId };
   } catch (error) {
     const errorMessage =
@@ -288,12 +343,12 @@ export async function registerBridgeFee(
       parseOptionalNumber(params.totalFeeAmountUsd) ??
       (params.tokenSymbol === "USDC" ? totalFeeAmount : null);
 
-    const { data, error } = await supabase
-      .from("bridge_fees")
-      .insert([
-        {
-          wallet_address: params.walletAddress.toLowerCase(),
-          bridge_activity_id: params.activityId || null,
+    const result = await userApiFetch<{ data: { id?: string } }>(
+      "/api/user/bridge-fees",
+      {
+        method: "POST",
+        walletAddress: params.walletAddress,
+        body: JSON.stringify({
           from_chain: params.fromChain,
           to_chain: params.toChain,
           source_token_address: params.sourceTokenAddress || null,
@@ -316,17 +371,17 @@ export async function registerBridgeFee(
           block_number: params.blockNumber || null,
           status: params.status || "Recorded",
           error_message: params.errorMessage || null,
-        },
-      ])
-      .select()
-      .single();
+          bridge_activity_id: params.activityId || null,
+        }),
+      },
+    );
 
-    if (error) {
-      console.error("Error registering bridge fee:", error);
-      return { success: false, error: error.message };
+    if (!result.ok) {
+      console.error("Error registering bridge fee:", result.error);
+      return { success: false, error: result.error };
     }
 
-    const feeId = data?.id;
+    const feeId = result.data?.data?.id;
     console.log("Bridge fee registered successfully:", {
       id: feeId,
       token: params.tokenSymbol,
@@ -364,29 +419,33 @@ export async function registerSwapFee(
       totalAmountFormatted: formattedTotalAmount,
     });
 
-    const { data, error } = await supabase.from("swap_fees").insert([
+    const result = await userApiFetch<{ data: { id?: string } }>(
+      "/api/user/swap-fees",
       {
-        wallet_address: params.walletAddress.toLowerCase(),
-        token_address: params.tokenAddress.toLowerCase(),
-        token_symbol: params.tokenSymbol,
-        fee_amount: formattedFeeAmount,
-        fee_amount_usd: params.feeAmountUsd ? parseFloat(params.feeAmountUsd) : null,
-        fee_basis_points: params.feeBasisPoints,
-        total_amount: formattedTotalAmount,
-        transaction_hash: params.transactionHash || null,
-        block_number: params.blockNumber || null,
-        swap_activity_id: params.activityId || null,
-        status: params.status || "Recorded",
-        error_message: params.errorMessage || null,
+        method: "POST",
+        walletAddress: params.walletAddress,
+        body: JSON.stringify({
+          token_address: params.tokenAddress.toLowerCase(),
+          token_symbol: params.tokenSymbol,
+          fee_amount: formattedFeeAmount,
+          fee_amount_usd: params.feeAmountUsd ? parseFloat(params.feeAmountUsd) : null,
+          fee_basis_points: params.feeBasisPoints,
+          total_amount: formattedTotalAmount,
+          transaction_hash: params.transactionHash || null,
+          block_number: params.blockNumber || null,
+          swap_activity_id: params.activityId || null,
+          status: params.status || "Recorded",
+          error_message: params.errorMessage || null,
+        }),
       },
-    ]).select();
+    );
 
-    if (error) {
-      console.error("Error registering swap fee:", error);
-      return { success: false, error: error.message };
+    if (!result.ok) {
+      console.error("Error registering swap fee:", result.error);
+      return { success: false, error: result.error };
     }
 
-    const feeId = data?.[0]?.id;
+    const feeId = result.data?.data?.id;
     console.log("Swap fee registered successfully:", {
       id: feeId,
       token: params.tokenSymbol,
@@ -412,19 +471,21 @@ export async function getSwapFeesByWallet(
   limit: number = 50
 ): Promise<{ success: boolean; fees?: SwapFeeRow[]; error?: string }> {
   try {
-    const { data, error } = await supabase
-      .from("swap_fees")
-      .select("*")
-      .eq("wallet_address", walletAddress.toLowerCase())
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const params = new URLSearchParams({
+      walletAddress,
+      limit: String(limit),
+    });
+    const result = await userApiFetch<{ data: SwapFeeRow[] }>(
+      `/api/user/swap-fees?${params.toString()}`,
+      { walletAddress },
+    );
 
-    if (error) {
-      console.error("Error fetching swap fees:", error);
-      return { success: false, error: error.message };
+    if (!result.ok) {
+      console.error("Error fetching swap fees:", result.error);
+      return { success: false, error: result.error };
     }
 
-    return { success: true, fees: data || [] };
+    return { success: true, fees: result.data?.data || [] };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -455,22 +516,23 @@ export function formatSwapFeeForDisplay(
 export async function updateSwapFeeConfirmation(
   feeId: string,
   transactionHash: string,
-  blockNumber: number
+  blockNumber: number,
+  walletAddress: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error } = await supabase
-      .from("swap_fees")
-      .update({
-        transaction_hash: transactionHash,
-        block_number: blockNumber,
-        status: "Confirmed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", feeId);
+    const result = await userApiFetch("/api/user/swap-fees", {
+      method: "PATCH",
+      walletAddress,
+      body: JSON.stringify({
+        feeId,
+        transactionHash,
+        blockNumber,
+      }),
+    });
 
-    if (error) {
-      console.error("Error updating swap fee confirmation:", error);
-      return { success: false, error: error.message };
+    if (!result.ok) {
+      console.error("Error updating swap fee confirmation:", result.error);
+      return { success: false, error: result.error };
     }
 
     console.log("Swap fee confirmation updated:", { feeId, transactionHash, blockNumber });

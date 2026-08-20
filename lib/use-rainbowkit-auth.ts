@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
+import { logoutWalletSession } from "@/lib/walletSessionClient";
 
 /**
  * RainbowKit Compatibility Hook
@@ -37,7 +38,10 @@ export const useRainbowKitAuth = () => {
     openConnectModal?.();
   }, [openConnectModal]);
 
-  const logout = useCallback(() => disconnect(), [disconnect]);
+  const logout = useCallback(() => {
+    void logoutWalletSession();
+    disconnect();
+  }, [disconnect]);
 
   return useMemo(
     () => ({

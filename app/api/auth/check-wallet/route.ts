@@ -23,13 +23,20 @@ function createSupabaseRouteClient(options?: { preferServiceRole?: boolean }) {
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const preferServiceRole = options?.preferServiceRole !== false;
   const supabaseKey =
-    options?.preferServiceRole && supabaseServiceRoleKey
+    preferServiceRole && supabaseServiceRoleKey
       ? supabaseServiceRoleKey
       : supabaseAnonKey;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Supabase environment variables are not configured.");
+  }
+
+  if (preferServiceRole && !supabaseServiceRoleKey) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY is required for wallet access checks after RLS lockdown.",
+    );
   }
 
   return createClient(supabaseUrl, supabaseKey, {
@@ -120,7 +127,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseRouteClient();
+    const supabase = createSupabaseRouteClient({ preferServiceRole: true });
 
     let isRegistered = false;
     let accessSource: string | null = null;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireWalletSession } from "@/lib/server/walletSession";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_AI_AGENT_URL ||
@@ -7,23 +8,32 @@ const API_KEY = process.env.AI_AGENT_API_KEY || "";
 
 export async function GET(request: NextRequest) {
   try {
-    const sessionId = request.headers.get("X-Session-ID");
-    const walletAddress = request.headers.get("X-Wallet-Address");
+    const { wallet, response: sessionError } = requireWalletSession(request);
+    if (sessionError || !wallet) {
+      return (
+        sessionError ??
+        NextResponse.json(
+          { error: "Wallet session required. Please sign in." },
+          { status: 401 },
+        )
+      );
+    }
 
-    if (!sessionId || !walletAddress) {
+    const sessionId = request.headers.get("X-Session-ID");
+
+    if (!sessionId) {
       return NextResponse.json(
-        { error: "Missing sessionId or walletAddress" },
-        { status: 400 }
+        { error: "Missing sessionId" },
+        { status: 400 },
       );
     }
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Session-ID": sessionId,
-      "X-Wallet-Address": walletAddress,
+      "X-Wallet-Address": wallet,
     };
 
-    // Add API key if available
     if (API_KEY) {
       headers["Authorization"] = `Bearer ${API_KEY}`;
     }
@@ -44,7 +54,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching conversation history:", error);
     return NextResponse.json(
       { error: "Failed to fetch history" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

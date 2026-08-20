@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Search } from "lucide-react";
-import { supabase, ActivityRow } from "@/lib/supabase";
+import { fetchActivitiesByWallet, ActivityRow } from "@/lib/supabase";
 import { getTokenIcon } from "@/lib/tokenIcons";
 import { StaticImageData } from "next/image";
 import { getChainLogoByName } from "@/lib/chains";
@@ -128,15 +128,12 @@ const Activities = ({
       setError(null);
 
       try {
-        const { data, error: fetchError } = await supabase
-          .from("activities")
-          .select("*")
-          .eq("wallet_address", walletAddress.toLowerCase())
-          // Include both swap and recurring order activities; filter purely by wallet
-          .order("timestamp", { ascending: false })
-          .limit(100);
+        const { data, error: fetchError, success } = await fetchActivitiesByWallet(
+          walletAddress,
+          { limit: 100 },
+        );
 
-        if (fetchError) {
+        if (!success || fetchError) {
           console.error("Error fetching activities:", fetchError);
           setError("Failed to load activities");
           setActivities([]);

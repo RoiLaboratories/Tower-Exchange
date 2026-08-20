@@ -29,23 +29,33 @@ const RPC_URL_FALLBACKS: Record<string, string[]> = {
     "https://arbitrum-sepolia-rpc.publicnode.com",
     "https://arbitrum-sepolia.drpc.org",
   ],
+  "base-sepolia": ["https://sepolia.base.org"],
+  "optimism-sepolia": ["https://sepolia.optimism.io"],
+  "avalanche-fuji": ["https://api.avax-test.network/ext/bc/C/rpc"],
+  "ethereum-sepolia": ["https://sepolia.drpc.org"],
+  "linea-sepolia": ["https://rpc.sepolia.linea.build"],
+  "polygon-amoy": ["https://rpc-amoy.polygon.technology"],
+  "sonic-testnet": ["https://rpc.testnet.soniclabs.com"],
+  "unichain-sepolia": ["https://sepolia.unichain.org"],
+  [SOLANA_DEVNET_CHAIN_ID]: [SOLANA_DEVNET_RPC_URL],
 };
 
-const getRpcUrlsForChain = (chainId: string, rpcUrl: string) => {
-  const configuredFallbacks =
-    RPC_URL_FALLBACKS[String(chainId).toLowerCase()] ?? [];
-
-  return Array.from(new Set([...configuredFallbacks, rpcUrl].filter(Boolean)));
+const getRpcUrlsForChain = (chainId: string) => {
+  return RPC_URL_FALLBACKS[String(chainId).toLowerCase()] ?? [];
 };
 
 const readWithRpcFallback = async <T,>(
   chainId: string,
-  rpcUrl: string,
   read: (publicClient: PublicClient) => Promise<T>,
 ) => {
   let lastError: unknown = null;
+  const rpcUrls = getRpcUrlsForChain(chainId);
 
-  for (const candidateRpcUrl of getRpcUrlsForChain(chainId, rpcUrl)) {
+  if (!rpcUrls.length) {
+    throw new Error(`No allow-listed RPC endpoints for chain ${chainId}`);
+  }
+
+  for (const candidateRpcUrl of rpcUrls) {
     try {
       const publicClient = createPublicClient({
         transport: http(candidateRpcUrl),
@@ -99,16 +109,26 @@ const readSolanaTokenBalance = async (
 
 export async function POST(request: NextRequest) {
   try {
-    const { address, chainId, rpcUrl, tokenAddress, balanceType } =
+    const { address, chainId, tokenAddress, balanceType } =
       await request.json();
     const normalizedChainId = String(chainId).toLowerCase();
 
-    if (!address || !chainId || !rpcUrl) {
+    if (!address || !chainId) {
       return NextResponse.json(
         { error: "Missing required parameters" },
         { status: 400 },
       );
     }
+
+    // Never accept client-supplied rpcUrl (SSRF). Resolve allow-listed RPCs by chainId.
+    const rpcUrls = getRpcUrlsForChain(normalizedChainId);
+    if (!rpcUrls.length) {
+      return NextResponse.json(
+        { balance: "0.00", error: "Unsupported chain" },
+        { status: 200 },
+      );
+    }
+    const rpcUrl = rpcUrls[0];
 
     if (normalizedChainId === SOLANA_DEVNET_CHAIN_ID) {
       if (!isValidSolanaAddress(address)) {
@@ -144,7 +164,6 @@ export async function POST(request: NextRequest) {
     if (balanceType === "native") {
       const formattedBalance = await readWithRpcFallback(
         normalizedChainId,
-        rpcUrl,
         async (publicClient) => {
           const balance = await publicClient.getBalance({
             address: address as `0x${string}`,
@@ -176,7 +195,6 @@ export async function POST(request: NextRequest) {
     ) {
       const formattedBalance = await readWithRpcFallback(
         normalizedChainId,
-        rpcUrl,
         async (publicClient) => {
           const balance = await publicClient.getBalance({
             address: address as `0x${string}`,
@@ -195,7 +213,6 @@ export async function POST(request: NextRequest) {
 
     const formattedBalance = await readWithRpcFallback(
       normalizedChainId,
-      rpcUrl,
       async (publicClient) => {
         const contract = getContract({
           address: contractAddress as `0x${string}`,
