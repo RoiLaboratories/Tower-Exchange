@@ -131,7 +131,7 @@ const Header = () => {
     { name: "Pool", path: "/pool" },
     { name: "Tower AI", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
-    // { name: "Developers", path: "/developers" },
+    { name: "Developers", path: "/developers" },
     { name: "Faucet", path: "/faucet" },
     // {
     //   name: "Bell Points",

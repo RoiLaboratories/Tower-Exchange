@@ -302,7 +302,7 @@ export const PortfolioAnalysis = () => {
                 onClick={() => setTimeframe(tf)}
                 className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs sm:px-3 sm:text-sm lg:px-1.5 lg:py-0.5 lg:text-[0.68rem] xl:px-2 xl:py-1 xl:text-xs ${
                   timeframe === tf
-                    ? "bg-[#7BB8FF] text-white"
+                    ? "text-black bg-[#7BB8FF]"
                     : "text-gray-400 hover:text-white"
                 }`}
               >
