@@ -95,13 +95,16 @@ export default function DevelopersPage() {
 
           {/* CTA Button */}
           <div className="mt-7">
-            <motion.button
+            <motion.a
+              href="https://devs.tower.exchange"
+              target="_blank"
+              rel="noopener noreferrer"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               className="bg-[#7BB8FF] hover:bg-[#67a7fa] text-[#0C0C0D] font-semibold text-sm sm:text-[15px] w-[209px] h-[36px] rounded-full shadow-md transition-colors cursor-pointer inline-flex items-center justify-center"
             >
               Start your Integration
-            </motion.button>
+            </motion.a>
           </div>
         </motion.div>
 
