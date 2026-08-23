@@ -47,10 +47,10 @@ export default function PromotionalSidebar() {
     {
       id: "dev-page",
       heroImage: "/assets/dev-page.svg",
-      imageWidthClass: "w-[100px]",
+      imageWidthClass: "w-[125px]",
       title: "Build with Tower Console",
       description: "You can now integrate Tower’s routing infrastructure directly into your apps and build.",
-      ctaText: "Try it Now",
+      ctaText: "Get Started",
       action: () => {
         window.open("https://devs.tower.exchange", "_blank", "noopener,noreferrer");
       }
