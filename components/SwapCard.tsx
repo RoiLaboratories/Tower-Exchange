@@ -80,7 +80,7 @@ const OUTPUT_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
   USDT: 2,
   cirBTC: 8,
   cNGN: 2,
-  QCAD: 2,
+  //QCAD: 2,
 };
 
 const getOutputDisplayDecimals = (symbol?: SwapTokenSymbol | null) =>
