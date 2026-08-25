@@ -204,7 +204,7 @@ export function DateTimePickerModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm light:bg-black/30"
       onClick={onClose}
     >
       <motion.div
@@ -212,17 +212,17 @@ export function DateTimePickerModal({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(event) => event.stopPropagation()}
-        className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900"
+        className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-border bg-card"
       >
         <div className="max-h-[calc(100vh-2rem)] overflow-y-auto p-5 sm:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 text-xs font-medium text-gray-400">
+              <div className="mb-2 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <Clock3 className="h-3.5 w-3.5" />
                 <span>UTC Schedule</span>
               </div>
-              <h3 className="text-lg font-semibold text-white">{title}</h3>
-              <p className="mt-1 text-sm leading-6 text-gray-400">{description}</p>
+              <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
             </div>
             <Button
               variant="ghost"
@@ -230,7 +230,7 @@ export function DateTimePickerModal({
               onClick={onClose}
               className="h-8 w-8 cursor-pointer"
             >
-              <X className="h-4 w-4 text-white" />
+              <X className="h-4 w-4 text-foreground" />
             </Button>
           </div>
 
@@ -244,9 +244,9 @@ export function DateTimePickerModal({
                     onClick={previousMonth}
                     className="h-8 w-8"
                   >
-                    <ChevronLeft className="h-4 w-4 text-white" />
+                    <ChevronLeft className="h-4 w-4 text-foreground" />
                   </Button>
-                  <h3 className="min-w-45 text-center text-lg font-semibold text-white">
+                  <h3 className="min-w-45 text-center text-lg font-semibold text-foreground">
                     {monthNames[month]} {year}
                   </h3>
                   <Button
@@ -255,7 +255,7 @@ export function DateTimePickerModal({
                     onClick={nextMonth}
                     className="h-8 w-8"
                   >
-                    <ChevronRight className="h-4 w-4 text-white" />
+                    <ChevronRight className="h-4 w-4 text-foreground" />
                   </Button>
                 </div>
               </div>
@@ -264,7 +264,7 @@ export function DateTimePickerModal({
                 {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
                   <div
                     key={day}
-                    className="text-center text-sm font-medium text-gray-500"
+                    className="text-center text-sm font-medium text-muted-foreground"
                   >
                     {day}
                   </div>
@@ -284,12 +284,12 @@ export function DateTimePickerModal({
                     disabled={isUnavailableDate(day)}
                     className={`aspect-square h-auto text-sm ${
                       isUnavailableDate(day)
-                        ? "cursor-not-allowed text-gray-500"
+                        ? "cursor-not-allowed text-muted-foreground"
                         : isSelectedDate(day)
-                          ? "bg-white font-semibold text-black hover:bg-white/90"
+                          ? "bg-primary font-semibold text-[#0C0C0D] hover:bg-primary/90"
                           : isToday(day)
-                            ? "bg-zinc-800 font-medium text-white hover:bg-zinc-700"
-                            : "text-gray-400 hover:bg-zinc-800 hover:text-white"
+                            ? "bg-accent font-medium text-foreground hover:bg-muted"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                   >
                     {day}
@@ -298,10 +298,10 @@ export function DateTimePickerModal({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-800 bg-[#18191c] p-3.5">
+            <div className="rounded-2xl border border-border bg-secondary p-3.5">
               <div className="mb-4">
-                <p className="text-sm font-medium text-white">Time</p>
-                <p className="mt-1 text-xs leading-5 text-gray-500">
+                <p className="text-sm font-medium text-foreground">Time</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   Pick the exact UTC time for this execution window.
                 </p>
               </div>
@@ -317,8 +317,8 @@ export function DateTimePickerModal({
                     }}
                     className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                       selectedTime === option.value
-                        ? "bg-white font-semibold text-black"
-                        : "text-gray-300 hover:bg-zinc-800 hover:text-white"
+                        ? "bg-primary font-semibold text-[#0C0C0D]"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                   >
                     <span className="whitespace-nowrap tabular-nums sm:hidden">
@@ -336,15 +336,15 @@ export function DateTimePickerModal({
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-zinc-800 bg-[#18191c] px-4 py-3">
-            <p className="text-xs font-medium text-gray-500">Selected execution time</p>
-            <p className="mt-1 whitespace-nowrap text-sm font-medium text-white">
+          <div className="mt-5 rounded-2xl border border-border bg-secondary px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Selected execution time</p>
+            <p className="mt-1 whitespace-nowrap text-sm font-medium text-foreground">
               {previewValue
                 ? formatUtcDateTimeLabel(previewValue)
                 : "Select a UTC date and time"}
             </p>
             {minLabel ? (
-              <p className="mt-1 text-xs text-gray-500">Must be on or after {minLabel}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Must be on or after {minLabel}</p>
             ) : null}
           </div>
 
@@ -361,7 +361,7 @@ export function DateTimePickerModal({
                     onClear();
                     onClose();
                   }}
-                  className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-zinc-800 hover:text-white"
+                  className="inline-flex items-center justify-center rounded-full border border-border bg-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   Clear
                 </button>
@@ -371,14 +371,14 @@ export function DateTimePickerModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-transparent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
+                className="inline-flex items-center justify-center rounded-full border border-border bg-transparent px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-gray-100"
+                className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-[#0C0C0D] transition-colors hover:bg-primary/90"
               >
                 Save UTC Time
               </button>

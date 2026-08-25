@@ -14,6 +14,12 @@ export interface SwapQuote {
   feeBps?: number;
   feeMode?: 'tower-swap-executor' | 'none';
   platformFeeAmount?: string; // Platform fee in input token, normalized to 18 decimals
+  platformFeeAmountNative?: string;
+  inputAmountNative?: string;
+  swapInputAmountNative?: string;
+  outputAmountNative?: string;
+  minOutNative?: string;
+  feeRecipient?: string;
   route: {
     type: 'single' | 'multi' | 'split';
     rawPath?: string;
@@ -73,21 +79,18 @@ export interface ApprovalTransaction {
 }
 
 interface UseTowerSwapOptions {
+  /** @deprecated Quotes and swap txs are routed through the Next.js swap API. */
   backendUrl?: string;
 }
 
-const DEFAULT_BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'https://tower-backend.up.railway.app'
-    : '');
+const SWAP_API_BASE_URL = '/api/swap';
 
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
  * Handles quote fetching, transaction building, and approvals
  */
-export function useTowerSwap(options: UseTowerSwapOptions = {}) {
-  const backendUrl = options.backendUrl || DEFAULT_BACKEND_URL;
+export function useTowerSwap(_options: UseTowerSwapOptions = {}) {
+  const swapApiBaseUrl = SWAP_API_BASE_URL;
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +111,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
 
       try {
         console.debug('[useTowerSwap] quote request', {
-          backendUrl,
+          swapApiBaseUrl,
           inputToken,
           outputToken,
           inputAmount,
@@ -116,7 +119,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
           dexId,
         });
 
-        const response = await fetch(`${backendUrl}/api/swap/quote`, {
+        const response = await fetch(`${swapApiBaseUrl}/quote`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -169,7 +172,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
         setIsLoading(false);
       }
     },
-    [backendUrl]
+    [swapApiBaseUrl]
   );
 
   /**
@@ -186,7 +189,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       setError(null);
 
       try {
-        const response = await fetch(`${backendUrl}/api/swap/build-tx`, {
+        const response = await fetch(`${swapApiBaseUrl}/build-tx`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -222,7 +225,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
         setIsLoading(false);
       }
     },
-    [backendUrl]
+    [swapApiBaseUrl]
   );
 
   /**
@@ -239,7 +242,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
       setError(null);
 
       try {
-        const response = await fetch(`${backendUrl}/api/swap/approval`, {
+        const response = await fetch(`${swapApiBaseUrl}/approval`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -270,7 +273,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
         setIsLoading(false);
       }
     },
-    [backendUrl]
+    [swapApiBaseUrl]
   );
 
   /**
@@ -281,7 +284,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
     setError(null);
 
     try {
-      const response = await fetch(`${backendUrl}/api/swap/dexes`, {
+      const response = await fetch(`${swapApiBaseUrl}/dexes`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -302,7 +305,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [backendUrl]);
+  }, [swapApiBaseUrl]);
 
   /**
    * Get gas prices from backend
@@ -312,7 +315,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
     setError(null);
 
     try {
-      const response = await fetch(`${backendUrl}/api/swap/gas-price`, {
+      const response = await fetch(`${swapApiBaseUrl}/gas-price`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -333,7 +336,7 @@ export function useTowerSwap(options: UseTowerSwapOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [backendUrl]);
+  }, [swapApiBaseUrl]);
 
   /**
    * Clear error

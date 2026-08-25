@@ -197,8 +197,8 @@ const IconBubble = ({ icon, size = "md" }: { icon?: ActivityIcon; size?: "md" | 
 const StatusPill = ({ item }: { item: ActivityTabItem }) => {
   if (item.status === "successful") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white">
-        <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-[#1dd75f] text-white">
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+        <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-[#1dd75f] text-foreground">
           <Check className="h-2.5 w-2.5" strokeWidth={3} />
         </span>
         {item.statusLabel}
@@ -208,7 +208,7 @@ const StatusPill = ({ item }: { item: ActivityTabItem }) => {
 
   if (item.status === "failed") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white">
+      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
         <XCircle className="h-3 w-3 text-red-400" />
         {item.statusLabel}
       </span>
@@ -216,8 +216,8 @@ const StatusPill = ({ item }: { item: ActivityTabItem }) => {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white">
-      <Loader2 className="h-3 w-3 animate-spin text-white/70" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
       {item.statusLabel}
     </span>
   );
@@ -250,21 +250,21 @@ const ActivityCard = ({
   const cardContent = (
     <>
       <div className="mb-5 flex items-start justify-between gap-3">
-        <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white">
+        <span className="rounded-full bg-muted px-3 py-1 text-xs text-foreground">
           {formatTimeAgo(item.timestamp)}
         </span>
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate rounded-full bg-white/10 px-3 py-1 text-xs text-white">
+          <span className="truncate rounded-full bg-muted px-3 py-1 text-xs text-foreground">
             {item.routeLabel}
           </span>
           {item.kind === "bridge" ? (
             <span className="flex shrink-0 items-center -space-x-1.5">
               {item.sourceChainIcon ? (
-                <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191a1c]">
+                <span className="inline-flex rounded-full bg-card ring-2 ring-[#191a1c]">
                   <IconBubble icon={item.sourceChainIcon} size="sm" />
                 </span>
               ) : null}
-              <span className="inline-flex rounded-full bg-[#191A1C] ring-2 ring-[#191a1c]">
+              <span className="inline-flex rounded-full bg-card ring-2 ring-[#191a1c]">
                 <IconBubble
                   icon={item.targetChainIcon || item.sourceChainIcon}
                   size="sm"
@@ -281,17 +281,17 @@ const ActivityCard = ({
         <IconBubble icon={item.sourceIcon} />
         {item.kind === "swap" ? (
           <>
-            <ArrowRight className="h-4 w-4 shrink-0 text-white" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-foreground" />
             <IconBubble icon={item.targetIcon} />
           </>
         ) : null}
-        <h3 className="min-w-0 truncate text-lg font-semibold text-white">
+        <h3 className="min-w-0 truncate text-lg font-semibold text-foreground">
           {item.title}
         </h3>
       </div>
 
       {item.status === "processing" || item.status === "pending" ? (
-        <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-muted">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(Math.max(item.progress ?? 0, 6), 100)}%` }}
@@ -310,7 +310,7 @@ const ActivityCard = ({
       <button
         type="button"
         onClick={handleClick}
-        className="w-full rounded-lg border border-white/10 bg-[#191A1C] px-5 py-5 text-left transition-colors hover:border-primary/45"
+        className="w-full rounded-lg border border-border bg-card px-5 py-5 text-left transition-colors hover:border-primary/45"
       >
         {cardContent}
       </button>
@@ -318,7 +318,7 @@ const ActivityCard = ({
   }
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#191A1C] px-5 py-5">
+    <div className="rounded-lg border border-border bg-card px-5 py-5">
       {cardContent}
     </div>
   );
@@ -423,30 +423,30 @@ const ActivityTabModal = ({
   const modalBody = (
     <>
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h2 className="text-xl font-medium text-white">Activity Tab</h2>
+        <h2 className="text-xl font-medium text-foreground">Activity Tab</h2>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
           aria-label="Close activity tab"
         >
           <X className="h-6 w-6" />
         </button>
       </div>
 
-      <label className="mb-5 flex h-12 items-center gap-3 rounded-lg border border-white/10 bg-transparent px-4 text-sm text-white/55 focus-within:border-primary/50">
+      <label className="mb-5 flex h-12 items-center gap-3 rounded-lg border border-border bg-transparent px-4 text-sm text-muted-foreground focus-within:border-primary/50">
         <Search className="h-4 w-4 shrink-0" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="search by token hash/symbol/chain"
-          className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-white/55"
+          className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
         />
       </label>
 
       <div className="max-h-[calc(88vh-12rem)] space-y-5 overflow-y-auto pr-1 sm:max-h-[calc(92vh-12rem)]">
         {isLoading && visibleItems.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm text-white/55">
+          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
             Loading activities...
           </div>
         ) : visibleItems.length > 0 ? (
@@ -458,7 +458,7 @@ const ActivityTabModal = ({
             />
           ))
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-white/10 py-16 text-center">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-border py-16 text-center">
             {!isWalletConnected ? (
               <div className="mb-5">
                 <Image
@@ -470,10 +470,10 @@ const ActivityTabModal = ({
                 />
               </div>
             ) : null}
-            <p className="text-base font-medium text-white">
+            <p className="text-base font-medium text-foreground">
               {isWalletConnected ? "No History" : "Connect wallet"}
             </p>
-            <p className="mt-2 max-w-[18rem] text-sm text-white/45">
+            <p className="mt-2 max-w-[18rem] text-sm text-muted-foreground/80">
               {isWalletConnected
                 ? "Your swaps and bridges will appear here."
                 : "Connect your wallet to view activity."}
@@ -508,7 +508,7 @@ const ActivityTabModal = ({
               transition={{ duration: 0.22 }}
               className="fixed inset-0 z-[71] hidden items-center justify-center px-4 py-8 sm:flex"
             >
-              <div className="flex max-h-[min(92vh,58rem)] w-full max-w-[30.5rem] flex-col rounded-[28px] bg-[#191A1C] px-7 py-7 shadow-2xl">
+              <div className="flex max-h-[min(92vh,58rem)] w-full max-w-[30.5rem] flex-col rounded-[28px] bg-card px-7 py-7 shadow-2xl">
                 {modalBody}
               </div>
             </motion.div>
@@ -518,7 +518,7 @@ const ActivityTabModal = ({
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="fixed inset-x-0 bottom-0 z-[71] max-h-[88vh] rounded-t-[28px] bg-[#191A1C] px-5 pb-6 pt-6 shadow-2xl sm:hidden"
+              className="fixed inset-x-0 bottom-0 z-[71] max-h-[88vh] rounded-t-[28px] bg-card px-5 pb-6 pt-6 shadow-2xl sm:hidden"
             >
               <div className="max-h-[calc(88vh-3rem)] overflow-hidden">
                 {modalBody}

@@ -47,7 +47,10 @@ import {
   insertActivity,
 } from "@/lib/supabase";
 import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
-import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import {
+  formatTokenUnitUsdPrice,
+  formatUsdAmount,
+} from "@/lib/formatUsdAmount";
 import {
   DEFAULT_TOKEN_USD_PRICES,
   fetchArcTokenUsdPrices,
@@ -76,6 +79,8 @@ const OUTPUT_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
   EURC: 2,
   USDT: 2,
   cirBTC: 8,
+  cNGN: 2,
+  QCAD: 2,
 };
 
 const getOutputDisplayDecimals = (symbol?: SwapTokenSymbol | null) =>
@@ -352,7 +357,7 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
     return (
       <motion.button
         onClick={onOpenModal}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
+        className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 transition-colors hover:bg-secondary/80"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
@@ -365,21 +370,21 @@ const TokenSelector = ({ selected, onOpenModal }: TokenSelectorProps) => {
   return (
     <motion.button
       onClick={onOpenModal}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors mb-4"
+      className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2 transition-colors hover:bg-secondary/80"
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
-      <div className="shrink-0 w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center overflow-hidden">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/30">
         <Image
           src={selected.icon}
           alt={`${selected.symbol} logo`}
           width={24}
           height={24}
-          className="object-contain w-full h-full"
+          className="h-full w-full object-contain"
         />
       </div>
-      <span className="font-medium text-white">{selected.symbol}</span>
-      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      <span className="font-medium text-foreground">{selected.symbol}</span>
+      <ChevronDown className="h-4 w-4 text-muted-foreground" />
     </motion.button>
   );
 };
@@ -618,20 +623,8 @@ const getTokenWithLiveUsdPrice = (
     ? { ...token, usdPrice: liveUsdPrice }
     : token;
 };
-const formatTokenPillUsdPrice = (unitPrice: number) => {
-  if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-    return "$0.00";
-  }
-
-  const fractionDigits = unitPrice >= 1000 ? 0 : 2;
-
-  return unitPrice.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  });
-};
+const formatTokenPillUsdPrice = (unitPrice: number) =>
+  formatTokenUnitUsdPrice(unitPrice);
 const SwapCard = ({
   onNavigateToBridge,
 }: {
@@ -909,39 +902,77 @@ const SwapCard = ({
     };
   }, []);
 
-  // Listen for external cirBTC selection events or URL parameters
+  // Prefill sell/receive tokens from URL (?from=&to=) or legacy ?select=cirBTC
   useEffect(() => {
+    const applyPairFromParams = (params: URLSearchParams) => {
+      const fromSymbol = params.get("from") ?? params.get("select");
+      const toSymbol = params.get("to");
+
+      let didApply = false;
+
+      if (fromSymbol) {
+        const fromToken = findPricedSwapToken(fromSymbol as SwapTokenSymbol);
+        if (fromToken) {
+          setSellToken(fromToken);
+          didApply = true;
+        }
+      }
+
+      if (toSymbol) {
+        const toToken = findPricedSwapToken(toSymbol as SwapTokenSymbol);
+        if (toToken) {
+          setReceiveToken(toToken);
+          didApply = true;
+        }
+      }
+
+      if (didApply) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("from");
+        url.searchParams.delete("to");
+        url.searchParams.delete("select");
+        const cleaned = url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "");
+        window.history.replaceState({}, "", cleaned);
+      }
+    };
+
     const handleSelectTokenEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail?.symbol === "cirBTC") {
+      const customEvent = e as CustomEvent<{
+        symbol?: string;
+        from?: string;
+        to?: string;
+      }>;
+      const detail = customEvent.detail;
+      if (!detail) {
+        return;
+      }
+
+      if (detail.from || detail.to) {
+        if (detail.from) {
+          const fromToken = findPricedSwapToken(detail.from as SwapTokenSymbol);
+          if (fromToken) {
+            setSellToken(fromToken);
+          }
+        }
+        if (detail.to) {
+          const toToken = findPricedSwapToken(detail.to as SwapTokenSymbol);
+          if (toToken) {
+            setReceiveToken(toToken);
+          }
+        }
+        return;
+      }
+
+      if (detail.symbol === "cirBTC") {
         const cirbtcToken = findPricedSwapToken("cirBTC");
         if (cirbtcToken) {
           setSellToken(cirbtcToken);
-          // Clean URL params if present
-          const url = new URL(window.location.href);
-          if (url.searchParams.has("select")) {
-            url.searchParams.delete("select");
-            window.history.replaceState({}, "", url.pathname + url.search);
-          }
         }
       }
     };
 
     window.addEventListener("select-sell-token", handleSelectTokenEvent);
-
-    // Check URL parameters on mount
-    const params = new URLSearchParams(window.location.search);
-    const selectToken = params.get("select");
-    if (selectToken === "cirBTC") {
-      const cirbtcToken = findPricedSwapToken("cirBTC");
-      if (cirbtcToken) {
-        setSellToken(cirbtcToken);
-        // Clean URL params
-        const url = new URL(window.location.href);
-        url.searchParams.delete("select");
-        window.history.replaceState({}, "", url.pathname + url.search);
-      }
-    }
+    applyPairFromParams(new URLSearchParams(window.location.search));
 
     return () => {
       window.removeEventListener("select-sell-token", handleSelectTokenEvent);
@@ -2605,14 +2636,14 @@ const SwapCard = ({
       "w-full rounded-xl h-14 text-base font-semibold text-black transition-all";
 
     if (swapState === "loading" || swapState === "pending") {
-      return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
+      return `${baseStyles} bg-muted hover:bg-muted cursor-not-allowed text-gray-500`;
     }
 
     if (
       SWAPS_DISABLED ||
       (isWalletConnected && (!isSwapActive || isSwapBalanceInsufficient))
     ) {
-      return `${baseStyles} bg-[#2a2d31] hover:bg-[#2a2d31] cursor-not-allowed text-gray-500`;
+      return `${baseStyles} bg-muted hover:bg-muted cursor-not-allowed text-gray-500`;
     }
 
     return `${baseStyles} bg-primary hover:opacity-90`;
@@ -2819,10 +2850,10 @@ const SwapCard = ({
           whileHover={{ boxShadow: "0 0 30px rgba(59, 130, 246, 0.1)" }}
         >
           <div className="mb-4 flex items-center justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-[#111214] p-1">
+            <div className="inline-flex items-center gap-1 rounded-full bg-[#121211] p-1">
               <button
                 type="button"
-                className="px-3 py-1.5 text-xs font-medium rounded-full bg-[#1f2125] text-foreground"
+                className="px-3 py-1.5 text-xs font-medium rounded-full bg-accent text-foreground"
               >
                 Swap
               </button>
@@ -2861,10 +2892,10 @@ const SwapCard = ({
                   }}
                   className="inline-flex"
                 >
-                  <Clock className="h-5 w-5 text-white" />
+                  <Clock className="h-5 w-5 text-foreground" />
                 </motion.span>
                 {shouldShowSwapPendingIndicator ? (
-                  <span className="text-xs font-medium text-gray-300">
+                  <span className="text-xs font-medium text-muted-foreground">
                     Pending
                   </span>
                 ) : null}
@@ -2875,7 +2906,7 @@ const SwapCard = ({
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <BarChart3 className="w-5 h-5 text-white" />
+                <BarChart3 className="w-5 h-5 text-foreground" />
               </motion.button>
               <motion.button
                 onClick={() => setIsSettingsOpen(true)}
@@ -2883,7 +2914,7 @@ const SwapCard = ({
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <Settings className="w-5 h-5 text-white" />
+                <Settings className="w-5 h-5 text-foreground" />
               </motion.button>
             </div>
           </div>
@@ -2895,7 +2926,7 @@ const SwapCard = ({
           )}
 
           {/* Sell Section */}
-          <div className="bg-[#151617] rounded-xl p-4 mb-2">
+          <div className="rounded-xl bg-[#151617] p-4 mb-2">
             <div className="flex items-center justify-between mb-2 ">
               <span className="text-sm text-muted-foreground">Sell</span>
               <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
@@ -2947,7 +2978,7 @@ const SwapCard = ({
           </div>
 
           {/* Receive Section */}
-          <div className="bg-[#151617] rounded-xl p-4 mt-2 mb-6">
+          <div className="rounded-xl bg-[#151617] p-4 mt-2 mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">Receive</span>
               {receiveToken && (

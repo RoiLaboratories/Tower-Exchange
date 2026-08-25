@@ -19,6 +19,8 @@ const SUPPORTED_PROFILE_TOKENS = [
   { symbol: "EURC", address: TOKEN_CONTRACTS.EURC },
   { symbol: "USDT", address: TOKEN_CONTRACTS.USDT },
   { symbol: "cirBTC", address: TOKEN_CONTRACTS.CIRBTC },
+  { symbol: "cNGN", address: TOKEN_CONTRACTS.cNGN },
+  { symbol: "QCAD", address: TOKEN_CONTRACTS.QCAD },
 ] as const;
 
 export const useWalletHoldings = (walletAddress: string | null) => {

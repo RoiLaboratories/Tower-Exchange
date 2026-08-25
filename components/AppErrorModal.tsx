@@ -43,13 +43,13 @@ export const AppErrorModal = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="relative w-full max-w-md rounded-[1.75rem] border border-white/10 bg-[#1d1d1f]/90 p-4 shadow-2xl backdrop-blur-md"
+            className="relative w-full max-w-md rounded-[1.75rem] border border-border bg-card/90 p-4 shadow-2xl backdrop-blur-md"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+              className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/80 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               aria-label="Dismiss error"
             >
               <X size={16} />
@@ -66,7 +66,7 @@ export const AppErrorModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                className="inline-flex items-center justify-center rounded-full border border-border bg-secondary/80 px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
               >
                 {dismissLabel}
               </button>

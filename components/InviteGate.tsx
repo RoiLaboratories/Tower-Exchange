@@ -593,9 +593,9 @@ export default function InviteGate({ children }: InviteGateProps) {
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="invite-gate-title"
-                  className="relative w-full max-w-[26.5rem] overflow-hidden rounded-[1.6rem] border border-white/[0.04] bg-[#191A1C] text-white shadow-[0_30px_90px_rgba(0,0,0,0.72)]"
+                  className="relative w-full max-w-[26.5rem] overflow-hidden rounded-[1.6rem] border border-border bg-card text-white shadow-[0_30px_90px_rgba(0,0,0,0.72)]"
                 >
-                  <div className="relative aspect-[488/193] w-full overflow-hidden bg-[#121213]">
+                  <div className="relative aspect-[488/193] w-full overflow-hidden bg-input">
                     <div className="absolute inset-0 opacity-[0.085] [background-image:radial-gradient(circle,rgba(255,255,255,0.92)_0.65px,transparent_0.7px)] [background-size:7px_7px]" />
                     <div className="absolute left-1/2 top-[-7.45rem] h-[26.8rem] w-[26.8rem] -translate-x-[61.5%] rounded-full border border-[#21242a]/70" />
                     <div className="absolute left-1/2 top-[-3.35rem] h-[18.7rem] w-[18.7rem] -translate-x-[61.5%] rounded-full border border-[#1b1f25]/72" />
@@ -679,7 +679,7 @@ export default function InviteGate({ children }: InviteGateProps) {
                         </p>
 
                         <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-                          <label className="invite-gate-input-shell block overflow-hidden rounded-sm border border-white/[0.08] bg-[#121213] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors focus-within:border-white/[0.08]">
+                          <label className="invite-gate-input-shell block overflow-hidden rounded-sm border border-border bg-input shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors focus-within:border-border">
                             <span className="sr-only">Invite code</span>
                             <input
                               type="text"

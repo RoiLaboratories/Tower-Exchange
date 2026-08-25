@@ -52,13 +52,13 @@ const SwapNotification = ({
           transition={{ duration: 0.28 }}
           className="fixed left-1/2 top-6 z-50 w-[min(92vw,22.5rem)] -translate-x-1/2"
         >
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#1d1d1f]/90 px-4 py-4 shadow-2xl backdrop-blur-md">
+          <div className="rounded-[1.75rem] border border-border bg-card/90 px-4 py-4 shadow-2xl backdrop-blur-md">
             <div className="mb-3 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1dd75f]">
-                  <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                  <Check className="h-3.5 w-3.5 text-foreground" strokeWidth={3} />
                 </div>
-                <h3 className="text-[1.05rem] font-medium text-white">
+                <h3 className="text-[1.05rem] font-medium text-foreground">
                   Swap Successful!
                 </h3>
               </div>
@@ -66,7 +66,7 @@ const SwapNotification = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-[#b7b8bb] transition-colors hover:text-white"
+                className="text-[#b7b8bb] transition-colors hover:text-foreground"
                 aria-label="Close swap notification"
               >
                 <X className="h-5 w-5" />
@@ -141,7 +141,7 @@ const SwapNotification = ({
         transition={{ duration: 0.3 }}
         className="fixed left-1/2 top-8 z-50 w-[min(92vw,22rem)] -translate-x-1/2"
       >
-        <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#1a1d1f] px-5 py-4 shadow-2xl backdrop-blur-md">
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-2xl backdrop-blur-md">
           <div className="pt-0.5">
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400">
               <Clock className="h-3 w-3 text-black" strokeWidth={3} />
@@ -149,17 +149,17 @@ const SwapNotification = ({
           </div>
 
           <div className="flex-1">
-            <h3 className="mb-1 text-base font-semibold text-white">
+            <h3 className="mb-1 text-base font-semibold text-foreground">
               Swap Pending
             </h3>
-            <p className="text-sm text-gray-300">
+            <p className="text-sm text-muted-foreground">
               Transaction submitted and waiting for Arc confirmation.
             </p>
             <button
               type="button"
               onClick={handleViewTransaction}
               disabled={!transactionHash}
-              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-white transition-colors hover:text-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               View Transaction
               <ExternalLink className="h-3.5 w-3.5" />
@@ -169,7 +169,7 @@ const SwapNotification = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 transition-colors hover:text-white"
+            className="text-muted-foreground transition-colors hover:text-foreground"
             aria-label="Close swap notification"
           >
             <X className="h-5 w-5" />
@@ -187,18 +187,18 @@ const SwapNotification = ({
       transition={{ duration: 0.3 }}
       className="fixed left-1/2 top-8 z-50 w-[min(92vw,22rem)] -translate-x-1/2"
     >
-      <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#1a1d1f] px-5 py-4 shadow-2xl backdrop-blur-md">
+      <div className="flex items-start gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-2xl backdrop-blur-md">
         <div className="pt-0.5">
           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
-            <XCircle className="h-3 w-3 text-white" strokeWidth={3} />
+            <XCircle className="h-3 w-3 text-foreground" strokeWidth={3} />
           </div>
         </div>
 
         <div className="flex-1">
-          <h3 className="mb-1 text-base font-semibold text-white">
+          <h3 className="mb-1 text-base font-semibold text-foreground">
             Swap Failed
           </h3>
-          <p className="text-sm text-gray-300">
+          <p className="text-sm text-muted-foreground">
             {revertReason ? revertReason : "Transaction failed or was rejected."}
           </p>
         </div>
@@ -206,7 +206,7 @@ const SwapNotification = ({
         <button
           type="button"
           onClick={onClose}
-          className="text-gray-400 transition-colors hover:text-white"
+          className="text-muted-foreground transition-colors hover:text-foreground"
           aria-label="Close swap notification"
         >
           <X className="h-5 w-5" />

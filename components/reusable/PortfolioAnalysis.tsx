@@ -281,15 +281,15 @@ export const PortfolioAnalysis = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="space-y-4 rounded-2xl border border-border bg-[#191A1C] p-4 sm:space-y-6 sm:rounded-2xl sm:p-6 lg:space-y-4 lg:p-4 xl:space-y-6 xl:p-6"
+      className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:space-y-6 sm:rounded-2xl sm:p-6 lg:space-y-4 lg:p-4 xl:space-y-6 xl:p-6"
     >
-      <div className="rounded-xl bg-[#151617] p-3 sm:p-4 lg:p-3 xl:p-4">
+      <div className="rounded-xl bg-secondary p-3 sm:p-4 lg:p-3 xl:p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 lg:flex-nowrap lg:gap-1.5">
           <div className="flex items-center gap-3 sm:gap-4 lg:gap-2 xl:gap-3">
-            <button className="whitespace-nowrap text-sm font-medium text-white sm:text-base lg:text-[0.9rem] xl:text-base">
+            <button className="whitespace-nowrap text-sm font-medium text-foreground sm:text-base lg:text-[0.9rem] xl:text-base">
               PNL
             </button>
-            <button className="whitespace-nowrap text-sm text-gray-500 sm:text-base lg:text-[0.9rem] xl:text-base">
+            <button className="whitespace-nowrap text-sm text-muted-foreground sm:text-base lg:text-[0.9rem] xl:text-base">
               Volume
             </button>
           </div>
@@ -302,8 +302,8 @@ export const PortfolioAnalysis = () => {
                 onClick={() => setTimeframe(tf)}
                 className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs sm:px-3 sm:text-sm lg:px-1.5 lg:py-0.5 lg:text-[0.68rem] xl:px-2 xl:py-1 xl:text-xs ${
                   timeframe === tf
-                    ? "bg-[#7BB8FF] text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-primary text-[#0C0C0D]"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {tf}
@@ -313,10 +313,10 @@ export const PortfolioAnalysis = () => {
         </div>
 
         <div className="mb-4">
-          <div className="text-xl font-bold text-white sm:text-2xl lg:text-[1.4rem] xl:text-2xl">
+          <div className="text-xl font-bold text-foreground sm:text-2xl lg:text-[1.4rem] xl:text-2xl">
             {isLoadingActivities ? "Loading..." : `${formatUsdAmount(totalVolume, 1)} USD`}
           </div>
-          <div className="text-xs text-gray-400 sm:text-sm">
+          <div className="text-xs text-muted-foreground sm:text-sm">
             {formatTimestampLabel(latestTimestamp)}
           </div>
         </div>
@@ -349,7 +349,7 @@ export const PortfolioAnalysis = () => {
       </div>
 
       <div>
-        <h3 className="mb-3 text-base font-semibold text-white sm:mb-4 sm:text-lg">
+        <h3 className="mb-3 text-base font-semibold text-foreground sm:mb-4 sm:text-lg">
           Open Positions
         </h3>
         <div className="space-y-2">
@@ -359,8 +359,7 @@ export const PortfolioAnalysis = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
-              whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
-              className="flex items-center justify-between rounded-xl bg-[#151617] p-3 sm:p-4"
+              className="flex items-center justify-between rounded-xl p-3 sm:p-4"
             >
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full sm:h-8 sm:w-8">
@@ -373,13 +372,13 @@ export const PortfolioAnalysis = () => {
                   />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-white sm:text-base">
-                    {position.token} <span className="text-gray-400">{position.amount}</span>
+                  <div className="text-sm font-medium text-foreground sm:text-base">
+                    {position.token} <span className="text-muted-foreground">{position.amount}</span>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm font-medium text-white sm:text-base">
+                <div className="text-sm font-medium text-foreground sm:text-base">
                   {position.value}
                 </div>
                 <div className="text-xs text-green-400 sm:text-sm">{position.change}</div>
@@ -390,7 +389,7 @@ export const PortfolioAnalysis = () => {
       </div>
 
       <div>
-        <h3 className="mb-3 text-base font-semibold text-white sm:mb-4 sm:text-lg">
+        <h3 className="mb-3 text-base font-semibold text-foreground sm:mb-4 sm:text-lg">
           Closed Positions
         </h3>
         <div className="flex flex-col gap-2 xl:flex-row">
@@ -401,11 +400,11 @@ export const PortfolioAnalysis = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.05 }}
               whileHover={{ scale: 1.02 }}
-              className="min-w-0 flex-1 rounded-xl border border-border bg-[#151617] p-3 sm:p-4 lg:p-3 xl:p-4"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-secondary p-3 sm:p-4 lg:p-3 xl:p-4"
             >
               <div className="mb-2 flex items-center gap-2">
                 <div className="flex -space-x-2">
-                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-zinc-950 sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
+                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-card sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
                     <Image
                       src={position.logos.eth}
                       alt="ETH"
@@ -414,7 +413,7 @@ export const PortfolioAnalysis = () => {
                       className="h-full w-full object-contain"
                     />
                   </div>
-                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-zinc-950 sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
+                  <div className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border-2 border-card sm:h-6 sm:w-6 lg:h-5 lg:w-5 xl:h-6 xl:w-6">
                     <Image
                       src={position.logos.usdc}
                       alt="USDC"
@@ -424,11 +423,11 @@ export const PortfolioAnalysis = () => {
                     />
                   </div>
                 </div>
-                <span className="whitespace-nowrap text-xs font-medium text-white sm:text-sm lg:text-[0.78rem] xl:text-sm">
+                <span className="whitespace-nowrap text-xs font-medium text-foreground sm:text-sm lg:text-[0.78rem] xl:text-sm">
                   {position.pair}
                 </span>
               </div>
-              <div className="text-xs text-gray-400 lg:text-[0.72rem] xl:text-xs">
+              <div className="text-xs text-muted-foreground lg:text-[0.72rem] xl:text-xs">
                 {position.amount}
               </div>
             </motion.div>

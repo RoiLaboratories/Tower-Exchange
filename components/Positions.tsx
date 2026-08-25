@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletHoldings } from "@/lib/useWalletHoldings";
 import { AppErrorModal } from "@/components/AppErrorModal";
+import ThemeAwareImage from "@/components/ThemeAwareImage";
 
 interface PositionsProps {
   walletAddress?: string | null;
@@ -64,14 +65,10 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="rounded-2xl overflow-hidden"
-        style={{
-          backgroundColor: "hsl(220, 20%, 10%)",
-          border: "1px solid hsl(220, 15%, 18%)",
-        }}
+        className="rounded-2xl overflow-hidden border border-border bg-card"
       >
       <motion.button
-        whileHover={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
+        whileHover={{ backgroundColor: "var(--color-accent)" }}
         transition={{ duration: 0.2 }}
         onClick={() => setHoldingsExpanded(!holdingsExpanded)}
         className="w-full flex items-center justify-between p-6"
@@ -79,7 +76,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
         <h3 className="text-xl font-semibold">
           Holdings
           {walletAddress && !loading && walletHoldings.length > 0 && (
-            <span className="ml-2 text-sm text-gray-400 font-normal">
+            <span className="ml-2 text-sm text-muted-foreground font-normal">
               ({walletHoldings.length} {walletHoldings.length === 1 ? "asset" : "assets"})
             </span>
           )}
@@ -88,7 +85,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
           animate={{ rotate: holdingsExpanded ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronDown className="w-5 h-5 text-gray-400" />
+          <ChevronDown className="w-5 h-5 text-muted-foreground" />
         </motion.div>
       </motion.button>
 
@@ -110,7 +107,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 border-2 border-gray-600 border-t-primary rounded-full animate-spin" />
-                  <p className="text-gray-400">Loading wallet holdings...</p>
+                  <p className="text-muted-foreground">Loading wallet holdings...</p>
                 </div>
               </motion.div>
             )}
@@ -120,21 +117,17 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr
-                        style={{
-                          borderBottom: "1px solid hsl(220, 15%, 18%)",
-                        }}
-                      >
-                        <th className="text-left py-4 px-4 text-sm font-medium text-gray-400">
+                      <tr className="border-b border-border">
+                        <th className="text-left py-4 px-4 text-sm font-medium text-muted-foreground">
                           Token
                         </th>
-                        <th className="text-right py-4 px-4 text-sm font-medium text-gray-400">
+                        <th className="text-right py-4 px-4 text-sm font-medium text-muted-foreground">
                           Balance
                         </th>
-                        <th className="text-right py-4 px-4 text-sm font-medium text-gray-400">
+                        <th className="text-right py-4 px-4 text-sm font-medium text-muted-foreground">
                           Price
                         </th>
-                        <th className="text-right py-4 px-4 text-sm font-medium text-gray-400">
+                        <th className="text-right py-4 px-4 text-sm font-medium text-muted-foreground">
                           Value
                         </th>
                       </tr>
@@ -149,10 +142,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                             delay: index * 0.03,
                             duration: 0.3,
                           }}
-                          className="transition-colors hover:bg-zinc-800/30"
-                          style={{
-                            borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                          }}
+                          className="border-b border-border/60 transition-colors hover:bg-accent/30"
                         >
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-3">
@@ -176,10 +166,10 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                               </span>
                             </div>
                           </td>
-                          <td className="text-right py-4 px-4 text-gray-400">
+                          <td className="text-right py-4 px-4 text-muted-foreground">
                             {holding.balance}
                           </td>
-                          <td className="text-right py-4 px-4 text-gray-400">
+                          <td className="text-right py-4 px-4 text-muted-foreground">
                             {holding.price}
                           </td>
                           <td className="text-right py-4 px-4 font-medium">
@@ -199,8 +189,9 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 className="flex flex-col items-center justify-center py-20 px-6"
               >
                 <div className="mb-6">
-                  <Image
-                    src="/assets/empty state icon.svg"
+                  <ThemeAwareImage
+                    darkSrc="/assets/empty state icon.svg"
+                    lightSrc="/assets/empty-state-icon-light.svg"
                     alt="No holdings"
                     width={80}
                     height={80}
@@ -210,7 +201,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 <h4 className="text-xl font-semibold mb-2">
                   No Holdings
                 </h4>
-                <p className="text-gray-400 text-center">
+                <p className="text-muted-foreground text-center">
                   Your wallet doesn&apos;t have any token holdings yet. Start trading to build your portfolio.
                 </p>
               </motion.div>
@@ -222,8 +213,9 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 className="flex flex-col items-center justify-center py-20 px-6"
               >
                 <div className="mb-6">
-                  <Image
-                    src="/assets/empty state icon.svg"
+                  <ThemeAwareImage
+                    darkSrc="/assets/empty state icon.svg"
+                    lightSrc="/assets/empty-state-icon-light.svg"
                     alt="No wallet connected"
                     width={80}
                     height={80}
@@ -233,7 +225,7 @@ const Positions = ({ walletAddress, onTotalValueChange }: PositionsProps) => {
                 <h4 className="text-xl font-semibold mb-2">
                   No wallet connected
                 </h4>
-                <p className="text-gray-400 text-center">
+                <p className="text-muted-foreground text-center">
                   Connect your wallet to view your holdings.
                 </p>
               </motion.div>

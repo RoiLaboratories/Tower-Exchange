@@ -5,6 +5,8 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import InviteGate from "@/components/InviteGate";
+import ThemeScript from "@/components/ThemeScript";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { PrivyProvider } from "@/components/providers/PrivyProvider";
 import { CustomRainbowKitProvider } from "@/components/providers/RainbowKitProvider";
 import { SolanaWalletProvider } from "@/components/providers/SolanaWalletProvider";
@@ -61,15 +63,20 @@ export default function RootLayout({
   );
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body className={`${sora.variable} ${cinzel.variable} ${inter.variable}  antialiased`} suppressHydrationWarning>
-        <CustomRainbowKitProvider>
-          <SolanaWalletProvider>
-            <PrivyProvider>
-              {INVITE_GATE_ENABLED ? <InviteGate>{appShell}</InviteGate> : appShell}
-            </PrivyProvider>
-          </SolanaWalletProvider>
-        </CustomRainbowKitProvider>
+        <ThemeProvider>
+          <CustomRainbowKitProvider>
+            <SolanaWalletProvider>
+              <PrivyProvider>
+                {INVITE_GATE_ENABLED ? <InviteGate>{appShell}</InviteGate> : appShell}
+              </PrivyProvider>
+            </SolanaWalletProvider>
+          </CustomRainbowKitProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

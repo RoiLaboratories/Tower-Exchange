@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ResponsiveContainer, Area, AreaChart } from "recharts";
 
-import { formatUsdAmount } from "@/lib/formatUsdAmount";
+import { formatTokenUnitUsdPrice } from "@/lib/formatUsdAmount";
 import {
   DEFAULT_TOKEN_USD_PRICES,
   fetchArcTokenUsdPrices,
@@ -27,18 +27,20 @@ interface TokenOverlayProps {
 }
 
 const isTrackedTicker = (symbol: string): symbol is StableTokenSymbol =>
-  symbol === "USDC" || symbol === "EURC" || symbol === "USDT" || symbol === "cirBTC";
+  symbol === "USDC" ||
+  symbol === "EURC" ||
+  symbol === "USDT" ||
+  symbol === "cirBTC" ||
+  symbol === "cNGN" ||
+  symbol === "QCAD";
 
 const TokenCard = ({ token, onMouseEnter, onMouseLeave }: TokenCardProps) => {
   return (
     <motion.div
-      className="flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-full bg-secondary/50 border border-border whitespace-nowrap text-sm"
+      className="flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-full bg-secondary/50 border border-border whitespace-nowrap text-sm transition-colors hover:scale-105 hover:bg-primary/10"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      whileHover={{
-        scale: 1.05,
-        backgroundColor: "rgba(59, 130, 246, 0.1)",
-      }}
+      whileHover={{ scale: 1.05 }}
     >
       <div className="shrink-0 w-4 h-4">
         <Image
@@ -234,7 +236,7 @@ const TokenTicker = () => {
 
         return {
           ...token,
-          price: formatUsdAmount(1, nextUsdPrice),
+          price: formatTokenUnitUsdPrice(nextUsdPrice),
         };
       }),
     [tokenUsdPrices],

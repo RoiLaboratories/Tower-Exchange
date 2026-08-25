@@ -11,6 +11,7 @@ import { getChainLogoByName } from "@/lib/chains";
 import arcLogo from "@/public/assets/ARCSvg.svg";
 import { AppErrorModal } from "@/components/AppErrorModal";
 import TransactionInfoModal from "@/components/TransactionInfoModal";
+import ThemeAwareImage from "@/components/ThemeAwareImage";
 import {
   buildTransactionInfoDetails,
   type TransactionInfoDetails,
@@ -216,15 +217,11 @@ const Activities = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="rounded-2xl overflow-hidden"
-        style={{
-          backgroundColor: "hsl(220, 20%, 10%)",
-          border: "1px solid hsl(220, 15%, 18%)",
-        }}
+        className="rounded-2xl overflow-hidden border border-border bg-card"
       >
         <div className="flex flex-col items-center justify-center py-20 px-6">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-          <p className="text-gray-400">Loading activities...</p>
+          <p className="text-muted-foreground">Loading activities...</p>
         </div>
       </motion.div>
     );
@@ -248,22 +245,18 @@ const Activities = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="rounded-2xl overflow-hidden"
-        style={{
-          backgroundColor: "hsl(220, 20%, 10%)",
-          border: "1px solid hsl(220, 15%, 18%)",
-        }}
+        className="rounded-2xl overflow-hidden border border-border bg-card"
       >
         {activities.length > 0 ? (
           <>
             <div className="px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
-              <label className="flex h-12 items-center gap-3 rounded-lg border border-white/10 bg-transparent px-4 text-sm text-white/55 focus-within:border-primary/50">
+              <label className="flex h-12 items-center gap-3 rounded-lg border border-border bg-transparent px-4 text-sm text-muted-foreground focus-within:border-primary/50">
                 <Search className="h-4 w-4 shrink-0" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="search by token hash/symbol/chain"
-                  className="min-w-0 flex-1 bg-transparent text-white outline-none placeholder:text-white/55"
+                  className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
                 />
               </label>
             </div>
@@ -272,23 +265,23 @@ const Activities = ({
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr style={{ borderBottom: "1px solid hsl(220, 15%, 18%)" }}>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                    <tr className="border-b border-border">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">
                         Type
                       </th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">
                         Source
                       </th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">
                         Destination
                       </th>
-                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-muted-foreground">
                         Status
                       </th>
-                      <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                      <th className="text-right py-4 px-6 text-sm font-medium text-muted-foreground">
                         Date
                       </th>
-                      <th className="text-right py-4 px-6 text-sm font-medium text-gray-400">
+                      <th className="text-right py-4 px-6 text-sm font-medium text-muted-foreground">
                         Action
                       </th>
                     </tr>
@@ -300,10 +293,7 @@ const Activities = ({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05, duration: 0.3 }}
-                    className="transition-colors hover:bg-zinc-800/30"
-                    style={{
-                      borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
-                    }}
+                    className="border-b border-border/60 transition-colors hover:bg-accent/30"
                   >
                     <td className="py-5 px-6">
                       <div className="flex items-center gap-2">
@@ -331,7 +321,7 @@ const Activities = ({
                               />
                             </div>
                           ) : (
-                            <div className="shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                            <div className="shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                               <span className="text-xs font-medium">
                                 {activity.source.token[0]}
                               </span>
@@ -354,7 +344,7 @@ const Activities = ({
                           <div className="font-medium">
                             {activity.source.token}
                           </div>
-                          <div className="whitespace-nowrap text-xs text-gray-400">
+                          <div className="whitespace-nowrap text-xs text-muted-foreground">
                             {activity.source.network}
                           </div>
                         </div>
@@ -375,7 +365,7 @@ const Activities = ({
                                 />
                               </div>
                             ) : (
-                              <div className="shrink-0 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                              <div className="shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                                 <span className="text-xs font-medium">
                                   {activity.destination.token[0]}
                                 </span>
@@ -399,13 +389,13 @@ const Activities = ({
                             <div className="font-medium">
                               {activity.destination.token}
                             </div>
-                            <div className="whitespace-nowrap text-xs text-gray-400">
+                            <div className="whitespace-nowrap text-xs text-muted-foreground">
                               {activity.destination.network}
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <span className="text-gray-500">—</span>
+                        <span className="text-muted-foreground">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</span>
                       )}
                     </td>
                     <td className="py-5 px-6">
@@ -429,7 +419,7 @@ const Activities = ({
                     </td>
                     <td className="py-5 px-6 text-right">
                       <div className="whitespace-nowrap font-medium">{activity.date}</div>
-                      <div className="whitespace-nowrap text-xs text-gray-400">
+                      <div className="whitespace-nowrap text-xs text-muted-foreground">
                         {activity.time}
                       </div>
                     </td>
@@ -438,12 +428,12 @@ const Activities = ({
                         <button
                           type="button"
                           onClick={() => setSelectedActivityDetails(activity.details)}
-                          className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white px-4 text-xs font-semibold text-black transition-colors hover:bg-gray-100"
+                          className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-primary bg-primary px-4 text-xs font-semibold text-[#0C0C0D] transition-colors hover:bg-primary/90"
                         >
                           <span>View Details</span>
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-500">-</span>
+                        <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </td>
                   </motion.tr>
@@ -453,10 +443,10 @@ const Activities = ({
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                <h4 className="text-lg font-semibold text-white">
+                <h4 className="text-lg font-semibold text-foreground">
                   No matching transactions
                 </h4>
-                <p className="mt-2 text-sm text-gray-400">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Try another token, hash, symbol, or chain.
                 </p>
               </div>
@@ -470,8 +460,9 @@ const Activities = ({
             className="flex flex-col items-center justify-center py-20 px-6"
           >
             <div className="mb-6">
-              <Image
-                src="/assets/empty state icon.svg"
+              <ThemeAwareImage
+                darkSrc="/assets/empty state icon.svg"
+                lightSrc="/assets/empty-state-icon-light.svg"
                 alt={
                   isWalletConnected
                     ? "No transactions yet"
@@ -487,7 +478,7 @@ const Activities = ({
                 ? "No transactions yet"
                 : "No wallet connected"}
             </h4>
-            <p className="text-gray-400 text-center">
+            <p className="text-muted-foreground text-center">
               {isWalletConnected
                 ? "Your swap and transfer activity will appear here."
                 : "Connect your wallet to view activity."}

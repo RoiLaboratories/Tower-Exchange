@@ -156,9 +156,7 @@ export default function PromotionalSidebar() {
       : "opacity-0 translate-y-4 xl:translate-x-5 max-xl:translate-y-full"
   ].join(" ");
 
-  const cardStyle = {
-    boxShadow: "0 10px 35px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.04)"
-  };
+  const cardStyle = undefined;
 
   return (
     <div
@@ -177,8 +175,7 @@ export default function PromotionalSidebar() {
           {visibleSlides.map((slide) => (
             <div
               key={slide.id}
-              className="relative w-full bg-[#191A1C] border border-white/[0.08] flex flex-col p-3 xl:p-4 rounded-2xl shrink-0 cursor-pointer"
-              style={cardStyle}
+              className="relative w-full bg-card border border-border flex flex-col p-3 xl:p-4 rounded-2xl shrink-0 cursor-pointer shadow-[0_8px_24px_rgba(15,23,42,0.08)] light:shadow-[0_8px_24px_rgba(15,23,42,0.06)] dark:shadow-[0_10px_35px_rgba(0,0,0,0.35)]"
               onClick={() => {
                 slide.action();
                 if (window.innerWidth < 1280) {
@@ -192,7 +189,7 @@ export default function PromotionalSidebar() {
                   e.stopPropagation();
                   handleCloseSlide(slide.id);
                 }}
-                className="absolute top-2.5 right-2.5 xl:top-3.5 xl:right-3.5 w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 p-0 text-gray-300 transition-colors hover:text-white hover:bg-white/10 xl:hover:bg-white/10 z-10"
+                className="absolute top-2.5 right-2.5 xl:top-3.5 xl:right-3.5 w-[30px] h-[30px] inline-flex items-center justify-center rounded-full border border-border bg-secondary/80 p-0 text-muted-foreground transition-colors hover:text-foreground hover:bg-accent xl:hover:bg-accent z-10"
                 aria-label="Close promotion"
               >
                 <X size={16} />
@@ -206,16 +203,16 @@ export default function PromotionalSidebar() {
                   <img
                     src={slide.heroImage}
                     alt={slide.title}
-                    className="w-full h-full object-cover rounded-lg border border-white/[0.04] xl:rounded-xl"
+                    className="w-full h-full object-cover rounded-lg border border-border xl:rounded-xl"
                   />
                 </div>
                 
                 {/* Content text */}
                 <div className="flex flex-col justify-center gap-y-1 xl:gap-y-2 min-w-0 flex-1 xl:pt-4 pr-7 xl:pr-0">
-                  <h3 className="font-inter font-semibold text-[16px] xl:text-[18px] leading-tight text-white m-0 tracking-tight">
+                  <h3 className="font-inter font-semibold text-[16px] xl:text-[18px] leading-tight text-foreground m-0 tracking-tight">
                     {slide.title}
                   </h3>
-                  <p className="font-inter text-[13px] xl:text-[14px] leading-[1.3] text-white/72 m-0 font-light whitespace-pre-line">
+                  <p className="font-inter text-[13px] xl:text-[14px] leading-[1.3] text-muted-foreground m-0 font-light whitespace-pre-line">
                     {slide.description}
                   </p>
                 </div>
@@ -230,7 +227,7 @@ export default function PromotionalSidebar() {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }}
-                className="flex w-full h-10 mt-3 xl:mt-4 rounded-full bg-[#74A8F4] hover:bg-[#8dc0ff] text-[#111111] font-inter font-semibold text-base items-center justify-center border-none transition-all duration-200 ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md shrink-0"
+                className="flex w-full h-10 mt-3 xl:mt-4 rounded-full bg-primary hover:bg-primary/90 text-[#0C0C0D] font-inter font-semibold text-base items-center justify-center border-none transition-all duration-200 ease-in-out hover:-translate-y-[2px] active:translate-y-0 active:scale-[0.98] shadow-md shrink-0"
               >
                 {slide.ctaText}
               </button>
@@ -247,7 +244,7 @@ export default function PromotionalSidebar() {
               key={index}
               onClick={() => setActiveSlide(index)}
               className={`h-[5px] rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
-                activeSlide === index ? "bg-white w-[28px]" : "bg-white/20 w-[14px] hover:bg-white/40"
+                activeSlide === index ? "bg-primary w-[28px]" : "bg-muted-foreground/25 w-[14px] hover:bg-muted-foreground/40"
               }`}
               aria-label={`Go to Slide ${index + 1}`}
               style={{ border: "none" }}

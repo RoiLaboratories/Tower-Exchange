@@ -30,8 +30,8 @@ const AIAgentPage = () => {
   ];
 
   return (
-    <div className="relative flex min-h-[calc(100dvh-100px)] flex-col overflow-x-hidden text-white lg:h-full lg:min-h-0">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_85%,rgba(87,147,255,0.12),transparent_30%),radial-gradient(circle_at_75%_100%,rgba(35,57,94,0.16),transparent_34%),linear-gradient(180deg,#07080b_0%,#0a0b0f_45%,#0d1015_100%)]" />
+    <div className="relative flex min-h-[calc(100dvh-100px)] flex-col overflow-x-hidden bg-background text-foreground lg:h-full lg:min-h-0">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_85%,rgba(87,147,255,0.08),transparent_30%),radial-gradient(circle_at_75%_100%,rgba(77,149,235,0.06),transparent_34%)] dark:bg-[radial-gradient(circle_at_20%_85%,rgba(87,147,255,0.12),transparent_30%),radial-gradient(circle_at_75%_100%,rgba(35,57,94,0.16),transparent_34%),linear-gradient(180deg,#07080b_0%,#0a0b0f_45%,#0d1015_100%)]" />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <TokenTicker />
@@ -42,7 +42,7 @@ const AIAgentPage = () => {
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               onClick={() => setShowRightPanel(true)}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-[#7BB8FF] text-[#081019] shadow-[0_16px_40px_rgba(123,184,255,0.35)] sm:h-14 sm:w-14"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-[#081019] shadow-[0_16px_40px_rgba(123,184,255,0.35)] sm:h-14 sm:w-14"
             >
               <Plus size={22} />
             </motion.button>
@@ -61,8 +61,8 @@ const AIAgentPage = () => {
             </motion.div>
 
             <div className="relative hidden lg:flex items-center justify-center">
-              <div className="h-[64%] w-px rounded-full bg-gradient-to-b from-transparent via-white/12 to-transparent" />
-              <div className="absolute h-20 w-1.5 rounded-full bg-white/35" />
+              <div className="h-[64%] w-px rounded-full bg-gradient-to-b from-transparent via-border to-transparent" />
+              <div className="absolute h-20 w-1.5 rounded-full bg-muted-foreground/40" />
             </div>
 
             {showRightPanel && !isLargeScreen && (
@@ -91,9 +91,9 @@ const AIAgentPage = () => {
                     isLargeScreen ? { opacity: 0, x: 20 } : { opacity: 0, y: "100%" }
                   }
                   transition={{ duration: isLargeScreen ? 0.3 : 0.35, ease: "easeOut" }}
-                  className={`z-40 flex flex-col overflow-hidden border border-[#263446]/70 bg-[#171a1f]/92 shadow-[0_28px_80px_rgba(0,0,0,0.48)] backdrop-blur-md sm:backdrop-blur-xl ${
+                  className={`z-40 flex flex-col overflow-hidden border border-border bg-card/95 shadow-[0_28px_80px_rgba(0,0,0,0.12)] backdrop-blur-md sm:backdrop-blur-xl dark:shadow-[0_28px_80px_rgba(0,0,0,0.48)] ${
                     isLargeScreen
-                      ? "relative h-full min-h-0 rounded-[24px] p-3 lg:shadow-[0_24px_64px_rgba(0,0,0,0.42)] xl:rounded-[26px] xl:p-3.5"
+                      ? "relative h-full min-h-0 rounded-[24px] p-3 lg:shadow-[0_24px_64px_rgba(0,0,0,0.12)] xl:rounded-[26px] xl:p-3.5"
                       : "fixed inset-x-0 bottom-0 top-[8.5rem] rounded-t-[24px] rounded-b-none border-b-0 border-x-0 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:top-[9rem] sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pt-4"
                   }`}
                   style={{
@@ -105,11 +105,11 @@ const AIAgentPage = () => {
                 >
                   {!isLargeScreen && (
                     <div className="mb-4 flex justify-center lg:hidden">
-                      <div className="h-1.5 w-14 rounded-full bg-white/20" />
+                      <div className="h-1.5 w-14 rounded-full bg-muted-foreground/30" />
                     </div>
                   )}
 
-                  <div className="shrink-0 rounded-[10px] border border-white/[0.04] bg-[#111214] p-1.5 lg:p-1">
+                  <div className="shrink-0 rounded-[10px] border border-border bg-muted p-1.5 lg:p-1">
                     <div className="grid w-full grid-cols-3 gap-1.5 lg:gap-1">
                       {tabs.map((tab) => (
                         <motion.button
@@ -119,8 +119,8 @@ const AIAgentPage = () => {
                           onClick={() => setActiveTab(tab.id)}
                           className={`flex items-center justify-center min-w-0 whitespace-nowrap rounded-[4px] px-1.5 py-2.5 text-center text-[0.72rem] font-semibold tracking-[-0.01em] transition-all lg:px-2 lg:py-2 lg:text-[0.76rem] xl:px-3 xl:py-2.25 xl:text-[0.82rem] ${
                             activeTab === tab.id
-                              ? "bg-[#1f2125] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                              : "text-[#8a909c] hover:text-white"
+                              ? "bg-accent text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                              : "text-muted-foreground hover:text-foreground"
                           }`}
                         >
                           {tab.label}
