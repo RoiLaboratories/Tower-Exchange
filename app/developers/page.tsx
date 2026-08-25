@@ -41,7 +41,6 @@ const features: FeatureCard[] = [
 ];
 
 export default function DevelopersPage() {
-  // notFound();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -66,8 +65,8 @@ export default function DevelopersPage() {
           />
         </div>
 
-        {/* Right Leaning Tower - Shifted further right */}
-        <div className="absolute right-[-100px] sm:right-[-140px] md:right-[-180px] lg:right-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
+        {/* Right Leaning Tower - Shifted further right (hidden on mobile, visible on tablet & desktop) */}
+        <div className="hidden md:block absolute right-[-100px] sm:right-[-140px] md:right-[-180px] lg:right-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt="Tower Background Right"
@@ -103,13 +102,16 @@ export default function DevelopersPage() {
 
           {/* CTA Button */}
           <div className="mt-7">
-            <motion.button
+            <motion.a
+              href="https://devs.tower.exchange"
+              target="_blank"
+              rel="noopener noreferrer"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               className="bg-primary hover:bg-[#67a7fa] text-[#0C0C0D] font-semibold text-sm sm:text-[15px] w-[209px] h-[36px] rounded-full shadow-md transition-colors cursor-pointer inline-flex items-center justify-center"
             >
               Start your Integration
-            </motion.button>
+            </motion.a>
           </div>
         </motion.div>
 
@@ -219,12 +221,12 @@ export default function DevelopersPage() {
                   }}
                 />
 
-                {/* Bitget Wallet Logo */}
+                {/* Bitget Logo */}
                 <div
-                  className="h-7 sm:h-8 w-[150px] sm:w-[180px] md:w-[210px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
+                  className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
                   style={{
-                    maskImage: `url('/assets/Bitget Wallet-Logo@2x 1.svg')`,
-                    WebkitMaskImage: `url('/assets/Bitget Wallet-Logo@2x 1.svg')`,
+                    maskImage: `url('/assets/developer/developer-bitget.svg')`,
+                    WebkitMaskImage: `url('/assets/developer/developer-bitget.svg')`,
                     maskRepeat: "no-repeat",
                     WebkitMaskRepeat: "no-repeat",
                     maskSize: "contain",

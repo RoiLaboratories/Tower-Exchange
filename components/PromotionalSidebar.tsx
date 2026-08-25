@@ -14,6 +14,47 @@ export default function PromotionalSidebar() {
   const [dismissedSlides, setDismissedSlides] = useState<string[]>([]);
 
   const slides = [
+    // {
+    //   id: "cngn-trade",
+    //   heroImage: "/assets/promotional-card-cngn.svg",
+    //   imageWidthClass: "w-[100px]",
+    //   title: "Trade $cNGN on Tower",
+    //   description: "cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
+    //   ctaText: "Trade cNGN",
+    //   action: () => {
+    //     router.push("/?select=cNGN");
+    //     setTimeout(() => {
+    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "cNGN" } });
+    //       window.dispatchEvent(event);
+    //     }, 50);
+    //   }
+    // },
+    //  {
+    //   id: "qcad-trade",
+    //   heroImage: "/assets/promotional-card-qcad.svg",
+    //   imageWidthClass: "w-[100px]",
+    //   title: "Trade $QCAD on Tower",
+    //   description: "QCAD, Stablecorp’s Canadian Dollar stablecoin backed 1:1 by real CAD, is now available for trading on Tower.",
+    //   ctaText: "Trade QCAD",
+    //   action: () => {
+    //     router.push("/?select=QCAD");
+    //     setTimeout(() => {
+    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "QCAD" } });
+    //       window.dispatchEvent(event);
+    //     }, 50);
+    //   }
+    // },
+    {
+      id: "dev-page",
+      heroImage: "/assets/dev-page.svg",
+      imageWidthClass: "w-[125px]",
+      title: "Build with Tower Console",
+      description: "You can now integrate Tower’s routing infrastructure directly into your apps and build.",
+      ctaText: "Get Started",
+      action: () => {
+        window.open("https://devs.tower.exchange", "_blank", "noopener,noreferrer");
+      }
+    },
     {
       id: "bridge-solana",
       heroImage: "/assets/promotional-card-bridge.svg",
@@ -25,21 +66,21 @@ export default function PromotionalSidebar() {
         router.push("/bridge?fromChain=arc-testnet&fromToken=USDC&toChain=solana&toToken=USDC");
       }
     },
-    {
-      id: "cirbtc-trade",
-      heroImage: "/assets/TradecircBTC.svg",
-      imageWidthClass: "w-[100px]",
-      title: "Trade $cirBTC on Tower",
-      description: "cirBTC, Circle's wrapped Bitcoin backed 1:1 by real BTC, is now available for trading on Tower.",
-      ctaText: "Trade cirBTC",
-      action: () => {
-        router.push("/?select=cirBTC");
-        setTimeout(() => {
-          const event = new CustomEvent("select-sell-token", { detail: { symbol: "cirBTC" } });
-          window.dispatchEvent(event);
-        }, 50);
-      }
-    }
+    // {
+    //   id: "cirbtc-trade",
+    //   heroImage: "/assets/TradecircBTC.svg",
+    //   imageWidthClass: "w-[100px]",
+    //   title: "Trade $cirBTC on Tower",
+    //   description: "cirBTC, Circle's wrapped Bitcoin backed 1:1 by real BTC, is now available for trading on Tower.",
+    //   ctaText: "Trade cirBTC",
+    //   action: () => {
+    //     router.push("/?select=cirBTC");
+    //     setTimeout(() => {
+    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "cirBTC" } });
+    //       window.dispatchEvent(event);
+    //     }, 50);
+    //   }
+    // }
     // {
     //   id: "cirbtc-dca",
     //   heroImage: "/assets/DCAwithcirBTC.svg",

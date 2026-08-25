@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
 const ANALYTICS_URL = "https://analytics.tower.exchange";
-const DOCS_URL = "https://tower-exchange.gitbook.io/tower";
+const DOCS_URL = "https://docs.tower.exchange";
 const TERMS_URL = "/terms";
 const PRIVACY_URL = "/privacy";
 
