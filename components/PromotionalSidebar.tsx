@@ -14,21 +14,21 @@ export default function PromotionalSidebar() {
   const [dismissedSlides, setDismissedSlides] = useState<string[]>([]);
 
   const slides = [
-    // {
-    //   id: "cngn-trade",
-    //   heroImage: "/assets/promotional-card-cngn.svg",
-    //   imageWidthClass: "w-[100px]",
-    //   title: "Trade $cNGN on Tower",
-    //   description: "cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
-    //   ctaText: "Trade cNGN",
-    //   action: () => {
-    //     router.push("/?select=cNGN");
-    //     setTimeout(() => {
-    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "cNGN" } });
-    //       window.dispatchEvent(event);
-    //     }, 50);
-    //   }
-    // },
+    {
+      id: "cngn-trade",
+      heroImage: "/assets/promotional-card-cngn.svg",
+      imageWidthClass: "w-[100px]",
+      title: "Trade $cNGN on Tower",
+      description: "cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
+      ctaText: "Trade cNGN",
+      action: () => {
+        router.push("/?select=cNGN");
+        setTimeout(() => {
+          const event = new CustomEvent("select-sell-token", { detail: { symbol: "cNGN" } });
+          window.dispatchEvent(event);
+        }, 50);
+      }
+    },
     //  {
     //   id: "qcad-trade",
     //   heroImage: "/assets/promotional-card-qcad.svg",
