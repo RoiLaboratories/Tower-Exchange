@@ -11,6 +11,8 @@ import usdtLogo from "@/public/assets/usdt.svg";
 import uniLogo from "@/public/assets/Mainnet.svg";
 import qtmLogo from "@/public/assets/quantum-logo.png";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
+import cngnLogo from "@/public/assets/cNGN.svg";
+import qcadLogo from "@/public/assets/QCAD.svg";
 
 export const TOKEN_ICONS: Record<string, StaticImageData> = {
   USDC: usdcLogo,
@@ -22,6 +24,9 @@ export const TOKEN_ICONS: Record<string, StaticImageData> = {
   USDT: usdtLogo,
   CIRBTC: cirbtcLogo,
   cirBTC: cirbtcLogo,
+  CNGN: cngnLogo,
+  cNGN: cngnLogo,
+  QCAD: qcadLogo,
   UNI: uniLogo,
   QTM: qtmLogo,
   SWPRC: usdcLogo, // Default to USDC logo if SWPRC logo not available

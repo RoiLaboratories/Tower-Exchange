@@ -186,7 +186,7 @@ export default function BridgeSelectContent() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-4xl rounded-3xl border border-border/70 bg-[#111214] shadow-2xl overflow-hidden flex"
+        className="w-full max-w-4xl rounded-3xl border border-border/70 bg-[#101113] shadow-2xl overflow-hidden flex"
       >
         {/* Left: chain list */}
         <aside className="hidden md:flex w-64 flex-col border-r border-border/70 bg-[#101113] h-screen max-h-screen">
@@ -200,7 +200,7 @@ export default function BridgeSelectContent() {
                 value={chainSearch}
                 onChange={(e) => setChainSearch(e.target.value)}
                 placeholder="Search Network"
-                className="w-full rounded-xl bg-[#18191c] pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
+                className="w-full rounded-xl bg-card pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
               />
             </div>
           </div>
@@ -237,8 +237,8 @@ export default function BridgeSelectContent() {
                           isUnavailable
                             ? "cursor-not-allowed text-muted-foreground opacity-45"
                             : selectedChainId === chain.id
-                              ? "bg-[#18191c] text-foreground"
-                              : "text-muted-foreground hover:bg-[#18191c]"
+                              ? "bg-card text-foreground"
+                              : "text-muted-foreground hover:bg-card"
                         }`}
                       >
                         <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
@@ -280,7 +280,7 @@ export default function BridgeSelectContent() {
         </aside>
 
         {/* Right: token list */}
-        <section className="flex-1 flex flex-col bg-[#111214]">
+        <section className="flex flex-1 flex-col bg-[#101113]">
           <header className="flex items-center justify-between px-5 py-4 border-b border-border/60">
             <div className="flex flex-col gap-1">
               <h2 className="text-sm font-semibold text-foreground">
@@ -290,7 +290,7 @@ export default function BridgeSelectContent() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] text-muted-foreground transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card hover:bg-[#202225] text-muted-foreground transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -301,7 +301,7 @@ export default function BridgeSelectContent() {
             <button
               type="button"
               onClick={() => setIsChainModalOpen(true)}
-              className="flex w-full items-center justify-between rounded-xl bg-[#18191c] px-3 py-2.5 text-left hover:bg-[#202225] transition-colors"
+              className="flex w-full items-center justify-between rounded-xl bg-card px-3 py-2.5 text-left hover:bg-[#202225] transition-colors"
             >
               <span className="flex items-center gap-2">
                 <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
@@ -339,7 +339,7 @@ export default function BridgeSelectContent() {
                 value={tokenSearch}
                 onChange={(e) => setTokenSearch(e.target.value)}
                 placeholder="search token name or paste address"
-                className="w-full rounded-xl bg-[#18191c] pl-9 pr-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
+                className="w-full rounded-xl bg-card pl-9 pr-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
               />
             </div>
           </div>
@@ -363,7 +363,7 @@ export default function BridgeSelectContent() {
                     className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-colors ${
                       isUnavailable
                         ? "cursor-not-allowed opacity-45"
-                        : "hover:bg-[#18191c]"
+                        : "hover:bg-card"
                     }`}
                     onClick={() => {
                       if (isUnavailable) {
@@ -429,7 +429,7 @@ export default function BridgeSelectContent() {
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-h-[80vh] rounded-t-3xl border border-border/70 bg-[#111214] shadow-2xl overflow-hidden flex flex-col"
+            className="w-full max-h-[80vh] rounded-t-3xl border border-border/70 bg-muted shadow-2xl overflow-hidden flex flex-col"
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
               <h2 className="text-sm font-semibold text-foreground">
@@ -438,7 +438,7 @@ export default function BridgeSelectContent() {
               <button
                 type="button"
                 onClick={() => setIsChainModalOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#18191c] hover:bg-[#202225] text-muted-foreground transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card hover:bg-[#202225] text-muted-foreground transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -454,7 +454,7 @@ export default function BridgeSelectContent() {
                   value={chainSearch}
                   onChange={(e) => setChainSearch(e.target.value)}
                   placeholder="Search Network"
-                  className="w-full rounded-xl bg-[#18191c] pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
+                  className="w-full rounded-xl bg-card pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
                 />
               </div>
             </div>
@@ -486,8 +486,8 @@ export default function BridgeSelectContent() {
                         isUnavailable
                           ? "cursor-not-allowed text-muted-foreground opacity-45"
                           : selectedChainId === chain.id
-                            ? "bg-[#18191c] text-foreground"
-                            : "text-muted-foreground hover:bg-[#18191c]"
+                            ? "bg-card text-foreground"
+                            : "text-muted-foreground hover:bg-card"
                       }`}
                     >
                       <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">

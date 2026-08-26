@@ -4,10 +4,14 @@ import eurcLogo from "@/public/assets/eurc.svg";
 import usdcLogo from "@/public/assets/usdc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
+import cngnLogo from "@/public/assets/cNGN.svg";
 import { DEFAULT_TOKEN_USD_PRICES } from "@/lib/tokenUsdPrices";
 
+/** Re-enable when QCAD swap pairs are ready for production. */
+export const QCAD_SWAP_PAIRS_ENABLED = false;
+
 export interface SwapToken {
-  symbol: "USDC" | "EURC" | "USDT" | "cirBTC";
+  symbol: "USDC" | "EURC" | "USDT" | "cirBTC" | "cNGN";
   icon: StaticImageData;
   name: string;
   balance: number;
@@ -45,7 +49,29 @@ export const SWAP_TOKENS: readonly SwapToken[] = [
     balance: 0,
     usdPrice: DEFAULT_TOKEN_USD_PRICES.cirBTC,
   },
+  {
+    symbol: "cNGN",
+    icon: cngnLogo,
+    name: "Compliant Naira",
+    balance: 0,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.cNGN,
+  },
 ] as const;
+
+const QCAD_SWAP_PAIR_KEYS = QCAD_SWAP_PAIRS_ENABLED
+  ? ([
+      "USDC:QCAD",
+      "QCAD:USDC",
+      "USDT:QCAD",
+      "QCAD:USDT",
+      "EURC:QCAD",
+      "QCAD:EURC",
+      "CIRBTC:QCAD",
+      "QCAD:CIRBTC",
+      "CNGN:QCAD",
+      "QCAD:CNGN",
+    ] as const)
+  : ([] as const);
 
 const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([
   "USDC:EURC",
@@ -60,6 +86,15 @@ const SUPPORTED_SWAP_PAIR_KEYS = new Set<string>([
   "CIRBTC:USDT",
   "EURC:CIRBTC",
   "CIRBTC:EURC",
+  "USDC:CNGN",
+  "CNGN:USDC",
+  "USDT:CNGN",
+  "CNGN:USDT",
+  "EURC:CNGN",
+  "CNGN:EURC",
+  "CIRBTC:CNGN",
+  "CNGN:CIRBTC",
+  ...QCAD_SWAP_PAIR_KEYS,
 ]);
 
 export function isSupportedSwapPair(
@@ -88,4 +123,36 @@ export function getSupportedCounterpartyTokens(
       token.symbol !== tokenSymbol &&
       isSupportedSwapPair(tokenSymbol, token.symbol),
   );
+}
+
+export function getSwapTokenBySymbol(
+  symbol?: string | null,
+  availableTokens: readonly SwapToken[] = SWAP_TOKENS,
+): SwapToken | undefined {
+  if (!symbol) {
+    return undefined;
+  }
+
+  return availableTokens.find(
+    (token) => token.symbol.toUpperCase() === symbol.toUpperCase(),
+  );
+}
+
+export function buildSwapPath(params: {
+  from?: string | null;
+  to?: string | null;
+}): string {
+  const search = new URLSearchParams();
+  const fromToken = getSwapTokenBySymbol(params.from);
+  const toToken = getSwapTokenBySymbol(params.to);
+
+  if (fromToken) {
+    search.set("from", fromToken.symbol);
+  }
+  if (toToken) {
+    search.set("to", toToken.symbol);
+  }
+
+  const query = search.toString();
+  return query ? `/?${query}` : "/";
 }

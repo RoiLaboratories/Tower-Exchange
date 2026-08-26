@@ -116,7 +116,7 @@ export const DatePicker = ({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-zinc-900 rounded-2xl w-full max-w-sm border border-zinc-800"
+        className="bg-card rounded-2xl w-full max-w-sm border border-border"
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -127,9 +127,9 @@ export const DatePicker = ({
                 onClick={previousMonth}
                 className="h-8 w-8"
               >
-                <ChevronLeft className="h-4 w-4 text-white" />
+                <ChevronLeft className="h-4 w-4 text-foreground" />
               </Button>
-              <h3 className="text-lg font-semibold text-white min-w-45 text-center">
+              <h3 className="text-lg font-semibold text-foreground min-w-45 text-center">
                 {monthNames[month]} {year}
               </h3>
               <Button
@@ -138,7 +138,7 @@ export const DatePicker = ({
                 onClick={nextMonth}
                 className="h-8 w-8"
               >
-                <ChevronRight className="h-4 w-4 text-white" />
+                <ChevronRight className="h-4 w-4 text-foreground" />
               </Button>
             </div>
             <Button
@@ -147,7 +147,7 @@ export const DatePicker = ({
               onClick={onClose}
               className="h-8 w-8 cursor-pointer"
             >
-              <X className="h-4 w-4 text-white" />
+              <X className="h-4 w-4 text-foreground" />
             </Button>
           </div>
 
@@ -155,7 +155,7 @@ export const DatePicker = ({
             {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
               <div
                 key={day}
-                className="text-center text-gray-500 text-sm font-medium"
+                className="text-center text-muted-foreground text-sm font-medium"
               >
                 {day}
               </div>
@@ -175,12 +175,12 @@ export const DatePicker = ({
                 disabled={isUnavailableDate(day)}
                 className={`aspect-square h-auto text-sm ${
                   isUnavailableDate(day)
-                    ? "text-gray-500 cursor-not-allowed"
+                    ? "text-muted-foreground cursor-not-allowed"
                     : isSelectedDate(day)
-                    ? "bg-white text-black hover:bg-white/90 font-semibold"
+                    ? "bg-primary text-[#0C0C0D] hover:bg-primary/90 font-semibold"
                     : isToday(day)
-                    ? "bg-zinc-800 text-white hover:bg-zinc-700 font-medium"
-                    : "text-gray-400 hover:bg-zinc-800 hover:text-white"
+                    ? "bg-accent text-foreground hover:bg-muted font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
                 {day}

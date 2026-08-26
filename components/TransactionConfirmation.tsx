@@ -67,7 +67,7 @@ export const TransactionConfirmation: React.FC<
       case "confirmed":
         return (
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-green-500">
-            <Check className="h-4 w-4 text-white" strokeWidth={3} />
+            <Check className="h-4 w-4 text-foreground" strokeWidth={3} />
           </div>
         );
       case "error":
@@ -121,7 +121,7 @@ export const TransactionConfirmation: React.FC<
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label="Dismiss transaction message"
         >
           <X size={15} />
@@ -148,14 +148,14 @@ export const TransactionConfirmation: React.FC<
             />
           ) : (
             <>
-              <h3 className="mb-1 font-semibold text-white">{statusTitle}</h3>
+              <h3 className="mb-1 font-semibold text-foreground">{statusTitle}</h3>
               {showStackedError ? (
                 <div className="mt-2">
                   <ErrorBadge message={error} fallback="Transaction failed." />
                 </div>
               ) : (
                 statusMessage && (
-                  <p className="mb-3 text-sm text-gray-300">{statusMessage}</p>
+                  <p className="mb-3 text-sm text-muted-foreground">{statusMessage}</p>
                 )
               )}
             </>
@@ -164,15 +164,15 @@ export const TransactionConfirmation: React.FC<
           {transactionHash && (
             <div className="mb-3 min-w-0 overflow-hidden rounded bg-black/30 p-2 font-mono text-xs">
               <div className="flex flex-wrap min-w-0 items-center justify-between gap-x-2 gap-y-1">
-                <span className="shrink-0 text-gray-400">TX Hash:</span>
+                <span className="shrink-0 text-muted-foreground">TX Hash:</span>
                 <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                  <span className="min-w-0 truncate text-gray-300">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {transactionHash.slice(0, 6)}...
                     {transactionHash.slice(-6)}
                   </span>
                   <button
                     onClick={handleCopyHash}
-                    className="shrink-0 rounded p-1 transition-colors hover:bg-white/10"
+                    className="shrink-0 rounded p-1 transition-colors hover:bg-accent"
                     title="Copy full hash"
                   >
                     <Copy size={14} />
@@ -184,7 +184,7 @@ export const TransactionConfirmation: React.FC<
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 rounded p-1 transition-colors hover:bg-white/10"
+                    className="shrink-0 rounded p-1 transition-colors hover:bg-accent"
                     title="View on Arcscan Testnet"
                   >
                     <ExternalLink size={14} />
@@ -200,7 +200,7 @@ export const TransactionConfirmation: React.FC<
           )}
 
           {blockNumber && status === "confirmed" && (
-            <p className="text-xs text-gray-400">Block: {blockNumber}</p>
+            <p className="text-xs text-muted-foreground">Block: {blockNumber}</p>
           )}
 
           {error && !showInlineError && !showStackedError && (
@@ -218,7 +218,7 @@ export const TransactionConfirmation: React.FC<
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="px-3 py-1.5 rounded text-sm bg-[#7BB8FF] hover:bg-[#629ee2] text-black transition-colors"
+                  className="px-3 py-1.5 rounded text-sm bg-primary hover:bg-[#629ee2] text-black transition-colors"
                 >
                   Close
                 </button>

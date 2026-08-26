@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { notFound } from "next/navigation";
+// import { notFound } from "next/navigation";
 import { motion } from "framer-motion";
-import { Database, Zap, Network } from "lucide-react";
+import { Database, Zap, type LucideIcon } from "lucide-react";
 
-const features = [
+type FeatureCard = {
+  title: string;
+  bullets: string[];
+  icon?: LucideIcon;
+  iconSrc?: string;
+};
+
+const features: FeatureCard[] = [
   {
     icon: Database,
     title: "One Integration. Every Optimal Route.",
@@ -24,7 +31,7 @@ const features = [
     ],
   },
   {
-    icon: Network,
+    iconSrc: "/assets/cost_effective icon.svg",
     title: "Cost-Effective Infrastructure With Ecosystem Support",
     bullets: [
       "No subscription fees to access our API, allowing developers to integrate without upfront platform costs.",
@@ -46,7 +53,7 @@ export default function DevelopersPage() {
   }, []);
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-[#0C0C0D] text-white pt-6 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
+    <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-background text-foreground pt-6 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
       {/* Background Tower Layer - Anchored to far outer edges of screen with enhanced opacity */}
       <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden">
         {/* Left Leaning Tower - Shifted further left */}
@@ -68,8 +75,8 @@ export default function DevelopersPage() {
         </div>
 
         {/* Ambient Blue Radial Glows matching Figma blur filters */}
-        <div className="absolute left-1/2 top-[520px] -translate-x-1/2 w-[600px] h-[350px] bg-[#7BB8FF] opacity-15 blur-[140px] rounded-full" />
-        <div className="absolute left-1/2 bottom-[40px] -translate-x-1/2 w-[1100px] h-[220px] bg-[#7BB8FF] opacity-20 blur-[160px] rounded-full" />
+        <div className="absolute left-1/2 top-[520px] -translate-x-1/2 w-[600px] h-[350px] bg-primary opacity-15 blur-[140px] rounded-full" />
+        <div className="absolute left-1/2 bottom-[40px] -translate-x-1/2 w-[1100px] h-[220px] bg-primary opacity-20 blur-[160px] rounded-full" />
       </div>
 
       <main className="relative z-10 max-w-[1440px] mx-auto w-full flex-1 flex flex-col items-center">
@@ -81,12 +88,12 @@ export default function DevelopersPage() {
           className="text-center max-w-4xl mx-auto pt-6 sm:pt-10 px-2 sm:px-4"
         >
           {/* Title - Single Line on Desktop, Wraps on Mobile */}
-          <h1 className="text-2xl sm:text-3xl md:text-[44px] font-bold text-white tracking-tight leading-tight whitespace-normal md:whitespace-nowrap font-sora">
+          <h1 className="text-2xl sm:text-3xl md:text-[44px] font-bold text-foreground tracking-tight leading-tight whitespace-normal md:whitespace-nowrap font-sora">
             Unified Stablecoin Markets on Arc
           </h1>
 
           {/* Subtitle */}
-          <p className="mt-4 sm:mt-5 text-base sm:text-[18px] text-gray-300 leading-relaxed font-normal max-w-[700px] mx-auto">
+          <p className="mt-4 sm:mt-5 text-base sm:text-[18px] text-muted-foreground leading-relaxed font-normal max-w-[700px] mx-auto">
             One integration unlocks the entire Arc stablecoin ecosystem. Access
             the best prices across every liquidity source, eliminate
             fragmentation, and build faster with Tower's unified routing
@@ -101,7 +108,7 @@ export default function DevelopersPage() {
               rel="noopener noreferrer"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              className="bg-[#7BB8FF] hover:bg-[#67a7fa] text-[#0C0C0D] font-semibold text-sm sm:text-[15px] w-[209px] h-[36px] rounded-full shadow-md transition-colors cursor-pointer inline-flex items-center justify-center"
+              className="bg-primary hover:bg-[#67a7fa] text-[#0C0C0D] font-semibold text-sm sm:text-[15px] w-[209px] h-[36px] rounded-full shadow-md transition-colors cursor-pointer inline-flex items-center justify-center"
             >
               Start your Integration
             </motion.a>
@@ -247,8 +254,17 @@ export default function DevelopersPage() {
               >
                 {/* Header section with #7BB8FF icon */}
                 <div className="flex items-center gap-3">
-                  <Icon className="w-5.5 h-5.5 text-[#7BB8FF] shrink-0" />
-                  <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                  {feature.iconSrc ? (
+                    <img
+                      src={feature.iconSrc}
+                      alt=""
+                      aria-hidden
+                      className="h-[22px] w-[22px] shrink-0"
+                    />
+                  ) : Icon ? (
+                    <Icon className="w-5.5 h-5.5 text-primary shrink-0" />
+                  ) : null}
+                  <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">
                     {feature.title}
                   </h2>
                 </div>
@@ -257,12 +273,10 @@ export default function DevelopersPage() {
                 <div className="w-full h-[1px] bg-[#2A2D35] my-4 sm:my-5" />
 
                 {/* Bullet List */}
-                <ul className="space-y-3.5 text-sm sm:text-base text-gray-300 font-normal leading-relaxed">
+                <ul className="space-y-3.5 text-sm sm:text-base text-muted-foreground font-normal leading-relaxed">
                   {feature.bullets.map((bullet, bIndex) => (
                     <li key={bIndex} className="flex items-start gap-2.5">
-                      <span className="text-gray-400 select-none font-bold">
-                        •
-                      </span>
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
                       <span>{bullet}</span>
                     </li>
                   ))}

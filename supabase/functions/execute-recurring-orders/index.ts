@@ -106,6 +106,8 @@ const tokenDecimalsBySymbol: Record<string, number> = {
   USYC: 6,
   USDT: 18,
   cirBTC: 8,
+  cNGN: 6,
+  QCAD: 6,
   SWPRC: 6,
   SYN: 18,
 };
@@ -118,6 +120,8 @@ const tokenAddressBySymbol: Record<string, string> = {
   USYC: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
+  cNGN: "0x9a9c18A371d98200FE910f62c45875f1abb68d20",
+  QCAD: "0x23d7CFFd0876f3ABb6B074287ba2aeefBc83825d",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
 };
@@ -129,6 +133,8 @@ const tokenUsdPriceBySymbol: Record<string, number> = {
   USYC: 1,
   USDT: 1,
   cirBTC: 404000,
+  cNGN: 0.0007185,
+  QCAD: 0.73,
 };
 
 const recurringOrderExecutorAbi = [

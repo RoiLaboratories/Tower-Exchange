@@ -13,6 +13,7 @@ import {
 
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import { ARC_RPC_ENDPOINTS, ARC_RPC_PROXY_PATH, getArcRpcUrls } from "@/lib/arcRpc";
+import { QCAD_SWAP_PAIRS_ENABLED } from "@/lib/swapTokens";
 
 export const TOWER_DEX_ID = "tower-dex" as const;
 export const TOWER_DEX_NAME = "Tower" as const;
@@ -110,6 +111,55 @@ const TOWER_DEX_PAIR_DEFINITIONS = [
     token0Symbol: "USDT",
     token1Symbol: "cirBTC",
   },
+  {
+    key: "USDC/cNGN",
+    token0Symbol: "USDC",
+    token1Symbol: "cNGN",
+  },
+  {
+    key: "USDT/cNGN",
+    token0Symbol: "USDT",
+    token1Symbol: "cNGN",
+  },
+  {
+    key: "EURC/cNGN",
+    token0Symbol: "EURC",
+    token1Symbol: "cNGN",
+  },
+  {
+    key: "cirBTC/cNGN",
+    token0Symbol: "cirBTC",
+    token1Symbol: "cNGN",
+  },
+  ...(QCAD_SWAP_PAIRS_ENABLED
+    ? ([
+        {
+          key: "USDC/QCAD",
+          token0Symbol: "USDC",
+          token1Symbol: "QCAD",
+        },
+        {
+          key: "USDT/QCAD",
+          token0Symbol: "USDT",
+          token1Symbol: "QCAD",
+        },
+        {
+          key: "EURC/QCAD",
+          token0Symbol: "EURC",
+          token1Symbol: "QCAD",
+        },
+        {
+          key: "cirBTC/QCAD",
+          token0Symbol: "cirBTC",
+          token1Symbol: "QCAD",
+        },
+        {
+          key: "cNGN/QCAD",
+          token0Symbol: "cNGN",
+          token1Symbol: "QCAD",
+        },
+      ] as const)
+    : []),
 ] as const satisfies readonly {
   key: string;
   token0Symbol: SupportedTowerDexSymbol;
@@ -588,6 +638,38 @@ const scaleAmount = (
 const toHexQuantity = (value: bigint | number) =>
   `0x${BigInt(value).toString(16)}`;
 
+const getTokenDecimalsByAddress = (address: Address) => {
+  const normalizedAddress = address.toLowerCase();
+
+  for (const [symbol, contractAddress] of Object.entries(TOKEN_CONTRACTS)) {
+    if (contractAddress.toLowerCase() === normalizedAddress) {
+      return TOKEN_DECIMALS[symbol] ?? 18;
+    }
+  }
+
+  return 18;
+};
+
+const resolveQuoteNativeAmount = (
+  nativeValue: string | undefined | null,
+  scaled18Value: string | undefined | null,
+  tokenAddress: Address,
+) => {
+  if (nativeValue != null && nativeValue !== "") {
+    return BigInt(nativeValue);
+  }
+
+  if (scaled18Value == null || scaled18Value === "") {
+    throw new Error("Quote is missing required amount fields.");
+  }
+
+  return scaleAmount(
+    BigInt(scaled18Value),
+    18,
+    getTokenDecimalsByAddress(tokenAddress),
+  );
+};
+
 const calculatePriceImpactBps = (
   amountIn: bigint,
   amountOut: bigint,
@@ -764,16 +846,39 @@ export async function buildTowerDexSwapTransaction(params: {
   const tokenIn = normalizeTowerDexAddress(params.quote.inputToken);
   const tokenOut = normalizeTowerDexAddress(params.quote.outputToken);
   const path = [tokenIn, tokenOut];
-  const amountInNative = BigInt(params.quote.inputAmountNative);
-  const swapInputAmountNative = BigInt(
-    params.quote.swapInputAmountNative || params.quote.inputAmountNative,
+  const amountInNative = resolveQuoteNativeAmount(
+    params.quote.inputAmountNative,
+    params.quote.inputAmount,
+    tokenIn,
   );
-  const minOutNative = BigInt(params.quote.minOutNative);
-  const platformFeeAmountNative = BigInt(
-    params.quote.platformFeeAmountNative || "0",
+  const swapInputAmountNative = resolveQuoteNativeAmount(
+    params.quote.swapInputAmountNative ?? params.quote.inputAmountNative,
+    params.quote.swapInputAmount ?? params.quote.inputAmount,
+    tokenIn,
   );
+  const minOutNative = resolveQuoteNativeAmount(
+    params.quote.minOutNative,
+    params.quote.minOut,
+    tokenOut,
+  );
+  const platformFeeAmountNative =
+    params.quote.platformFeeAmountNative != null &&
+    params.quote.platformFeeAmountNative !== ""
+      ? BigInt(params.quote.platformFeeAmountNative)
+      : params.quote.platformFeeAmount
+        ? scaleAmount(
+            BigInt(params.quote.platformFeeAmount),
+            18,
+            getTokenDecimalsByAddress(tokenIn),
+          )
+        : 0n;
   const feeRecipient = resolveOptionalTowerDexAddress(params.quote.feeRecipient);
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+  const outputAmountNative = resolveQuoteNativeAmount(
+    params.quote.outputAmountNative,
+    params.quote.outputAmount,
+    tokenOut,
+  ).toString();
   const useExecutorFeePath =
     Boolean(TOWER_DEX_ADAPTER_ADDRESS) &&
     params.quote.feeMode === TOWER_SWAP_FEE_MODE;
@@ -813,9 +918,10 @@ export async function buildTowerDexSwapTransaction(params: {
           args: [amountInNative, minOutNative, path, userAddress, deadline],
         }),
         value: "0x0",
+        from: userAddress,
         gasLimit: toHexQuantity(750000),
         chainId: TOWER_DEX_CHAIN_ID,
-        expectedUserOutput: params.quote.outputAmountNative,
+        expectedUserOutput: outputAmountNative,
         feeMode: "none",
         inputAmountNative: amountInNative.toString(),
       },
@@ -866,8 +972,9 @@ export async function buildTowerDexSwapTransaction(params: {
     approval,
     swap: {
       ...swap,
+      from: userAddress,
       platformFeeAmount: platformFeeAmountNative.toString(),
-      expectedUserOutput: params.quote.outputAmountNative,
+      expectedUserOutput: outputAmountNative,
       feeRecipient: feeRecipient || undefined,
       feeBps: params.quote.feeBps ?? TOWER_SWAP_FEE_BPS,
       feeMode: params.quote.feeMode,

@@ -11,7 +11,7 @@ interface FrequencyFieldProps {
   optional?: boolean;
   onClick?: () => void;
   infoMessage?: string;
-  tooltipDirection?: 'left' | 'right' | 'responsive';
+  tooltipDirection?: "left" | "right" | "responsive";
   wrapValue?: boolean;
   compactValue?: boolean;
   centerValue?: boolean;
@@ -24,7 +24,7 @@ export const FrequencyField = ({
   optional = false,
   onClick,
   infoMessage,
-  tooltipDirection = 'left',
+  tooltipDirection = "left",
   wrapValue = false,
   compactValue = false,
   centerValue = false,
@@ -32,19 +32,17 @@ export const FrequencyField = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  // Detect if device is touch-enabled
   useEffect(() => {
     const isTouchEnabled = () => {
       return (
         window.matchMedia("(pointer:coarse)").matches ||
-        ("ontouchstart" in window) ||
-        (navigator.maxTouchPoints > 0)
+        "ontouchstart" in window ||
+        navigator.maxTouchPoints > 0
       );
     };
     setIsTouchDevice(isTouchEnabled());
   }, []);
 
-  // Close tooltip when clicking outside (for touch devices)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -62,11 +60,11 @@ export const FrequencyField = ({
   return (
     <div className="min-w-0">
       <div className="relative mb-2.5 flex min-w-0 items-center gap-1.5 overflow-visible sm:mb-3">
-        <span className="shrink-0 whitespace-nowrap text-sm font-medium text-gray-200">
+        <span className="tower-field-label shrink-0 whitespace-nowrap text-sm font-medium">
           {label}
         </span>
         {optional && (
-          <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-5 text-gray-200/60">
+          <span className="tower-field-label-optional shrink-0 whitespace-nowrap text-xs font-medium leading-5">
             (Optional)
           </span>
         )}
@@ -77,7 +75,7 @@ export const FrequencyField = ({
               onClick={() => isTouchDevice && setShowTooltip(!showTooltip)}
               onMouseEnter={() => !isTouchDevice && setShowTooltip(true)}
               onMouseLeave={() => !isTouchDevice && setShowTooltip(false)}
-              className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors flex items-center"
+              className="tower-field-label-info flex items-center p-0.5 transition-opacity hover:opacity-80"
               aria-label={`${label} information`}
             >
               <Info className="w-4 h-4" />
@@ -87,12 +85,12 @@ export const FrequencyField = ({
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className={`absolute top-full mt-1 z-50 w-56 max-w-[calc(100vw-2rem)] rounded-lg bg-[#0f1419]/95 border border-white/[0.1] px-3 py-2 text-xs text-gray-300 backdrop-blur-md whitespace-normal ${
-                  tooltipDirection === 'left'
-                    ? 'left-0'
-                    : tooltipDirection === 'right'
-                    ? 'right-0'
-                    : 'left-0 sm:right-0 sm:left-auto'
+                className={`absolute top-full mt-1 z-50 w-56 max-w-[calc(100vw-2rem)] rounded-lg bg-popover/95 border border-border px-3 py-2 text-xs text-muted-foreground backdrop-blur-md whitespace-normal ${
+                  tooltipDirection === "left"
+                    ? "left-0"
+                    : tooltipDirection === "right"
+                      ? "right-0"
+                      : "left-0 sm:right-0 sm:left-auto"
                 }`}
               >
                 {infoMessage}
@@ -105,12 +103,12 @@ export const FrequencyField = ({
       <Button
         variant="ghost"
         onClick={onClick}
-        className={`h-auto w-full cursor-pointer rounded-xl border border-white/[0.04] bg-[#151617] px-4 py-3.5 text-sm transition-colors hover:bg-[#1f2125] sm:rounded-xl sm:py-4 ${
+        className={`h-auto w-full cursor-pointer rounded-xl border border-border bg-secondary px-4 py-3.5 text-sm transition-colors hover:bg-accent sm:rounded-xl sm:py-4 ${
           centerValue ? "justify-center text-center" : "justify-start text-left"
         }`}
       >
         <span
-          className={`min-w-0 text-white ${
+          className={`min-w-0 text-foreground ${
             wrapValue
               ? "whitespace-normal break-words text-[13px] leading-5 sm:text-sm"
               : compactValue

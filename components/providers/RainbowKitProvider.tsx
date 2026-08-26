@@ -1,22 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { RainbowKitProvider, Theme } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi-config";
 import { TowerWalletAvatar } from "@/components/wallet/TowerWalletAvatar";
 import { WalletConnectionTracker } from "@/components/providers/WalletConnectionTracker";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import "@rainbow-me/rainbowkit/styles.css";
 
-// Create Query Client
 const queryClient = new QueryClient();
 
-// Custom RainbowKit Theme matching Tower Exchange Design
-const customTheme: Theme = {
-  blurs: {
-    modalOverlay: "blur(0px)",
-  },
+const darkTheme: Theme = {
+  blurs: { modalOverlay: "blur(0px)" },
   colors: {
     accentColor: "#7bb8ff",
     accentColorForeground: "#0a0b0d",
@@ -31,8 +28,10 @@ const customTheme: Theme = {
     connectButtonText: "#0a0b0d",
     connectButtonTextError: "#0a0b0d",
     connectionIndicator: "hsl(142 76% 45%)",
-    downloadBottomCardBackground: "linear-gradient(180deg, hsl(220 20% 10%) 0%, hsl(220 20% 8%) 100%)",
-    downloadTopCardBackground: "linear-gradient(180deg, hsl(220 20% 12%) 0%, hsl(220 20% 10%) 100%)",
+    downloadBottomCardBackground:
+      "linear-gradient(180deg, hsl(220 20% 10%) 0%, hsl(220 20% 8%) 100%)",
+    downloadTopCardBackground:
+      "linear-gradient(180deg, hsl(220 20% 12%) 0%, hsl(220 20% 10%) 100%)",
     error: "hsl(0 84% 60%)",
     generalBorder: "hsl(220 15% 18%)",
     generalBorderDim: "hsl(220 15% 16%)",
@@ -69,6 +68,44 @@ const customTheme: Theme = {
   },
 };
 
+const lightTheme: Theme = {
+  ...darkTheme,
+  colors: {
+    ...darkTheme.colors,
+    accentColor: "#4d95eb",
+    accentColorForeground: "#ffffff",
+    actionButtonBorder: "#e2e8f0",
+    actionButtonBorderMobile: "#e2e8f0",
+    actionButtonSecondaryBackground: "#eef2f7",
+    closeButton: "#64748b",
+    closeButtonBackground: "#eef2f7",
+    connectButtonBackground: "#7bb8ff",
+    connectButtonInnerBackground: "#7bb8ff",
+    connectButtonText: "#0C0C0D",
+    generalBorder: "#e2e8f0",
+    generalBorderDim: "#edf2f7",
+    menuItemBackground: "#eef2f7",
+    modalBackdrop: "rgba(15, 23, 42, 0.35)",
+    modalBackground: "#ffffff",
+    modalBorder: "#e2e8f0",
+    modalText: "#0f172a",
+    modalTextDim: "#64748b",
+    modalTextSecondary: "#64748b",
+    profileAction: "#eef2f7",
+    profileActionHover: "#e2e8f0",
+    profileForeground: "#ffffff",
+    standby: "#94a3b8",
+  },
+  shadows: {
+    connectButton: "0 4px 12px rgba(77, 149, 235, 0.18)",
+    dialog: "0 20px 25px -5px rgba(15, 23, 42, 0.12)",
+    profileDetailsAction: "0 2px 4px rgba(15, 23, 42, 0.08)",
+    selectedOption: "0 0 0 1px #4d95eb",
+    selectedWallet: "0 0 0 2px #4d95eb",
+    walletLogo: "0 2px 4px rgba(15, 23, 42, 0.08)",
+  },
+};
+
 interface RainbowKitProviderProps {
   children: React.ReactNode;
 }
@@ -76,10 +113,16 @@ interface RainbowKitProviderProps {
 export const CustomRainbowKitProvider = ({
   children,
 }: RainbowKitProviderProps) => {
+  const { theme } = useTheme();
+  const rainbowTheme = useMemo(
+    () => (theme === "light" ? lightTheme : darkTheme),
+    [theme],
+  );
+
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={customTheme} avatar={TowerWalletAvatar}>
+        <RainbowKitProvider theme={rainbowTheme} avatar={TowerWalletAvatar}>
           <WalletConnectionTracker />
           {children}
         </RainbowKitProvider>

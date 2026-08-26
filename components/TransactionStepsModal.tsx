@@ -71,11 +71,11 @@ const StepLogo = ({
           className="h-full w-full object-contain"
         />
       ) : (
-        <Wallet className="h-7 w-7 text-white" />
+        <Wallet className="h-7 w-7 text-foreground" />
       )}
 
       {badgeIcon ? (
-        <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-[#191A1C] bg-[#191A1C]">
+        <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-[#191A1C] bg-card">
           <Image
             src={badgeIcon}
             alt=""
@@ -95,7 +95,7 @@ const StepStatusIcon = ({ step }: { step: TransactionStep }) => {
 
   if (step.status === "failed") {
     return (
-      <span className={`${baseClass} border-red-400/70 bg-red-500 text-white`}>
+      <span className={`${baseClass} border-red-400/70 bg-red-500 text-foreground`}>
         <AlertTriangle className="h-3.5 w-3.5" />
       </span>
     );
@@ -128,7 +128,7 @@ const StepStatusIcon = ({ step }: { step: TransactionStep }) => {
       <span
         className={`${baseClass} ${
           step.status === "pending"
-            ? "border-white/18 bg-transparent text-white/55"
+            ? "border-white/18 bg-transparent text-muted-foreground"
             : "border-primary/60 bg-primary/10 text-primary"
         }`}
       >
@@ -162,7 +162,7 @@ const StepStatusIcon = ({ step }: { step: TransactionStep }) => {
   }
 
   return (
-    <span className={`${baseClass} border-white/16 bg-transparent text-white/40`}>
+    <span className={`${baseClass} border-border bg-transparent text-foreground/40`}>
       <Circle className="h-3 w-3 fill-current" />
     </span>
   );
@@ -202,11 +202,11 @@ export const TransactionStepsModal = ({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[81] flex items-center justify-center px-4 py-6"
           >
-            <div className="relative w-full max-w-[31rem] rounded-[28px] border border-[#263243] bg-[#191A1C] px-5 pb-7 pt-8 shadow-2xl sm:px-7">
+            <div className="relative w-full max-w-[31rem] rounded-[28px] border border-[#263243] bg-card px-5 pb-7 pt-8 shadow-2xl sm:px-7">
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute right-6 top-6 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+                className="absolute right-6 top-6 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
                 aria-label="Close transaction steps"
               >
                 <X className="h-6 w-6" />
@@ -217,23 +217,23 @@ export const TransactionStepsModal = ({
                   <StepLogo icon={fromIcon} badgeIcon={fromBadgeIcon} />
                   {variant === "swap" && (
                     <>
-                      <ArrowRight className="h-6 w-6 text-white" />
+                      <ArrowRight className="h-6 w-6 text-foreground" />
                       <StepLogo icon={toIcon} badgeIcon={toBadgeIcon} />
                     </>
                   )}
                 </div>
 
-                <h2 className="max-w-full whitespace-nowrap text-[0.88rem] font-semibold leading-tight text-white min-[390px]:text-[0.95rem] sm:text-[1.3rem]">
+                <h2 className="max-w-full whitespace-nowrap text-[0.88rem] font-semibold leading-tight text-foreground min-[390px]:text-[0.95rem] sm:text-[1.3rem]">
                   {title}
                 </h2>
-                <p className="mt-1 text-sm font-medium text-white">{subtitle}</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{subtitle}</p>
 
-                <div className="mt-6 rounded-full bg-white/10 px-7 py-2 text-sm font-semibold text-white">
+                <div className="mt-6 rounded-full bg-muted px-7 py-2 text-sm font-semibold text-foreground">
                   Steps
                 </div>
               </div>
 
-              <div className="mt-7 rounded-[28px] border border-white/10 bg-[#191A1C] px-6 py-5">
+              <div className="mt-7 rounded-[28px] border border-border bg-card px-6 py-5">
                 <div className="relative space-y-5">
                   {steps.map((step, index) => {
                     const nextStep = steps[index + 1];
@@ -258,8 +258,8 @@ export const TransactionStepsModal = ({
                           <span
                             className={`truncate text-[0.98rem] font-medium ${
                               step.status === "pending"
-                                ? "text-white/42"
-                                : "text-white"
+                                ? "text-foreground/42"
+                                : "text-foreground"
                             }`}
                           >
                             {step.label}
@@ -270,7 +270,7 @@ export const TransactionStepsModal = ({
                               className={`max-w-[12rem] truncate text-right text-sm ${
                                 step.status === "failed"
                                   ? "text-red-300"
-                                  : "text-white"
+                                  : "text-foreground"
                               }`}
                             >
                               {step.detail}

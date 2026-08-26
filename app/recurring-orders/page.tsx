@@ -26,8 +26,8 @@ export default function RecurringOrdersPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Recurring Orders</h1>
-          <p className="text-zinc-400">Manage your automated buy and sell orders</p>
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Recurring Orders</h1>
+          <p className="text-muted-foreground">Manage your automated buy and sell orders</p>
         </motion.div>
 
         {/* Tabs */}
@@ -39,7 +39,7 @@ export default function RecurringOrdersPage() {
           <button
             onClick={() => setActiveTab("view")}
             className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === "view" ? "text-white" : "text-zinc-400 hover:text-white"
+              activeTab === "view" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             View Orders
@@ -56,7 +56,7 @@ export default function RecurringOrdersPage() {
           <button
             onClick={() => setActiveTab("create-buy")}
             className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === "create-buy" ? "text-white" : "text-zinc-400 hover:text-white"
+              activeTab === "create-buy" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Create Buy Order
@@ -73,7 +73,7 @@ export default function RecurringOrdersPage() {
           <button
             onClick={() => setActiveTab("create-sell")}
             className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === "create-sell" ? "text-white" : "text-zinc-400 hover:text-white"
+              activeTab === "create-sell" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Create Sell Order
@@ -111,7 +111,7 @@ export default function RecurringOrdersPage() {
               transition={{ duration: 0.3 }}
               className="max-w-3xl mx-auto"
             >
-              <h2 className="text-2xl font-bold text-white mb-6">Create Recurring Buy Order</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-6">Create Recurring Buy Order</h2>
               <RecurringBuys />
             </motion.div>
           )}
@@ -125,7 +125,7 @@ export default function RecurringOrdersPage() {
               transition={{ duration: 0.3 }}
               className="max-w-3xl mx-auto"
             >
-              <h2 className="text-2xl font-bold text-white mb-6">Create Recurring Sell Order</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-6">Create Recurring Sell Order</h2>
               <RecurringSell />
             </motion.div>
           )}

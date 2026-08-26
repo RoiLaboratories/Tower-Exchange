@@ -55,8 +55,9 @@ const itemVariants: Variants = {
 
 export default function ComingSoonModal({
   isOpen,
+  onClose,
   title = "Coming Soon",
-  description = "We're building something powerful. Liquidity pools are on the way — stay tuned for seamless yield and LP management on Tower.",
+  description = "We're building something powerful. Liquidity pools are on the way ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â stay tuned for seamless yield and LP management on Tower.",
   feature = "Pool",
   ctaLabel = "Back to Trade",
   ctaPath = "/",
@@ -64,6 +65,11 @@ export default function ComingSoonModal({
   const router = useRouter();
 
   const handleDismiss = () => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+
     router.push(ctaPath);
   };
 
@@ -88,7 +94,7 @@ export default function ComingSoonModal({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#1d1d1f]/95 shadow-2xl backdrop-blur-md"
+            className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-border bg-card/95 shadow-2xl backdrop-blur-md"
             onClick={(event) => event.stopPropagation()}
           >
             {/* Ambient glow */}
@@ -106,7 +112,7 @@ export default function ComingSoonModal({
             <button
               type="button"
               onClick={handleDismiss}
-              className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+              className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/80 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               aria-label="Close"
             >
               <X size={16} />
@@ -175,7 +181,7 @@ export default function ComingSoonModal({
                 <motion.button
                   type="button"
                   onClick={handleDismiss}
-                  className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-white/10"
+                  className="inline-flex items-center justify-center rounded-full border border-border bg-secondary/80 px-6 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                 >

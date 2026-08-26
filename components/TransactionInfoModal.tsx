@@ -115,11 +115,11 @@ const HeaderLogo = ({
           className="h-full w-full object-contain"
         />
       ) : (
-        <WalletCards className="h-7 w-7 text-white" />
+        <WalletCards className="h-7 w-7 text-foreground" />
       )}
 
       {badgeIcon ? (
-        <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-[#191A1C] bg-[#191A1C]">
+        <span className="absolute -bottom-1 -right-1 inline-flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-[#191A1C] bg-card">
           <Image
             src={badgeIcon}
             alt=""
@@ -163,8 +163,8 @@ const InfoRow = ({
   linkUrl?: string | null;
 }) => (
   <div className="flex items-center justify-between gap-4">
-    <div className="flex min-w-0 items-center gap-2 text-[0.95rem] font-medium text-white">
-      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-white">
+    <div className="flex min-w-0 items-center gap-2 text-[0.95rem] font-medium text-foreground">
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
         {icon}
       </span>
       <span className="truncate">{label}</span>
@@ -175,13 +175,13 @@ const InfoRow = ({
         href={linkUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#8fc8ff] underline decoration-[#8fc8ff]/60 underline-offset-2 transition-colors hover:text-white"
+        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#8fc8ff] underline decoration-[#8fc8ff]/60 underline-offset-2 transition-colors hover:text-foreground"
       >
         View Transaction
         <ExternalLink className="h-3.5 w-3.5" />
       </a>
     ) : (
-      <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-right text-[0.95rem] font-medium text-white">
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-right text-[0.95rem] font-medium text-foreground">
         <span className="truncate">{value || "-"}</span>
         <SmallAsset icon={valueIcon} />
       </div>
@@ -203,12 +203,12 @@ const AddAssetButton = ({
   <button
     type="button"
     onClick={onClick}
-    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition-colors hover:border-primary/45 hover:bg-white/10 bg-[#252628]"
+    className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/80 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/45 hover:bg-accent bg-secondary"
   >
     <span className="relative inline-flex h-5 w-5 items-center justify-center">
       <SmallAsset icon={primaryIcon} />
       {badgeIcon ? (
-        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#252628] bg-[#191A1C]">
+        <span className="absolute -bottom-1 -right-1 inline-flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border border-[#252628] bg-card">
           <Image
             src={badgeIcon}
             alt=""
@@ -378,11 +378,11 @@ const TransactionInfoModal = ({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[91] flex items-center justify-center px-4 py-6"
           >
-            <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-[31rem] overflow-y-auto rounded-[28px] border border-[#263243] bg-[#191A1C] px-5 pb-7 pt-8 shadow-2xl sm:px-7">
+            <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-[31rem] overflow-y-auto rounded-[28px] border border-[#263243] bg-card px-5 pb-7 pt-8 shadow-2xl sm:px-7">
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute right-6 top-6 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+                className="absolute right-6 top-6 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
                 aria-label="Close transaction info"
               >
                 <X className="h-6 w-6" />
@@ -394,26 +394,26 @@ const TransactionInfoModal = ({
                     icon={details.sourceTokenIcon}
                     badgeIcon={details.sourceChainIcon}
                   />
-                  <ArrowRight className="h-6 w-6 text-white" />
+                  <ArrowRight className="h-6 w-6 text-foreground" />
                   <HeaderLogo
                     icon={details.destinationTokenIcon}
                     badgeIcon={details.destinationChainIcon}
                   />
                 </div>
 
-                <h2 className="max-w-full truncate whitespace-nowrap text-[0.95rem] font-semibold leading-tight text-white sm:text-[1.45rem]">
+                <h2 className="max-w-full truncate whitespace-nowrap text-[0.95rem] font-semibold leading-tight text-foreground sm:text-[1.45rem]">
                   {details.title}
                 </h2>
-                <p className="mt-1 text-sm font-medium text-white">
+                <p className="mt-1 text-sm font-medium text-foreground">
                   {details.subtitle}
                 </p>
 
-                <div className="mt-6 rounded-full bg-white/10 px-7 py-2 text-sm font-semibold text-white">
+                <div className="mt-6 rounded-full bg-muted px-7 py-2 text-sm font-semibold text-foreground">
                   {details.kind === "bridge" ? "Bridge Info" : "Swap Info"}
                 </div>
               </div>
 
-              <div className="mt-7 rounded-[28px] border border-white/10 bg-[#191A1C] px-5 py-6">
+              <div className="mt-7 rounded-[28px] border border-border bg-card px-5 py-6">
                 <div className="space-y-5">
                   {details.kind === "swap" ? (
                     <>

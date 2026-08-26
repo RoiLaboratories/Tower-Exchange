@@ -36,7 +36,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
         animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1 }}
         exit={isMobile ? { y: "100%", opacity: 0 } : { opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className={isMobile ? "fixed bottom-0 left-0 right-0 z-40 w-full max-w-2xl mx-auto max-h-[85vh] overflow-x-hidden overflow-y-auto bg-[#18191b] border-t border-border/50 shadow-2xl rounded-t-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-[#18191b] border border-border/50 shadow-2xl rounded-2xl"}
+        className={isMobile ? "fixed bottom-0 left-0 right-0 z-40 w-full max-w-2xl mx-auto max-h-[85vh] overflow-x-hidden overflow-y-auto bg-card border-t border-border/50 shadow-2xl rounded-t-2xl" : "hidden lg:block w-[32rem] shrink-0 overflow-x-hidden overflow-y-auto bg-card border border-border/50 shadow-2xl rounded-2xl"}
         style={
           {
             scrollbarWidth: "none",
@@ -91,7 +91,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
                   onClick={() => setSelectedPeriod(period)}
                   className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     period === selectedPeriod
-                      ? "bg-[#151617] text-foreground border border-gray-700"
+                      ? "bg-secondary text-foreground border border-gray-700"
                       : "text-muted-foreground hover:bg-secondary/50"
                   }`}
                   whileHover={{ scale: 1.05 }}
@@ -112,7 +112,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
                   onClick={() => setSelectedPeriod(period)}
                   className={`flex-1 text-center py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     period === selectedPeriod
-                      ? "bg-[#151617] text-foreground border border-gray-700"
+                      ? "bg-secondary text-foreground border border-gray-700"
                       : "text-muted-foreground hover:bg-secondary/50"
                   }`}
                   whileHover={{ scale: 1.05 }}
@@ -160,7 +160,7 @@ const ChartModal = ({ isOpen, onClose }: ChartModalProps) => {
           </div>
 
           {/* Chart area */}
-          <div className="bg-[#151617] rounded-xl p-4 sm:p-6 h-64 sm:h-80 flex items-center justify-center">
+          <div className="bg-secondary rounded-xl p-4 sm:p-6 h-64 sm:h-80 flex items-center justify-center">
             <p className="text-muted-foreground text-sm sm:text-base">
               Chart visualization area
             </p>

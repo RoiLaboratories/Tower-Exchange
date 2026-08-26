@@ -107,10 +107,10 @@ export const RecurringOrdersDashboard = () => {
               className="w-20 h-20"
             />
           </div>
-          <h4 className="text-xl font-semibold mb-2 text-white">
+          <h4 className="text-xl font-semibold mb-2 text-foreground">
             No wallet connected
           </h4>
-          <p className="text-gray-400 text-center text-sm">
+          <p className="text-muted-foreground text-center text-sm">
             Connect your wallet to view your recurring orders.
           </p>
         </div>
@@ -197,7 +197,7 @@ export const RecurringOrdersDashboard = () => {
   };
 
   const frequencyPillClassName =
-    "border-[#7BB8FF]/40 bg-[#7BB8FF]/15 text-[#7BB8FF]";
+    "border-primary/40 bg-primary/15 text-primary";
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -208,7 +208,7 @@ export const RecurringOrdersDashboard = () => {
       case "Pending":
         return "text-yellow-400";
       default:
-        return "text-zinc-400";
+        return "text-muted-foreground";
     }
   };
 
@@ -257,7 +257,7 @@ export const RecurringOrdersDashboard = () => {
         animate={{ opacity: 1 }}
         className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-8 text-center border border-zinc-800/30"
       >
-        <p className="text-zinc-400">Loading recurring orders...</p>
+        <p className="text-muted-foreground">Loading recurring orders...</p>
       </motion.div>
     );
   }
@@ -276,7 +276,7 @@ export const RecurringOrdersDashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-8 text-center border border-zinc-800/30"
         >
-          <p className="text-zinc-400">No recurring orders yet</p>
+          <p className="text-muted-foreground">No recurring orders yet</p>
           <p className="text-zinc-500 text-sm mt-2">
             Create a recurring buy or sell order to get started
           </p>
@@ -290,10 +290,10 @@ export const RecurringOrdersDashboard = () => {
             className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl border border-zinc-800/30 overflow-hidden"
           >
             <div className="p-6 border-b border-zinc-800/30">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-foreground">
                 Your Recurring Orders
               </h3>
-              <p className="text-zinc-400 text-sm mt-1">
+              <p className="text-muted-foreground text-sm mt-1">
                 Total: {orders.length} orders
               </p>
             </div>
@@ -301,29 +301,29 @@ export const RecurringOrdersDashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full min-w-max">
                 <thead>
-                  <tr className="border-b border-zinc-800/30 bg-zinc-800/20 [&>th]:whitespace-nowrap">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                  <tr className="border-b border-zinc-800/30 bg-accent/20 [&>th]:whitespace-nowrap">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Type
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Pair
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Amount
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Frequency
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Next Exec (UTC)
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Auth
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-400 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">
                       Actions
                     </th>
                   </tr>
@@ -335,8 +335,8 @@ export const RecurringOrdersDashboard = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.05 }}
-                      className={`border-b border-zinc-800/20 hover:bg-zinc-800/30 transition-colors cursor-pointer [&>td]:whitespace-nowrap ${
-                        selectedOrder?.id === order.id ? "bg-zinc-800/50" : ""
+                      className={`border-b border-zinc-800/20 hover:bg-accent/30 transition-colors cursor-pointer [&>td]:whitespace-nowrap ${
+                        selectedOrder?.id === order.id ? "bg-accent/50" : ""
                       }`}
                       onClick={() => setSelectedOrder(order)}
                     >
@@ -351,10 +351,10 @@ export const RecurringOrdersDashboard = () => {
                           {order.order_type.toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-white">
-                        {order.source_token} → {order.target_token}
+                      <td className="px-6 py-4 text-sm text-foreground">
+                        {order.source_token} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ {order.target_token}
                       </td>
-                      <td className="px-6 py-4 text-sm text-white">
+                      <td className="px-6 py-4 text-sm text-foreground">
                         {order.amount}
                       </td>
                       <td className="px-6 py-4">
@@ -364,7 +364,7 @@ export const RecurringOrdersDashboard = () => {
                           {order.frequency}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-zinc-400">
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
                         {formatDateTimeShort(order.next_execution_date)} UTC
                       </td>
                       <td className="px-6 py-4">
@@ -416,13 +416,13 @@ export const RecurringOrdersDashboard = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-6 border border-zinc-800/30"
               >
-                <h3 className="text-lg font-semibold text-white mb-4">
+                <h3 className="text-lg font-semibold text-foreground mb-4">
                   Order Details
                 </h3>
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Type</span>
+                    <span className="text-muted-foreground">Type</span>
                     <span
                       className={`font-semibold px-3 py-1 rounded-full text-xs ${
                         selectedOrder.order_type === "buy"
@@ -435,22 +435,22 @@ export const RecurringOrdersDashboard = () => {
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Trading Pair</span>
-                    <span className="font-semibold text-white">
-                      {selectedOrder.source_token} →{" "}
+                    <span className="text-muted-foreground">Trading Pair</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedOrder.source_token} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢{" "}
                       {selectedOrder.target_token}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Amount per Order</span>
-                    <span className="font-semibold text-white">
+                    <span className="text-muted-foreground">Amount per Order</span>
+                    <span className="font-semibold text-foreground">
                       {selectedOrder.amount}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Frequency</span>
+                    <span className="text-muted-foreground">Frequency</span>
                     <span
                       className={`font-semibold px-3 py-1 rounded-full text-xs border ${frequencyPillClassName}`}
                     >
@@ -459,7 +459,7 @@ export const RecurringOrdersDashboard = () => {
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">Status</span>
+                    <span className="text-muted-foreground">Status</span>
                     <span
                       className={`font-semibold ${selectedOrder.is_active ? "text-green-400" : "text-zinc-500"}`}
                     >
@@ -468,17 +468,17 @@ export const RecurringOrdersDashboard = () => {
                   </div>
 
                   <div className="flex flex-col items-start gap-1 pb-4 border-b border-zinc-800/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                    <span className="text-zinc-400 shrink-0 whitespace-nowrap">
+                    <span className="text-muted-foreground shrink-0 whitespace-nowrap">
                       Next Execution (UTC)
                     </span>
-                    <span className="font-semibold text-white whitespace-nowrap sm:text-right">
+                    <span className="font-semibold text-foreground whitespace-nowrap sm:text-right">
                       {formatDateTimeShort(selectedOrder.next_execution_date)}{" "}
                       UTC
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">
+                    <span className="text-muted-foreground">
                       On-chain Authorization
                     </span>
                     <span
@@ -491,17 +491,17 @@ export const RecurringOrdersDashboard = () => {
                   </div>
 
                   <div className="flex flex-col items-start gap-1 pb-4 border-b border-zinc-800/30 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                    <span className="text-zinc-400 shrink-0 whitespace-nowrap">
+                    <span className="text-muted-foreground shrink-0 whitespace-nowrap">
                       First Execution (UTC)
                     </span>
-                    <span className="font-semibold text-white whitespace-nowrap sm:text-right">
+                    <span className="font-semibold text-foreground whitespace-nowrap sm:text-right">
                       {formatDateTime(selectedOrder.start_date)} UTC
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-4 border-b border-zinc-800/30">
-                    <span className="text-zinc-400">End Time (UTC)</span>
-                    <span className="font-semibold text-white">
+                    <span className="text-muted-foreground">End Time (UTC)</span>
+                    <span className="font-semibold text-foreground">
                       {selectedOrder.end_date
                         ? `${formatDateTime(selectedOrder.end_date)} UTC`
                         : "No end time"}
@@ -509,8 +509,8 @@ export const RecurringOrdersDashboard = () => {
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-zinc-400">Executions</span>
-                    <span className="font-semibold text-white">
+                    <span className="text-muted-foreground">Executions</span>
+                    <span className="font-semibold text-foreground">
                       {selectedOrder.execution_count}
                     </span>
                   </div>
@@ -538,13 +538,13 @@ export const RecurringOrdersDashboard = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-zinc-900/50 backdrop-blur-sm rounded-2xl p-6 border border-zinc-800/30"
               >
-                <h3 className="text-lg font-semibold text-white mb-4">
+                <h3 className="text-lg font-semibold text-foreground mb-4">
                   Execution History
                 </h3>
 
                 <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
                   {executionHistory.length === 0 ? (
-                    <p className="text-zinc-400 text-center py-8">
+                    <p className="text-muted-foreground text-center py-8">
                       No executions yet
                     </p>
                   ) : (
@@ -554,7 +554,7 @@ export const RecurringOrdersDashboard = () => {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="p-3 rounded-lg bg-zinc-800/20 border border-zinc-800/50"
+                        className="p-3 rounded-lg bg-accent/20 border border-zinc-800/50"
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span
@@ -567,16 +567,16 @@ export const RecurringOrdersDashboard = () => {
                           </span>
                         </div>
 
-                        <div className="text-sm text-white mb-2">
-                          {formatTokenAmount(execution.amount)} {execution.source_token} →{" "}
+                        <div className="text-sm text-foreground mb-2">
+                          {formatTokenAmount(execution.amount)} {execution.source_token} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢{" "}
                           {formatTokenAmount(execution.target_amount)} {execution.target_token}
                         </div>
 
                         {(execution.source_amount_usd != null ||
                           execution.target_amount_usd != null) && (
-                          <div className="mb-2 text-xs text-[#7BB8FF]">
+                          <div className="mb-2 text-xs text-primary">
                             {formatUsdAmount(execution.source_amount_usd) ?? "-"}
-                            {" → "}
+                            {" ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "}
                             {formatUsdAmount(execution.target_amount_usd) ?? "-"}
                           </div>
                         )}

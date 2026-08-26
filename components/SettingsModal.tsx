@@ -39,7 +39,7 @@ const SettingsModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.2 }}
-          className="bg-[#18191b] border border-border/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+          className="bg-card border border-border/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
@@ -48,7 +48,7 @@ const SettingsModal = ({
             </h3>
             <motion.button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-[#191A1C] transition-colors"
+              className="p-1.5 rounded-lg hover:bg-card transition-colors"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -70,7 +70,7 @@ const SettingsModal = ({
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       slippageTolerance === value
                         ? "bg-secondary text-foreground"
-                        : "bg-[#1a1b1e] text-muted-foreground hover:bg-secondary/50"
+                        : "bg-secondary text-muted-foreground hover:bg-secondary/50"
                     }`}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -88,7 +88,7 @@ const SettingsModal = ({
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     !isPreset
                       ? "bg-secondary text-foreground"
-                      : "bg-[#1a1b1e] text-muted-foreground hover:bg-secondary/50"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/50"
                   }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -107,7 +107,7 @@ const SettingsModal = ({
                     }
                   }}
                   placeholder="0.0"
-                  className="flex-1 sm:w-20 bg-[#1a1b1e] border-0 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
+                  className="flex-1 sm:w-20 bg-secondary border-0 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
                 />
               </div>
             </div>

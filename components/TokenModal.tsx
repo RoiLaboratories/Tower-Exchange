@@ -73,7 +73,7 @@ const TokenModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ duration: 0.2 }}
-          className="bg-[#18191b] border border-border/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+          className="bg-card border border-border/50 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
@@ -82,7 +82,7 @@ const TokenModal = ({
             </h3>
             <motion.button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-[#191A1C] transition-colors"
+              className="p-1.5 rounded-lg hover:bg-card transition-colors"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -98,7 +98,7 @@ const TokenModal = ({
                 placeholder="Search Token"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#1a1b1e] border-0 rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
+                className="w-full bg-secondary border-0 rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-1 focus:ring-border transition-all"
               />
             </div>
           </div>

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "../styles/rainbowkit-theme.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(.light, .light *));
+
 body {
   font-family: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
@@ -69,6 +72,92 @@ body {
   --font-family-sans: var(--font-sora);
   --font-family-cinzel: var(--font-cinzel);
   --font-family-inter: var(--font-inter);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+
+  --color-background: #f4f7fb;
+  --color-foreground: #0c1222;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #0c1222;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0c1222;
+
+  --color-primary: #4d95eb;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary: #edf1f7;
+  --color-secondary-foreground: #0c1222;
+
+  --color-muted: #e4eaf2;
+  --color-muted-foreground: #5b677a;
+
+  --color-accent: #e8eef6;
+  --color-accent-foreground: #0c1222;
+
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: #ffffff;
+
+  --color-success: hsl(142 71% 40%);
+  --color-success-foreground: #ffffff;
+
+  --color-border: #d8e0ea;
+  --color-input: #ffffff;
+  --color-ring: #4d95eb;
+
+  --color-sidebar: #ffffff;
+  --color-sidebar-foreground: #0c1222;
+  --color-sidebar-primary: #4d95eb;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #edf1f7;
+  --color-sidebar-accent-foreground: #0c1222;
+  --color-sidebar-border: #d8e0ea;
+  --color-sidebar-ring: #4d95eb;
+}
+
+html.light body {
+  background: radial-gradient(
+      ellipse 220% 80% at 50% 110%,
+      rgba(77, 149, 235, 0.14),
+      transparent 65%
+    ),
+    linear-gradient(180deg, #f8fafc 0%, #f4f7fb 100%);
+  background-attachment: fixed;
+}
+
+/* Field labels: dark keeps gray-200, light is full-opacity near-black */
+html.dark .tower-field-label {
+  color: #e5e7eb;
+}
+html.light .tower-field-label {
+  color: #0c1222;
+}
+html.dark .tower-field-label-optional {
+  color: rgba(229, 231, 235, 0.6);
+}
+html.light .tower-field-label-optional {
+  color: #5b677a;
+}
+html.dark .tower-field-label-info {
+  color: #6b7280;
+}
+html.light .tower-field-label-info {
+  color: #5b677a;
+}
+
+html.light .shadow-\[0_18px_40px_rgba\(0\,0\,0\,0\.25\)\] {
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+html.light .shadow-\[0_10px_35px_rgba\(0\,0\,0\,\.45\)\,inset_0_1px_rgba\(255\,255\,255\,\.04\)\] {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), inset 0 1px rgba(255, 255, 255, 0.8);
 }
 
 @layer base {
@@ -199,6 +288,21 @@ input.tower-chat-input[type="text"]::placeholder {
   border-color: rgba(255, 255, 255, 0.06) !important;
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.36) !important;
   outline: none !important;
+}
+
+html.light input.tower-chat-input[type="text"],
+html.light [data-rk] input.tower-chat-input[type="text"] {
+  caret-color: #0c1222;
+}
+
+html.light input.tower-chat-input[type="text"]::placeholder,
+html.light [data-rk] input.tower-chat-input[type="text"]::placeholder {
+  color: #5b677a;
+}
+
+html.light .tower-chat-input-shell:focus-within {
+  border-color: rgba(77, 149, 235, 0.35) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08) !important;
 }
 
 .invite-gate-input-shell,

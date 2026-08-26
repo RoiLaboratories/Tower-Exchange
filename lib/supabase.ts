@@ -33,6 +33,8 @@ const TOKEN_DECIMALS_MAP: Record<string, number> = {
   '0x89b50855aa3be2f677cd6303cec089b5f319d72a': 6, // EURC
   '0x175cdb1d338945f0d851a741ccf787d343e57952': 18, // USDT
   '0xf0c4a4ce82a5746abaad9425360ab04fbba432bf': 8, // cirBTC
+  '0x9a9c18a371d98200fe910f62c45875f1abb68d20': 6, // cNGN
+  '0x23d7cffd0876f3abb6b074287ba2aeefbc83825d': 6, // QCAD
   '0xc5124c846c6e6307986988dfb7e743327aa05f19': 18, // SYN
   '0xbe7477bf91526fc9988c8f33e91b6db687119d45': 6, // SWPRC
   '0xe9185f0c5f296ed1797aae4238d26ccabeadb86c': 6, // USYC
