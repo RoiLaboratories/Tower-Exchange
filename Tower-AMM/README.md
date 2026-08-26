@@ -20,6 +20,8 @@ Tower AMM is a Uniswap V2-style AMM scaffold for Arc Testnet with a Tower-specif
 - `EURC`: `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
 - `USDT`: `0x175CdB1D338945f0D851A741ccF787D343E57952`
 - `CIRBTC`: `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF`
+- `cNGN`: `0x9a9c18A371d98200FE910f62c45875f1abb68d20`
+- `QCAD`: `0x23d7CFFd0876f3ABb6B074287ba2aeefBc83825d`
 
 Default allowed pairs:
 
@@ -29,6 +31,15 @@ Default allowed pairs:
 - `USDC/USDT`
 - `EURC/USDT`
 - `USDT/CIRBTC`
+- `USDC/cNGN`
+- `USDT/cNGN`
+- `EURC/cNGN`
+- `cirBTC/cNGN`
+- `USDC/QCAD`
+- `USDT/QCAD`
+- `EURC/QCAD`
+- `cirBTC/QCAD`
+- `cNGN/QCAD`
 
 ## Project layout
 
@@ -48,6 +59,7 @@ npm run compile
 npm run test
 npm run deploy:arc-testnet
 npm run seed:cirbtc -- 649250 5000
+npm run add:cngn-qcad-pairs
 ```
 
 If you want to use the already-installed Hardhat toolchain from this repo before running `npm install` here, the config includes a fallback to `../contracts/node_modules`.
@@ -114,6 +126,22 @@ Assumptions:
 - `USDC = $1.00`
 - `USDT = $1.00`
 - `EURC = $1.08` by default, override with `--eurc-usd`
+
+## cNGN / QCAD pair registration
+
+Register and create the cNGN/QCAD pairs on the live Arc Tower factory:
+
+```bash
+PRIVATE_KEY=<feeToSetter> npm run add:cngn-qcad-pairs
+```
+
+Preview without sending transactions:
+
+```bash
+DRY_RUN=true npm run add:cngn-qcad-pairs
+```
+
+This enables `cNGN` + `QCAD` as supported tokens, allowlists the pairs, and creates them if missing. After that, seed liquidity with `npm run write -- router add-liquidity ...`.
 
 ## Deployment flow
 

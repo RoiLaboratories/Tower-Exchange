@@ -55,6 +55,9 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
   CIRBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
+  CNGN: "0x9a9c18A371d98200FE910f62c45875f1abb68d20",
+  cNGN: "0x9a9c18A371d98200FE910f62c45875f1abb68d20",
+  QCAD: "0x23d7CFFd0876f3ABb6B074287ba2aeefBc83825d",
   SWPRC: "0xBE7477BF91526FC9988C8f33e91B6db687119D45",
   SYN: "0xC5124C846c6e6307986988dFb7e743327aA05F19",
   // Synthra WUSDC (different from main WUSDC)
@@ -70,7 +73,22 @@ export const TOKEN_CONTRACTS: Record<string, string> = {
 export const NATIVE_TOKENS = ["USDC"];
 
 // Tokens that are regular ERC-20 (require approval)
-export const ERC20_TOKENS = ["WUSDC", "QTM", "EURC", "USYC", "USDT", "CIRBTC", "cirBTC", "SYN", "SWPRC", "UNI", "HYPE"];
+export const ERC20_TOKENS = [
+  "WUSDC",
+  "QTM",
+  "EURC",
+  "USYC",
+  "USDT",
+  "CIRBTC",
+  "cirBTC",
+  "CNGN",
+  "cNGN",
+  "QCAD",
+  "SYN",
+  "SWPRC",
+  "UNI",
+  "HYPE",
+];
 
 // Token Decimals Configuration
 // Note: USDC, EURC, SWPRC, and USYC have 6 decimals on Arc Testnet
@@ -83,6 +101,9 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   USDT: 18,
   CIRBTC: 8,
   cirBTC: 8,
+  CNGN: 6,
+  cNGN: 6,
+  QCAD: 6,
   SWPRC: 6,
   SYN: 18,
   UNI: 18,

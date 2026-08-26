@@ -5,6 +5,8 @@ const DEFAULT_TOKENS = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
   USDT: "0x175CdB1D338945f0D851A741ccF787D343E57952",
   CIRBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
+  CNGN: "0x9a9c18A371d98200FE910f62c45875f1abb68d20",
+  QCAD: "0x23d7CFFd0876f3ABb6B074287ba2aeefBc83825d",
 };
 
 function parseBoolean(value, fallback) {
@@ -24,6 +26,15 @@ function parseAllowedPairs(rawPairs) {
       ["USDC", "USDT"],
       ["EURC", "USDT"],
       ["USDT", "CIRBTC"],
+      ["USDC", "CNGN"],
+      ["USDT", "CNGN"],
+      ["EURC", "CNGN"],
+      ["CIRBTC", "CNGN"],
+      ["USDC", "QCAD"],
+      ["USDT", "QCAD"],
+      ["EURC", "QCAD"],
+      ["CIRBTC", "QCAD"],
+      ["CNGN", "QCAD"],
     ];
   }
 
@@ -90,6 +101,8 @@ async function main() {
     EURC: process.env.EURC_ADDRESS || DEFAULT_TOKENS.EURC,
     USDT: process.env.USDT_ADDRESS || DEFAULT_TOKENS.USDT,
     CIRBTC: process.env.CIRBTC_ADDRESS || DEFAULT_TOKENS.CIRBTC,
+    CNGN: process.env.CNGN_ADDRESS || DEFAULT_TOKENS.CNGN,
+    QCAD: process.env.QCAD_ADDRESS || DEFAULT_TOKENS.QCAD,
   };
 
   const supportedSymbols = Object.keys(tokenMap).filter(

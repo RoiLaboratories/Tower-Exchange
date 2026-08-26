@@ -87,12 +87,12 @@ const BadgeDetailsModal = ({
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="fixed inset-0 z-[91] flex items-center justify-center px-4 py-6"
           >
-            <div className="relative w-full max-w-[580px] rounded-[28px] border border-white/5 bg-[#191A1C] px-8 pb-10 pt-16 shadow-2xl sm:px-10">
+            <div className="relative w-full max-w-[580px] rounded-[28px] border border-border bg-card px-8 pb-10 pt-16 shadow-2xl sm:px-10">
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close badge details"
-                className="absolute right-8 top-8 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10"
+                className="absolute right-8 top-8 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
               >
                 <X size={21} strokeWidth={2} />
               </button>
@@ -105,18 +105,18 @@ const BadgeDetailsModal = ({
                   height={144}
                   className="h-auto w-[128px] object-contain"
                 />
-                <h3 className="mt-3 text-2xl font-semibold leading-none text-white">
+                <h3 className="mt-3 text-2xl font-semibold leading-none text-foreground">
                   {badge.name}
                 </h3>
-                <p className="mt-4 whitespace-pre-line text-center text-base font-medium leading-snug text-white sm:text-lg">
+                <p className="mt-4 whitespace-pre-line text-center text-base font-medium leading-snug text-foreground sm:text-lg">
                   {getBadgeDescription(badge.isClaimed)}
                 </p>
 
-                <div className="mt-6 inline-flex h-9 items-center justify-center rounded-full bg-white/[0.06] px-4 text-sm font-semibold text-white">
+                <div className="mt-6 inline-flex h-9 items-center justify-center rounded-full bg-white/[0.06] px-4 text-sm font-semibold text-foreground">
                   Perks
                 </div>
 
-                <div className="mt-5 flex w-full items-center gap-4 rounded-[28px] border border-white/10 px-6 py-5 text-left sm:px-7">
+                <div className="mt-5 flex w-full items-center gap-4 rounded-[28px] border border-border px-6 py-5 text-left sm:px-7">
                   <Image
                     src={starIcon}
                     alt=""
@@ -124,7 +124,7 @@ const BadgeDetailsModal = ({
                     height={14}
                     className="shrink-0"
                   />
-                  <p className="text-base font-medium leading-relaxed text-white sm:text-lg">
+                  <p className="text-base font-medium leading-relaxed text-foreground sm:text-lg">
                     Squire Badge holders get a daily limit of 40 AI messages.
                   </p>
                 </div>
@@ -155,13 +155,13 @@ const ClaimingBadgeModal = ({ isOpen }: { isOpen: boolean }) => (
           transition={{ duration: 0.24, ease: "easeOut" }}
           className="fixed inset-0 z-[93] flex items-center justify-center px-4 py-6"
         >
-          <div className="relative w-full max-w-[34rem] overflow-hidden rounded-[2rem] border border-white/8 bg-[#191A1C] px-6 pb-8 pt-9 shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:px-9">
+          <div className="relative w-full max-w-[34rem] overflow-hidden rounded-[2rem] border border-white/8 bg-card px-6 pb-8 pt-9 shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:px-9">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             <div className="mx-auto max-w-[24rem] text-center sm:max-w-none">
               <p className="text-[0.78rem] font-semibold uppercase tracking-[0.22em] text-[#8B9199]">
                 Claiming Badge
               </p>
-              <h3 className="mt-3 text-[1.15rem] font-semibold leading-tight text-white sm:text-[1.45rem] sm:whitespace-nowrap">
+              <h3 className="mt-3 text-[1.15rem] font-semibold leading-tight text-foreground sm:text-[1.45rem] sm:whitespace-nowrap">
                 Minting your Squire badge on Tower
               </h3>
               <p className="mx-auto mt-2 max-w-[20rem] text-center text-sm leading-6 text-[#9AA0A8] sm:max-w-[22rem]">
@@ -266,13 +266,13 @@ const BadgeCongratulationsModal = ({
           transition={{ duration: 0.24, ease: "easeOut" }}
           className="fixed inset-0 z-[95] flex items-center justify-center px-4 py-6"
         >
-          <div className="relative w-full max-w-[28rem] rounded-[2rem] border border-white/6 bg-[#191A1C] px-4 pb-8 pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:px-8">
+          <div className="relative w-full max-w-[28rem] rounded-[2rem] border border-white/6 bg-card px-4 pb-8 pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:px-8">
             <div className="flex justify-end">
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close badge congratulations"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <X size={20} strokeWidth={2} />
               </button>
@@ -287,7 +287,7 @@ const BadgeCongratulationsModal = ({
                   height={13}
                   className="h-[0.76rem] w-[0.76rem] shrink-0 opacity-95 sm:h-[0.82rem] sm:w-[0.82rem]"
                 />
-                <p className="text-[0.72rem] font-medium leading-none whitespace-nowrap text-white sm:text-[0.86rem] sm:leading-6 md:text-[0.9rem]">
+                <p className="text-[0.72rem] font-medium leading-none whitespace-nowrap text-foreground sm:text-[0.86rem] sm:leading-6 md:text-[0.9rem]">
                   Congratulations, you&apos;ve claimed the Squire Badge
                 </p>
               </div>
@@ -481,14 +481,14 @@ const Badges = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="overflow-hidden rounded-2xl border border-white/5 bg-[#14181f] px-6 py-8 sm:px-11 lg:min-h-[296px] lg:px-11 lg:py-12"
+        className="overflow-hidden rounded-2xl border border-border bg-card px-6 py-8 sm:px-11 lg:min-h-[296px] lg:px-11 lg:py-12"
       >
         <div className="grid items-center gap-10 lg:grid-cols-[minmax(280px,1fr)_minmax(440px,0.95fr)]">
           <div className="max-w-[490px]">
-            <h3 className="text-xl font-semibold text-white sm:text-[22px]">
+            <h3 className="text-xl font-semibold text-foreground sm:text-[22px]">
               Collect Tower Badges
             </h3>
-            <p className="mt-3 max-w-[460px] text-base leading-snug text-white sm:text-lg">
+            <p className="mt-3 max-w-[460px] text-base leading-snug text-foreground sm:text-lg">
               Earn badges by completing milestones, participating in events, and
               engaging with the ecosystem.
             </p>
@@ -499,7 +499,7 @@ const Badges = ({
               className={`mt-7 inline-flex h-9 min-w-[162px] items-center justify-center rounded-full px-6 text-base font-semibold transition-all ${
                 canClaimSquireBadge
                   ? "bg-primary text-black hover:opacity-90"
-                  : "cursor-not-allowed bg-white/[0.06] text-[#5F656D]"
+                  : "cursor-not-allowed bg-muted text-muted-foreground"
               }`}
             >
               {claimButtonLabel}
@@ -527,7 +527,7 @@ const Badges = ({
                       height={144}
                       className="h-auto w-[70px] object-contain sm:w-[88px] lg:w-[104px]"
                     />
-                    <div className="mt-4 h-8 text-center text-xl font-semibold leading-none text-white sm:text-2xl">
+                    <div className="mt-4 h-8 text-center text-xl font-semibold leading-none text-foreground sm:text-2xl">
                       {badge.name}
                     </div>
                   </>

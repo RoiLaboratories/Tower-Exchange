@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
-import { normalizeTowerDexId, TOWER_DEX_ID, TOWER_DEX_NAME } from "@/lib/towerDex";
+import {
+  getTowerDexQuote,
+  isTowerDexEnabled,
+  isTowerDexSupportedPair,
+  normalizeTowerDexId,
+  TOWER_DEX_ID,
+  TOWER_DEX_NAME,
+  type TowerDexQuote,
+} from "@/lib/towerDex";
 
 type BackendQuote = {
   inputToken: string;
@@ -17,6 +25,12 @@ type BackendQuote = {
   feeBps?: number;
   feeMode?: "tower-swap-executor" | "none";
   platformFeeAmount?: string;
+  platformFeeAmountNative?: string;
+  feeRecipient?: string;
+  inputAmountNative?: string;
+  swapInputAmountNative?: string;
+  outputAmountNative?: string;
+  minOutNative?: string;
   route: {
     type: "single" | "multi" | "split";
     rawPath?: string;
@@ -103,6 +117,108 @@ const readBackendQuoteError = async (response: Response) => {
     };
   }
 };
+
+const resolveSlippageBps = (slippageTolerance: number) => {
+  if (!Number.isFinite(slippageTolerance) || slippageTolerance <= 0) {
+    return 50;
+  }
+
+  // Swap UI passes percent values like 0.5 or 1. API defaults use basis points.
+  if (slippageTolerance <= 5) {
+    return Math.round(slippageTolerance * 100);
+  }
+
+  return Math.round(slippageTolerance);
+};
+
+const towerDexQuoteToBackendQuote = (quote: TowerDexQuote): BackendQuote => ({
+  inputToken: quote.inputToken,
+  outputToken: quote.outputToken,
+  inputAmount: quote.inputAmount,
+  swapInputAmount: quote.swapInputAmount,
+  outputAmount: quote.outputAmount,
+  minOut: quote.minOut,
+  inputAmountNative: quote.inputAmountNative,
+  swapInputAmountNative: quote.swapInputAmountNative,
+  outputAmountNative: quote.outputAmountNative,
+  minOutNative: quote.minOutNative,
+  priceImpact: quote.priceImpact,
+  gasEstimate: quote.gasEstimate,
+  slippage: quote.slippage,
+  feeBps: quote.feeBps,
+  feeMode: quote.feeMode,
+  feeRecipient: quote.feeRecipient,
+  platformFeeAmount: quote.platformFeeAmount,
+  platformFeeAmountNative: quote.platformFeeAmountNative,
+  route: quote.route,
+});
+
+async function fetchLocalTowerDexQuote(params: {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  slippageTolerance: number;
+}): Promise<BackendQuote | null> {
+  if (!isTowerDexEnabled()) {
+    return null;
+  }
+
+  if (!isTowerDexSupportedPair(params.inputToken, params.outputToken)) {
+    return null;
+  }
+
+  const quote = await getTowerDexQuote({
+    inputToken: params.inputToken,
+    outputToken: params.outputToken,
+    inputAmount: params.inputAmount,
+    slippageBps: resolveSlippageBps(params.slippageTolerance),
+  });
+
+  return quote ? towerDexQuoteToBackendQuote(quote) : null;
+}
+
+async function supplementWithLocalTowerDexQuote(params: {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  slippageTolerance: number;
+  backendDexIds: readonly BackendDexId[];
+  quotes: BackendQuote[];
+  routeOptions: RouteOption[];
+}) {
+  if (!params.backendDexIds.includes(TOWER_DEX_ID)) {
+    return {
+      quotes: params.quotes,
+      routeOptions: params.routeOptions,
+    };
+  }
+
+  const hasTowerDexQuote = params.routeOptions.some(
+    (option) => normalizeDexId(option.dexId || option.dexName) === TOWER_DEX_ID,
+  );
+
+  if (hasTowerDexQuote) {
+    return {
+      quotes: params.quotes,
+      routeOptions: params.routeOptions,
+    };
+  }
+
+  const localQuote = await fetchLocalTowerDexQuote(params);
+  if (!localQuote) {
+    return {
+      quotes: params.quotes,
+      routeOptions: params.routeOptions,
+    };
+  }
+
+  const localRouteOption = routeOptionFromQuote(localQuote);
+
+  return {
+    quotes: dedupeQuotesByDex([...params.quotes, localQuote]),
+    routeOptions: dedupeRouteOptions([...params.routeOptions, localRouteOption]),
+  };
+}
 
 const resolveTokenAddress = (token?: string) => {
   const normalizedToken = token?.trim();
@@ -632,10 +748,49 @@ export async function POST(request: NextRequest) {
         dexId: backendDexRequest,
       });
     } catch (error) {
-      throw error;
+      if (!(error instanceof BackendQuoteError)) {
+        throw error;
+      }
+
+      console.warn("[swap/quote] backend quote failed, trying local Tower DEX:", {
+        status: error.status,
+        message: error.message,
+      });
+
+      backendResult = {
+        quotes: [],
+        routeOptions: [],
+      };
     }
 
-    const candidateQuotes = backendResult.quotes;
+    backendResult = await supplementWithLocalTowerDexQuote({
+      inputToken: resolvedInputToken,
+      outputToken: resolvedOutputToken,
+      inputAmount,
+      slippageTolerance,
+      backendDexIds,
+      quotes: backendResult.quotes,
+      routeOptions: backendResult.routeOptions,
+    });
+
+    let candidateQuotes = backendResult.quotes;
+
+    if (candidateQuotes.length === 0) {
+      const localQuote = await fetchLocalTowerDexQuote({
+        inputToken: resolvedInputToken,
+        outputToken: resolvedOutputToken,
+        inputAmount,
+        slippageTolerance,
+      });
+
+      if (localQuote) {
+        candidateQuotes = [localQuote];
+        backendResult = {
+          quotes: candidateQuotes,
+          routeOptions: [routeOptionFromQuote(localQuote)],
+        };
+      }
+    }
 
     if (candidateQuotes.length === 0) {
       return NextResponse.json(

@@ -70,6 +70,8 @@ const ROUTE_OUTPUT_DISPLAY_DECIMALS: Record<string, number> = {
   EURC: 2,
   USDT: 2,
   cirBTC: 8,
+  cNGN: 2,
+  QCAD: 2,
 };
 
 const getRouteOutputDisplayDecimals = (symbol?: string) =>
@@ -281,8 +283,8 @@ export default function RouterDisplay({
     : primaryDexName;
 
   return (
-    <section className="relative w-full overflow-visible rounded-2xl border border-[#24282e] bg-[#111315] shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
-      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-[#20242a] px-3 py-2">
+    <section className="relative w-full overflow-visible rounded-2xl border border-border bg-card shadow-[0_18px_40px_rgba(0,0,0,0.25)]">
+      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Image
             src={quotesIcon}
@@ -292,12 +294,12 @@ export default function RouterDisplay({
             aria-hidden
             className="h-4 w-4 shrink-0 object-contain"
           />
-          <span className="text-sm font-semibold text-white">Quotes</span>
+          <span className="text-sm font-semibold text-foreground">Quotes</span>
         </div>
         <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
           <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
             <span
-              className="inline-flex h-[18px] min-w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#2E2E2E] px-1 text-white"
+              className="inline-flex h-[18px] min-w-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted px-1 text-foreground"
               aria-label={`${dexCount} DEX routes available`}
             >
               <span className="flex items-center justify-center gap-0.5 text-[9px] font-bold leading-none">
@@ -313,14 +315,14 @@ export default function RouterDisplay({
             </span>
             {otherDexNames.length > 0 ? (
               <details ref={routesDetailsRef} className="group/routes relative min-w-0">
-                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-white/80 outline-none [&::-webkit-details-marker]:hidden">
-                  <span className="text-[9px] font-normal leading-none text-white/45">
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-muted-foreground outline-none [&::-webkit-details-marker]:hidden">
+                  <span className="text-[9px] font-normal leading-none text-muted-foreground/80">
                     Via
                   </span>
                   <span className="truncate">{dexNamesLabel}</span>
-                  <ChevronDown className="h-3 w-3 shrink-0 text-white/55 transition-transform group-open/routes:rotate-180" />
+                  <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-open/routes:rotate-180" />
                 </summary>
-                <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-white/10 bg-[#08090a] px-2 py-1.5 text-[11px] text-white/80 shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
+                <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-border bg-popover px-2 py-1.5 text-[11px] text-muted-foreground shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
                   {otherDexNames.map((name) => (
                     <div key={name} className="whitespace-nowrap px-2 py-1">
                       {name}
@@ -329,8 +331,8 @@ export default function RouterDisplay({
                 </div>
               </details>
             ) : (
-              <span className="flex min-w-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-white/80">
-                <span className="text-[9px] font-normal leading-none text-white/45">
+              <span className="flex min-w-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-none text-muted-foreground">
+                <span className="text-[9px] font-normal leading-none text-muted-foreground/80">
                   Via
                 </span>
                 <span className="truncate">{dexNamesLabel}</span>
@@ -339,14 +341,14 @@ export default function RouterDisplay({
           </div>
           <span className="group relative flex h-4 w-4 shrink-0 items-center justify-center">
             <Info
-              className="h-3.5 w-3.5 text-white/70 outline-none"
+              className="h-3.5 w-3.5 text-muted-foreground outline-none"
               tabIndex={0}
               aria-describedby="router-quotes-info"
             />
             <span
               id="router-quotes-info"
               role="tooltip"
-              className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 w-64 rounded-lg border border-white/10 bg-[#08090a] px-3 py-2 text-left text-[11px] font-normal leading-4 text-white/80 opacity-0 shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+              className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 w-64 rounded-lg border border-border bg-popover px-3 py-2 text-left text-[11px] font-normal leading-4 text-muted-foreground opacity-0 shadow-[0_16px_32px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
             >
               Quotes from major routers on Tower are simulated on the same block
               to find the best executable prices.
@@ -381,9 +383,9 @@ export default function RouterDisplay({
               className={`flex min-h-[52px] w-full items-center justify-between gap-2 rounded-sm px-2.5 py-2 text-left transition-colors sm:gap-3 sm:px-3 ${
                 isSelected
                   ? `
-    border border-[#56697c]
-    bg-[#171b22]
-    ring-1 ring-white/[0.04]
+    border border-primary/40
+    bg-accent
+    ring-1 ring-border/50
     shadow-[inset_0_1px_0_rgba(255,255,255,.06),inset_0_-1px_0_rgba(0,0,0,.45),0_2px_6px_rgba(0,0,0,.35)]
   `
                   : "border border-transparent"
@@ -397,11 +399,11 @@ export default function RouterDisplay({
                   height={18}
                   className="h-[18px] w-[18px] shrink-0 object-contain"
                 />
-                <span className="min-w-[3.4rem] truncate text-sm font-medium text-white/90 sm:min-w-0">
+                <span className="min-w-[3.4rem] truncate text-sm font-medium text-foreground sm:min-w-0">
                   {router.name}
                 </span>
                 {isBestPrice && (
-                  <span className="shrink-0 rounded-md bg-[#213242] px-1.5 py-0.5 text-[9px] font-medium leading-none text-[#8fbce7]">
+                  <span className="shrink-0 rounded-md bg-primary/15 px-1.5 py-0.5 text-[9px] font-medium leading-none text-primary">
                     Best Price
                   </span>
                 )}
@@ -415,14 +417,14 @@ export default function RouterDisplay({
                   ) : null}
                   <span
                     className={`text-sm tabular-nums ${
-                      hasQuote ? "text-white/90" : "text-white/45"
+                      hasQuote ? "text-foreground" : "text-muted-foreground/80"
                     }`}
                   >
                     {formatRouteTokenAmount(option?.outputAmount, outputTokenSymbol)}
                   </span>
                 </span>
                 {routeUsdValue ? (
-                  <span className="text-[11px] tabular-nums text-white/55">
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
                     ~ {routeUsdValue}
                   </span>
                 ) : null}

@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { HeaderWalletAvatar } from "@/components/wallet/TowerWalletAvatar";
+// import ThemeToggle from "@/components/ThemeToggle";
+import ThemeAwareImage from "@/components/ThemeAwareImage";
 
 interface WalletConnectButtonProps {
   compact?: boolean;
@@ -46,7 +48,7 @@ const WalletConnectButton = ({
             <button
               type="button"
               onClick={openConnectModal}
-              className={`inline-flex items-center justify-center rounded-full border border-primary bg-primary font-semibold text-background transition-all hover:opacity-90 ${
+              className={`inline-flex items-center justify-center rounded-full border border-primary bg-primary font-semibold text-[#0C0C0D] transition-all hover:opacity-90 ${
                 compact
                   ? "px-3 py-2 text-xs"
                   : "px-4 py-2 text-sm shadow-[0_4px_12px_rgba(123,184,255,0.18)]"
@@ -77,13 +79,13 @@ const WalletConnectButton = ({
               type="button"
               onClick={openAccountModal}
               data-tower-wallet-button="true"
-              className="group inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary px-2.5 py-2 text-background shadow-[0_8px_24px_rgba(123,184,255,0.22)] transition-opacity hover:opacity-90"
+              className="group inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary px-2.5 py-2 text-[#0C0C0D] shadow-[0_8px_24px_rgba(123,184,255,0.22)] transition-opacity hover:opacity-90"
             >
               <HeaderWalletAvatar
                 address={account.address}
                 ensImage={account.ensAvatar}
               />
-              <ChevronDown className="h-4 w-4 text-background/70 transition-colors group-hover:text-background" />
+              <ChevronDown className="h-4 w-4 text-[#0C0C0D]/70 transition-colors group-hover:text-[#0C0C0D]" />
               <span className="sr-only">Open wallet menu</span>
             </button>
           );
@@ -94,15 +96,15 @@ const WalletConnectButton = ({
             type="button"
             onClick={openAccountModal}
             data-tower-wallet-button="true"
-            className="group inline-flex items-center overflow-hidden rounded-full border border-primary/70 bg-primary text-background shadow-[0_12px_30px_rgba(123,184,255,0.24)] transition-opacity hover:opacity-90"
+            className="group inline-flex items-center overflow-hidden rounded-full border border-primary/70 bg-primary text-[#0C0C0D] shadow-[0_12px_30px_rgba(123,184,255,0.24)] transition-opacity hover:opacity-90"
           >
             <span className="flex items-center gap-2 px-3 py-2 text-sm font-semibold">
               <HeaderWalletAvatar
                 address={account.address}
                 ensImage={account.ensAvatar}
               />
-              <span className="text-background">{account.displayName}</span>
-              <ChevronDown className="h-4 w-4 text-background/70 transition-colors group-hover:text-background" />
+              <span className="text-[#0C0C0D]">{account.displayName}</span>
+              <ChevronDown className="h-4 w-4 text-[#0C0C0D]/70 transition-colors group-hover:text-[#0C0C0D]" />
             </span>
           </button>
         );
@@ -128,7 +130,7 @@ const Header = () => {
 
   const navItems: NavItem[] = [
     { name: "Trade", path: null, dropdown: true }, // Trade is now a dropdown
-    { name: "Pool", path: "/pool" },
+    // { name: "Pool", path: "/pool" },
     { name: "Tower AI", path: "/ai-agent" },
     { name: "Profile", path: "/profile" },
     { name: "Developers", path: "/developers" },
@@ -182,12 +184,14 @@ const Header = () => {
             onClick={() => router.push("/")}
           >
             <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
-              <Image
-                src="/assets/towerlogo.svg"
+              <ThemeAwareImage
+                darkSrc="/assets/towerlogo.svg"
+                lightSrc="/assets/towerlogo-light.svg"
                 alt="Tower logo"
                 width={256}
                 height={256}
                 className="object-contain scale-250"
+                priority
               />
             </div>
           </motion.div>
@@ -317,7 +321,7 @@ const Header = () => {
                 className="object-contain"
               />
             </div>
-            <span className="text-xs font-medium text-white">Arc</span>
+            <span className="text-xs font-medium text-foreground">Arc</span>
           </motion.button>
 
           {/* Arc Dropdown Button - Desktop Only */}
@@ -337,7 +341,7 @@ const Header = () => {
                     className="object-contain"
                   />
               </div>
-              <span className="text-sm font-medium text-white">Arc</span>
+              <span className="text-sm font-medium text-foreground">Arc</span>
               <ChevronDown
                 className={`w-4 h-4 text-muted-foreground transition-transform ${
                   arcDropdownOpen ? "rotate-180" : ""
@@ -430,7 +434,7 @@ const Header = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[60] bg-black/50 min-[1200px]:hidden"
+              className="fixed inset-0 z-[60] bg-black/50 light:bg-black/25 min-[1200px]:hidden"
               onClick={closeMobileMenu}
             />
 
@@ -574,7 +578,7 @@ const Header = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSettingsOpen(false)}
-              className="fixed inset-0 bg-black/50 z-40"
+              className="fixed inset-0 bg-black/50 light:bg-black/25 z-40"
             />
 
             {/* Modal */}
@@ -583,26 +587,27 @@ const Header = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
-              className="fixed top-20 right-4 w-80 bg-card rounded-2xl shadow-xl z-50 overflow-hidden border border-border"
+              className="fixed top-20 right-4 w-[min(100vw-2rem,320px)] bg-card rounded-2xl shadow-xl z-50 overflow-hidden border border-border"
             >
-              <div className="p-6">
-                <h2 className="text-xl font-bold text-foreground mb-6">
+              <div className="p-5">
+                <h2 className="text-lg font-bold text-foreground mb-5">
                   Settings
                 </h2>
 
-                <div className="space-y-4">
-                  {/* Theme Setting */}
-                  <div className="flex items-center justify-between">
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium text-foreground">
                       Theme
                     </span>
-                    <span className="px-3 py-1 text-xs bg-muted rounded-full text-muted-foreground">
+                    {/* <ThemeToggle /> */}
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       soon
                     </span>
                   </div>
 
-                  {/* Preferred Explorer */}
-                  <div className="flex items-center justify-between">
+                  <div className="h-px bg-border" />
+
+                  <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium text-foreground">
                       Preferred Explorer
                     </span>

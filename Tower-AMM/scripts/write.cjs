@@ -31,6 +31,14 @@ const TOKENS = {
     address: process.env.CIRBTC_ADDRESS || "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
     decimals: 8,
   },
+  CNGN: {
+    address: process.env.CNGN_ADDRESS || "0x9a9c18A371d98200FE910f62c45875f1abb68d20",
+    decimals: 6,
+  },
+  QCAD: {
+    address: process.env.QCAD_ADDRESS || "0x23d7CFFd0876f3ABb6B074287ba2aeefBc83825d",
+    decimals: 6,
+  },
 };
 
 const FACTORY_ABI = [
@@ -194,12 +202,78 @@ function parsePath(rawPath) {
     .map((entry) => resolveToken(entry));
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientRpcError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  const code = String(error?.code || "").toUpperCase();
+
+  return (
+    code.includes("SSL") ||
+    code.includes("NETWORK") ||
+    code.includes("TIMEOUT") ||
+    code.includes("SERVER_ERROR") ||
+    code.includes("ECONNRESET") ||
+    code.includes("ETIMEDOUT") ||
+    message.includes("ssl") ||
+    message.includes("bad record mac") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("socket hang up") ||
+    message.includes("network") ||
+    message.includes("timeout")
+  );
+}
+
+async function waitForReceipt(provider, txHash, label, attempts = 8) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (receipt) {
+        if (receipt.status !== 1) {
+          throw new Error(`${label} reverted in block ${receipt.blockNumber}`);
+        }
+        console.log(`${label} confirmed in block ${receipt.blockNumber}`);
+        return receipt;
+      }
+    } catch (error) {
+      lastError = error;
+      if (!isTransientRpcError(error) || attempt === attempts) {
+        throw error;
+      }
+      console.warn(
+        `${label} receipt check failed (attempt ${attempt}/${attempts}): ${error.code || error.message}`,
+      );
+    }
+
+    await sleep(1500 * attempt);
+  }
+
+  throw lastError || new Error(`${label} receipt not found for ${txHash}`);
+}
+
 async function submitAndWait(txPromise, label) {
   const tx = await txPromise;
   console.log(`${label} submitted: ${tx.hash}`);
-  const receipt = await tx.wait();
-  console.log(`${label} confirmed in block ${receipt.blockNumber}`);
-  return receipt;
+
+  try {
+    const receipt = await tx.wait();
+    console.log(`${label} confirmed in block ${receipt.blockNumber}`);
+    return receipt;
+  } catch (error) {
+    if (!isTransientRpcError(error)) {
+      throw error;
+    }
+
+    console.warn(
+      `${label} wait interrupted by RPC error (${error.code || error.message}); retrying receipt lookup...`,
+    );
+    return waitForReceipt(tx.provider, tx.hash, label);
+  }
 }
 
 async function getContext() {

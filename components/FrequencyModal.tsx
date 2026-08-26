@@ -37,16 +37,16 @@ export const FrequencyModal = ({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800"
+        className="bg-card rounded-2xl w-full max-w-md border border-border"
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-white">
+            <h3 className="text-xl font-semibold text-foreground">
               Select Buy Frequency
             </h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -62,12 +62,12 @@ export const FrequencyModal = ({
                 }}
                 className={`w-full px-4 py-4 rounded-xl text-left transition-colors cursor-pointer ${
                   currentValue === freq.label
-                    ? "bg-zinc-800"
-                    : "bg-zinc-950 hover:bg-zinc-800"
+                    ? "bg-accent"
+                    : "bg-secondary hover:bg-accent"
                 }`}
               >
-                <div className="text-white font-medium mb-1">{freq.label}</div>
-                <div className="text-gray-500 text-sm">{freq.description}</div>
+                <div className="text-foreground font-medium mb-1">{freq.label}</div>
+                <div className="text-muted-foreground text-sm">{freq.description}</div>
               </button>
             ))}
           </div>

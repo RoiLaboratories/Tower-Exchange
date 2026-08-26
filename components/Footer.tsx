@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Info, HelpCircle } from "lucide-react";
 
 const ANALYTICS_URL = "https://analytics.tower.exchange";
-const DOCS_URL = "https://docs.tower.exchange"; // Replace with your docs URL
-const TERMS_URL = "#"; // Replace with your terms URL
+const DOCS_URL = "https://docs.tower.exchange";
+const TERMS_URL = "/terms";
+const PRIVACY_URL = "/privacy";
 
 const Footer = () => {
   const [infoModalOpen, setInfoModalOpen] = useState(false);
@@ -46,7 +47,7 @@ const Footer = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.4 }}
-        className="relative flex items-center justify-between px-6 py-6 border-t border-border mt-auto bg-[#0C0C0D]"
+        className="relative flex items-center justify-between px-6 py-6 border-t border-border mt-auto bg-background"
       >
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted-foreground">
@@ -120,11 +121,16 @@ const Footer = () => {
               </a>
               <a
                 href={TERMS_URL}
-                target="_blank"
-                rel="noopener noreferrer" 
                 className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
               >
                 <span>Terms & Conditions</span>
+                <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+              </a>
+              <a
+                href={PRIVACY_URL}
+                className="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                <span>Privacy Policy</span>
                 <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0" />
               </a>
             </motion.div>

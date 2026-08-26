@@ -16,9 +16,9 @@ export default function Home() {
 
     window.addEventListener("select-sell-token", handleSelectTokenEvent);
 
-    // On mount, if select query param exists, switch to swap view
+    // On mount, if swap prefills exist, switch to swap view
     const params = new URLSearchParams(window.location.search);
-    if (params.get("select") === "cirBTC") {
+    if (params.get("select") || params.get("from") || params.get("to")) {
       setCurrentView("swap");
     }
 

@@ -26,7 +26,7 @@ import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
 const recurringTokens = tokens.filter((token) =>
-  ["USDC", "EURC", "USDT", "cirBTC"].includes(token.symbol),
+  ["USDC", "EURC", "USDT", "cirBTC", "cNGN"].includes(token.symbol),
 );
 
 export const RecurringBuys = () => {
@@ -66,12 +66,11 @@ export const RecurringBuys = () => {
     }
   }, []);
 
-  const availableTokensForBuy = recurringTokens.filter(
-    (token) => token.symbol !== selectedPayToken.symbol,
-  );
   const amountValue = Number.parseFloat(amount);
   const endDateIsValid =
     !endDate || new Date(endDate).getTime() >= new Date(firstExecutionDate).getTime();
+  const disabledPayTokenSymbols = selectedBuyToken ? [selectedBuyToken.symbol] : [];
+  const disabledBuyTokenSymbols = [selectedPayToken.symbol];
   const canContinue =
     Boolean(walletAddress) &&
     Boolean(selectedBuyToken) &&
@@ -189,7 +188,7 @@ export const RecurringBuys = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="space-y-4 rounded-2xl border border-border bg-[#191A1C] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm sm:space-y-5 sm:rounded-2xl sm:p-5"
+        className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-sm sm:space-y-5 sm:rounded-2xl sm:p-5"
       >
         <AmountInput amount={amount} onChange={setAmount} />
 
@@ -198,6 +197,7 @@ export const RecurringBuys = () => {
           selected={selectedPayToken}
           onSelect={setSelectedPayToken}
           availableTokens={recurringTokens}
+          disabledTokenSymbols={disabledPayTokenSymbols}
           showInfo
           infoMessage="Select which token you'll use to make your regular purchases"
         />
@@ -206,7 +206,8 @@ export const RecurringBuys = () => {
           label="Buy"
           selected={selectedBuyToken}
           onSelect={setSelectedBuyToken}
-          availableTokens={availableTokensForBuy}
+          availableTokens={recurringTokens}
+          disabledTokenSymbols={disabledBuyTokenSymbols}
           showInfo
           infoMessage="Select which token you want to buy regularly"
         />
@@ -246,7 +247,7 @@ export const RecurringBuys = () => {
               <button
                 type="button"
                 onClick={() => setEndDate(null)}
-                className="mt-2 text-xs font-medium text-zinc-400 transition-colors hover:text-white"
+                className="mt-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 Clear end time
               </button>
@@ -254,8 +255,8 @@ export const RecurringBuys = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-[#151617] px-4 py-3 text-sm text-muted-foreground">
-          <p className="font-medium text-white">Tracking in UTC</p>
+        <div className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Tracking in UTC</p>
           <p className="mt-1 leading-6">
             First execution: <span className="text-foreground">{formatUtcDateTimeLabel(firstExecutionDate)}</span>
           </p>
@@ -269,7 +270,7 @@ export const RecurringBuys = () => {
           whileTap={{ scale: 0.99 }}
           onClick={handleContinue}
           disabled={isLoading || !canContinue}
-          className="mt-1 w-full rounded-[16px] bg-white py-3 text-sm font-semibold text-black transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-2 sm:rounded-[18px]"
+          className="mt-1 w-full rounded-[16px] bg-primary py-3 text-sm font-semibold text-[#0C0C0D] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-2 sm:rounded-[18px]"
         >
           {isLoading ? "Creating Order..." : "Continue"}
         </motion.button>

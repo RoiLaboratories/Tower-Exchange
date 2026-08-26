@@ -11,6 +11,8 @@ export const DEFAULT_TOKEN_USD_PRICES = {
   EURC: 1.08,
   USDT: 1,
   cirBTC: 645000,
+  cNGN: 0.0007185,
+  QCAD: 0.73,
 } as const;
 
 export type StableTokenSymbol = keyof typeof DEFAULT_TOKEN_USD_PRICES;

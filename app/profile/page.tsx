@@ -204,7 +204,7 @@ const ProfileContent = () => {
   return (
     <>
       <AppErrorModal error={uploadError} onClose={() => setUploadError(null)} title="Upload failed" />
-      <div className="text-white min-h-screen">
+      <div className="text-foreground min-h-screen">
         {/* Token Ticker */}
         <TokenTicker />
 
@@ -226,7 +226,7 @@ const ProfileContent = () => {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="relative group"
             >
-              <div className="w-24 h-24 rounded-full overflow-hidden bg-linear-to-br from-gray-700 to-gray-800 border-2 border-gray-600">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-linear-to-br from-muted to-secondary border-2 border-border">
                 {profilePictureUrl ? (
                   <Image
                     src={profilePictureUrl}
@@ -273,7 +273,7 @@ const ProfileContent = () => {
               >
                 <motion.div
                   animate={{ opacity: isUploadingProfile ? 1 : 0 }}
-                  className="text-white text-xs font-semibold text-center px-2"
+                  className="text-foreground text-xs font-semibold text-center px-2"
                 >
                   {isUploadingProfile ? "Uploading..." : "Click to upload"}
                 </motion.div>
@@ -296,7 +296,7 @@ const ProfileContent = () => {
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               <div className="flex items-center gap-3 mb-2">
-                <p className="text-gray-200 font-semibold">
+                <p className="text-foreground font-semibold">
                   {authenticated ? "Connected" : "Not Connected"}
                 </p>
                 {displayAddress && (
@@ -308,7 +308,7 @@ const ProfileContent = () => {
                         setTimeout(() => setCopied(false), 1500);
                       }
                     }}
-                    className="text-xs text-gray-400 px-2 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white active:scale-95 transition-all cursor-pointer outline-none"
+                    className="text-xs text-muted-foreground px-2 py-1 rounded-lg bg-secondary/80 border border-border hover:bg-accent hover:text-foreground active:scale-95 transition-all cursor-pointer outline-none"
                   >
                     {copied ? "Copied!" : displayAddress}
                   </button>
@@ -328,7 +328,7 @@ const ProfileContent = () => {
 
               <h2 className="text-5xl font-bold mb-2">{totalPortfolioValue}</h2>
               <p className="text-green-400 text-sm">
-                +0.00% <span className="text-gray-500">($0.00)</span>
+                +0.00% <span className="text-muted-foreground">($0.00)</span>
               </p>
             </motion.div>
           </div>
@@ -339,11 +339,7 @@ const ProfileContent = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex w-fit items-center gap-1 rounded-xl p-1 mb-8 sm:gap-4"
-          style={{
-            backgroundColor: "hsl(220, 20%, 10%)",
-            border: "1px solid hsl(220, 15%, 18%)",
-          }}
+          className="mb-8 flex w-fit items-center gap-1 rounded-xl border border-border bg-card p-1 sm:gap-4"
         >
           {profileTabs.map((tab) => (
             <motion.button
@@ -353,14 +349,9 @@ const ProfileContent = () => {
               onClick={() => handleTabChange(tab.id)}
               className={`rounded-lg px-4 py-3 font-medium transition-all sm:px-6 ${
                 activeTab === tab.id
-                  ? "text-white"
-                  : "text-gray-400 hover:text-white"
+                  ? "bg-secondary text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
-              style={
-                activeTab === tab.id
-                  ? { backgroundColor: "hsl(220, 20%, 14%)" }
-                  : {}
-              }
             >
               {tab.label}
             </motion.button>
@@ -397,12 +388,12 @@ const ProfileContent = () => {
 };
 
 const ProfileLoadingFallback = () => (
-  <div className="min-h-screen text-white">
+  <div className="min-h-screen text-foreground">
     <TokenTicker />
     <main className="mx-auto max-w-7xl px-6 py-12">
-      <div className="mb-12 h-52 animate-pulse rounded-3xl bg-white/[0.04]" />
-      <div className="mb-8 h-16 w-fit animate-pulse rounded-xl bg-white/[0.04] px-40" />
-      <div className="h-[24rem] animate-pulse rounded-3xl bg-white/[0.04]" />
+      <div className="mb-12 h-52 animate-pulse rounded-3xl bg-muted" />
+      <div className="mb-8 h-16 w-fit animate-pulse rounded-xl bg-muted px-40" />
+      <div className="h-[24rem] animate-pulse rounded-3xl bg-muted" />
     </main>
   </div>
 );

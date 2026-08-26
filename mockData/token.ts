@@ -3,6 +3,7 @@ import usdcLogo from "@/public/assets/usdc.svg";
 import eurcLogo from "@/public/assets/eurc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
+import cngnLogo from "@/public/assets/cNGN.svg";
 
 export interface Token {
   symbol: string;
@@ -65,6 +66,26 @@ export const tokens: Token[] = [
       403900,
       404100,
       404000,
+    ],
+  },
+  {
+    symbol: "cNGN",
+    price: "$0.000719",
+    change: "+0.0%",
+    icon: cngnLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [
+      0.000715,
+      0.000716,
+      0.000718,
+      0.000719,
+      0.000718,
+      0.000719,
+      0.00072,
+      0.000719,
+      0.000719,
     ],
   },
   // {
