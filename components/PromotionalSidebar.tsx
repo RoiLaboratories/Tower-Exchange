@@ -19,8 +19,8 @@ export default function PromotionalSidebar() {
       heroImage: "/assets/promotional-card-cngn.svg",
       imageWidthClass: "w-[100px]",
       title: "Trade $cNGN on Tower",
-      description: "cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
-      ctaText: "Trade cNGN",
+      description: "$cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
+      ctaText: "Trade $cNGN",
       action: () => {
         router.push("/?select=cNGN");
         setTimeout(() => {
