@@ -133,7 +133,7 @@ const tokenUsdPriceBySymbol: Record<string, number> = {
   USYC: 1,
   USDT: 1,
   cirBTC: 404000,
-  cNGN: 0.0007185,
+  cNGN: 1,
   QCAD: 0.73,
 };
 

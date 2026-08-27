@@ -11,7 +11,7 @@ export const DEFAULT_TOKEN_USD_PRICES = {
   EURC: 1.08,
   USDT: 1,
   cirBTC: 645000,
-  cNGN: 0.0007185,
+  cNGN: 1,
   QCAD: 0.73,
 } as const;
 
@@ -319,6 +319,9 @@ export async function fetchArcTokenUsdPrices(): Promise<TokenUsdPriceMap> {
     if (cirBtcUsdPrice) {
       priceMap.cirBTC = cirBtcUsdPrice;
     }
+
+    // Peg cNGN at $1 so swap USD values match the 1:1 Tower pool ratio.
+    priceMap.cNGN = DEFAULT_TOKEN_USD_PRICES.cNGN;
 
     cachedPriceMap = priceMap;
     lastPriceFetchAt = Date.now();
