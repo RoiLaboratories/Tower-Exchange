@@ -26,7 +26,7 @@ import { AppErrorModal } from "@/components/AppErrorModal";
 import { useRainbowKitAuth } from "@/lib/use-rainbowkit-auth";
 
 const recurringTokens = tokens.filter((token) =>
-  ["USDC", "EURC", "USDT", "cirBTC", "cNGN"].includes(token.symbol),
+  ["USDC", "EURC", "USDT", "cirBTC", "cNGN", "QCAD"].includes(token.symbol),
 );
 
 export const RecurringSell = () => {

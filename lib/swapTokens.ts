@@ -5,13 +5,13 @@ import usdcLogo from "@/public/assets/usdc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
 import cngnLogo from "@/public/assets/cNGN.svg";
+import qcadLogo from "@/public/assets/QCAD.svg";
 import { DEFAULT_TOKEN_USD_PRICES } from "@/lib/tokenUsdPrices";
 
-/** Re-enable when QCAD swap pairs are ready for production. */
-export const QCAD_SWAP_PAIRS_ENABLED = false;
+export const QCAD_SWAP_PAIRS_ENABLED = true;
 
 export interface SwapToken {
-  symbol: "USDC" | "EURC" | "USDT" | "cirBTC" | "cNGN";
+  symbol: "USDC" | "EURC" | "USDT" | "cirBTC" | "cNGN" | "QCAD";
   icon: StaticImageData;
   name: string;
   balance: number;
@@ -55,6 +55,13 @@ export const SWAP_TOKENS: readonly SwapToken[] = [
     name: "Compliant Naira",
     balance: 0,
     usdPrice: DEFAULT_TOKEN_USD_PRICES.cNGN,
+  },
+  {
+    symbol: "QCAD",
+    icon: qcadLogo,
+    name: "Canadian Dollar",
+    balance: 0,
+    usdPrice: DEFAULT_TOKEN_USD_PRICES.QCAD,
   },
 ] as const;
 

@@ -4,6 +4,7 @@ import eurcLogo from "@/public/assets/eurc.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
 import cngnLogo from "@/public/assets/cNGN.svg";
+import qcadLogo from "@/public/assets/QCAD.svg";
 
 export interface Token {
   symbol: string;
@@ -77,6 +78,16 @@ export const tokens: Token[] = [
     change24h: "+0.0%",
     marketCap: "$--",
     chartData: [1.0, 1.0, 1.001, 1.0, 0.999, 1.0, 1.0, 1.001, 1.0],
+  },
+  {
+    symbol: "QCAD",
+    price: "$0.73",
+    change: "+0.0%",
+    icon: qcadLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [0.73, 0.731, 0.729, 0.73, 0.728, 0.73, 0.732, 0.73, 0.73],
   },
   // {
   //   symbol: "SWPRC",

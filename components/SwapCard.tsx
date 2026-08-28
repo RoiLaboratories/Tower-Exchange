@@ -75,12 +75,12 @@ const SWAPS_DISABLED = process.env.NEXT_PUBLIC_SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Swaps are temporarily paused for maintenance.";
 const OUTPUT_DISPLAY_DECIMALS: Partial<Record<SwapTokenSymbol, number>> = {
-  USDC: 2,
-  EURC: 2,
-  USDT: 2,
+  USDC: 6,
+  EURC: 6,
+  USDT: 6,
   cirBTC: 8,
-  cNGN: 2,
-  //QCAD: 2,
+  cNGN: 6,
+  QCAD: 6,
 };
 
 const getOutputDisplayDecimals = (symbol?: SwapTokenSymbol | null) =>
