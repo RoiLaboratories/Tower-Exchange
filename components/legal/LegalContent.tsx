@@ -101,9 +101,17 @@ export function LegalSectionCard({ section }: { section: LegalSection }) {
 }
 
 export function LegalTableOfContents({ sections }: { sections: LegalSection[] }) {
-  if (sections.length === 0) {
+  const filteredSections = sections.filter(
+    (section) => section.id !== "table-of-contents",
+  );
+
+  if (filteredSections.length === 0) {
     return null;
   }
+
+  const hasAnyNumbering = filteredSections.some((section) =>
+    /^\d+[\.\)]\s*/.test(section.title),
+  );
 
   return (
     <nav
@@ -114,18 +122,26 @@ export function LegalTableOfContents({ sections }: { sections: LegalSection[] })
         Table of Contents
       </h2>
       <div className="w-full h-px bg-border my-4" />
-      <ol className="space-y-2.5">
-        {sections.map((section, index) => (
-          <li key={section.id}>
-            <a
-              href={`#${section.id}`}
-              className="text-sm text-muted-foreground transition-colors hover:text-primary"
-            >
-              {index + 1}. {section.title}
-            </a>
-          </li>
-        ))}
-      </ol>
+      <ul className="space-y-2.5">
+        {filteredSections.map((section, index) => {
+          const hasPrefix = /^\d+[\.\)]\s*/.test(section.title);
+          const displayTitle =
+            hasPrefix || hasAnyNumbering
+              ? section.title
+              : `${index + 1}. ${section.title}`;
+
+          return (
+            <li key={section.id}>
+              <a
+                href={`#${section.id}`}
+                className="text-sm text-muted-foreground transition-colors hover:text-primary"
+              >
+                {displayTitle}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

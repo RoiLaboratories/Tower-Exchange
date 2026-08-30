@@ -16,6 +16,7 @@ export default function TermsPage() {
       pageType="terms"
       lastUpdated={lastUpdated}
       sections={sections}
+      showTableOfContents
     />
   );
 }

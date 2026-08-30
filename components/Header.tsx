@@ -198,17 +198,15 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden min-[1200px]:flex items-center gap-1">
-            {navItems.map((item, index) => (
+            {navItems.map((item) => (
               <div key={item.name}>
                 {item.dropdown ? (
                   // Trade Dropdown
                   <div className="relative group">
                     <motion.button
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ duration: 0.12 }}
                       onClick={() => setTradeDropdownOpen(!tradeDropdownOpen)}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
                         tradeDropdownOpen || pathname === "/" || pathname === "/bridge"
@@ -218,7 +216,7 @@ const Header = () => {
                     >
                       {item.name}
                       <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
+                        className={`w-4 h-4 transition-transform duration-150 ease-out ${
                           tradeDropdownOpen ? "rotate-180" : ""
                         }`}
                       />
@@ -233,19 +231,19 @@ const Header = () => {
                             onClick={() => setTradeDropdownOpen(false)}
                           />
                           <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute left-0 mt-2 w-45 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
+                            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                            transition={{ duration: 0.12, ease: "easeOut" }}
+                            className="absolute left-0 mt-2 w-45 bg-card rounded-xl shadow-2xl z-40 overflow-hidden border border-border/70 backdrop-blur-md"
                           >
-                            <div className="p-2">
+                            <div className="p-1.5">
                               {tradeOptions.map((option) => (
                                 <button
                                   key={option.name}
-                                  className={`w-full text-left px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                  className={`w-full text-left px-3.5 py-2 rounded-lg transition-colors text-sm font-medium ${
                                     pathname === option.path
-                                      ? "bg-primary/20 text-primary"
+                                      ? "bg-primary/20 text-primary font-semibold"
                                       : "text-foreground hover:bg-secondary"
                                   }`}
                                   onClick={() => {
@@ -265,11 +263,9 @@ const Header = () => {
                 ) : (
                   // Regular nav items
                   <motion.button
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: item.disabled ? 1 : 1.05 }}
-                    whileTap={{ scale: item.disabled ? 1 : 0.95 }}
+                    whileHover={{ scale: item.disabled ? 1 : 1.03 }}
+                    whileTap={{ scale: item.disabled ? 1 : 0.97 }}
+                    transition={{ duration: 0.12 }}
                     onClick={() => handleNavigation(item.path as string, item.disabled)}
                     disabled={item.disabled}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
@@ -358,15 +354,15 @@ const Header = () => {
                     onClick={() => setArcDropdownOpen(false)}
                   />
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-xl z-40 overflow-hidden border border-border"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.12, ease: "easeOut" }}
+                    className="absolute right-0 mt-2 w-48 bg-card rounded-xl shadow-2xl z-40 overflow-hidden border border-border/70 backdrop-blur-md"
                   >
-                    <div className="p-2">
+                    <div className="p-1.5">
                       <button
-                        className="w-full text-left px-4 py-2 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-foreground"
+                        className="w-full text-left px-3.5 py-2 rounded-lg hover:bg-secondary transition-colors text-sm font-medium text-foreground"
                         onClick={() => {
                           setArcDropdownOpen(false);
                         }}
@@ -382,8 +378,9 @@ const Header = () => {
 
           {/* Connect Wallet Button - Desktop */}
           <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.12 }}
             className="hidden sm:block"
           >
             <WalletConnectButton />
@@ -391,8 +388,9 @@ const Header = () => {
 
           {/* Mobile Connect Button */}
           <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ duration: 0.12 }}
             className="block sm:hidden"
           >
             <WalletConnectButton compact />
@@ -401,7 +399,7 @@ const Header = () => {
           {/* Mobile Menu Button */}
           <motion.button
             className="min-[1200px]:hidden p-2 rounded-lg hover:bg-secondary transition-colors"
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() =>
               setMobileMenuOpen((open) => {
                 const nextOpen = !open;
@@ -433,7 +431,7 @@ const Header = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               className="fixed inset-0 z-[60] bg-black/50 light:bg-black/25 min-[1200px]:hidden"
               onClick={closeMobileMenu}
             />
@@ -442,7 +440,7 @@ const Header = () => {
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ duration: 0.28, ease: "easeOut" }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-xs flex-col border-l border-border bg-card px-4 pb-6 pt-20 shadow-2xl min-[1200px]:hidden"
             >
               <div className="mb-5 flex items-center justify-between">
@@ -460,15 +458,11 @@ const Header = () => {
               </div>
 
               <nav className="flex flex-col gap-2">
-                {navItems.map((item, index) => (
+                {navItems.map((item) => (
                   <div key={item.name}>
                     {item.dropdown ? (
                       <>
-                        <motion.button
-                          initial={{ opacity: 0, x: 24 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 24 }}
-                          transition={{ delay: index * 0.04 }}
+                        <button
                           onClick={() =>
                             setMobileTradeDropdownOpen((open) => !open)
                           }
@@ -476,19 +470,19 @@ const Header = () => {
                             mobileTradeDropdownOpen ||
                             pathname === "/" ||
                             pathname === "/bridge"
-                              ? "bg-primary/20 text-primary"
+                              ? "bg-primary/20 text-primary font-semibold"
                               : "text-foreground hover:bg-secondary"
                           }`}
                         >
                           <span className="flex items-center justify-between gap-3">
                             <span>{item.name}</span>
                             <ChevronDown
-                              className={`h-4 w-4 transition-transform ${
+                              className={`h-4 w-4 transition-transform duration-150 ease-out ${
                                 mobileTradeDropdownOpen ? "rotate-180" : ""
                               }`}
                             />
                           </span>
-                        </motion.button>
+                        </button>
 
                         <AnimatePresence initial={false}>
                           {mobileTradeDropdownOpen && (
@@ -496,28 +490,22 @@ const Header = () => {
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: "auto" }}
                               exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.2 }}
+                              transition={{ duration: 0.15, ease: "easeOut" }}
                               className="overflow-hidden"
                             >
                               <div className="mt-2 flex flex-col gap-2 pl-3">
-                                {tradeOptions.map((option, optionIndex) => (
-                                  <motion.button
+                                {tradeOptions.map((option) => (
+                                  <button
                                     key={option.name}
-                                    initial={{ opacity: 0, x: 16 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 16 }}
-                                    transition={{
-                                      delay: optionIndex * 0.04,
-                                    }}
                                     onClick={() => handleNavigation(option.path)}
                                     className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors ${
                                       pathname === option.path
-                                        ? "bg-primary/20 text-primary"
+                                        ? "bg-primary/20 text-primary font-semibold"
                                         : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                                     }`}
                                   >
                                     {option.name}
-                                  </motion.button>
+                                  </button>
                                 ))}
                               </div>
                             </motion.div>
@@ -525,16 +513,12 @@ const Header = () => {
                         </AnimatePresence>
                       </>
                     ) : (
-                      <motion.button
-                        initial={{ opacity: 0, x: 24 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 24 }}
-                        transition={{ delay: index * 0.04 }}
+                      <button
                         onClick={() => handleNavigation(item.path as string, item.disabled)}
                         disabled={item.disabled}
                         className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-medium transition-colors ${
                           pathname === item.path || (item.path === "/developers" && pathname === "/developer")
-                            ? "bg-primary/20 text-primary"
+                            ? "bg-primary/20 text-primary font-semibold"
                             : "text-foreground hover:bg-secondary"
                         } ${item.disabled ? "cursor-not-allowed opacity-50" : ""}`}
                       >
@@ -546,7 +530,7 @@ const Header = () => {
                             </span>
                           )}
                         </span>
-                      </motion.button>
+                      </button>
                     )}
                   </div>
                 ))}
