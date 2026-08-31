@@ -213,7 +213,7 @@ html.light .shadow-\[0_10px_35px_rgba\(0\,0\,0\,\.45\)\,inset_0_1px_rgba\(255\,2
 }
 
 .chat-scrollbar:hover {
-  scrollbar-color: rgba(123, 184, 255, 0.65) transparent;
+  scrollbar-color: #2b303b transparent;
 }
 
 .chat-scrollbar::-webkit-scrollbar {

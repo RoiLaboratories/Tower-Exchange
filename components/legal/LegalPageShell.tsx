@@ -40,7 +40,8 @@ export default function LegalPageShell({
   return (
     <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-background font-sora text-foreground pb-24 px-4 sm:px-6 lg:px-8">
       <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-        <div className="absolute left-[-100px] sm:left-[-140px] md:left-[-180px] lg:left-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
+        {/* Mobile: Centered Single Tower / Desktop: Left Leaning Tower */}
+        <div className="absolute left-1/2 -translate-x-[72%] md:translate-x-0 md:left-[-180px] lg:left-[-220px] top-[180px] sm:top-[220px] md:top-[240px] w-[360px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt=""
@@ -49,7 +50,8 @@ export default function LegalPageShell({
           />
         </div>
 
-        <div className="absolute right-[-100px] sm:right-[-140px] md:right-[-180px] lg:right-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
+        {/* Desktop Right Leaning Tower (hidden on mobile) */}
+        <div className="hidden md:block absolute right-[-180px] lg:right-[-220px] top-[240px] w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt=""

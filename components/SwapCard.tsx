@@ -863,8 +863,8 @@ const SwapCard = ({
     [tokenUsdPrices],
   );
   const findPricedSwapToken = useCallback(
-    (symbol: SwapTokenSymbol) =>
-      pricedSwapTokens.find((token) => token.symbol === symbol) ?? null,
+    (symbol: string) =>
+      pricedSwapTokens.find((token) => token.symbol.toLowerCase() === symbol.toLowerCase()) ?? null,
     [pricedSwapTokens],
   );
   const sellTokenWithLivePrice = useMemo(
@@ -875,6 +875,30 @@ const SwapCard = ({
     () => getTokenWithLiveUsdPrice(receiveToken, tokenUsdPrices),
     [receiveToken, tokenUsdPrices],
   );
+
+  const quoteRequestIdRef = useRef(0);
+  const activeQuoteKeyRef = useRef<string | null>(null);
+  const inFlightQuoteKeyRef = useRef<string | null>(null);
+  const quoteRefreshKeyRef = useRef<string | null>(null);
+  const lastSuccessfulQuoteRef = useRef<{
+    sellAmountValue: string;
+    sellTokenSymbol: SwapTokenSymbol;
+    receiveTokenSymbol: SwapTokenSymbol;
+  } | null>(null);
+  const lastSuccessfulRouteOptionsRef = useRef<SwapRouteOption[]>([]);
+
+  const resetSwapQuote = useCallback(() => {
+    quoteRequestIdRef.current += 1;
+    activeQuoteKeyRef.current = null;
+    inFlightQuoteKeyRef.current = null;
+    lastSuccessfulQuoteRef.current = null;
+    lastSuccessfulRouteOptionsRef.current = [];
+    setReceiveAmount("0.00");
+    setIsRouteSearchPending(false);
+    setQuoteFailureMessage(null);
+    setRouteOptions([]);
+    setSelectedRouterId(undefined);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -911,7 +935,7 @@ const SwapCard = ({
       let didApply = false;
 
       if (fromSymbol) {
-        const fromToken = findPricedSwapToken(fromSymbol as SwapTokenSymbol);
+        const fromToken = findPricedSwapToken(fromSymbol);
         if (fromToken) {
           setSellToken(fromToken);
           didApply = true;
@@ -919,7 +943,7 @@ const SwapCard = ({
       }
 
       if (toSymbol) {
-        const toToken = findPricedSwapToken(toSymbol as SwapTokenSymbol);
+        const toToken = findPricedSwapToken(toSymbol);
         if (toToken) {
           setReceiveToken(toToken);
           didApply = true;
@@ -949,24 +973,26 @@ const SwapCard = ({
 
       if (detail.from || detail.to) {
         if (detail.from) {
-          const fromToken = findPricedSwapToken(detail.from as SwapTokenSymbol);
+          const fromToken = findPricedSwapToken(detail.from);
           if (fromToken) {
             setSellToken(fromToken);
           }
         }
         if (detail.to) {
-          const toToken = findPricedSwapToken(detail.to as SwapTokenSymbol);
+          const toToken = findPricedSwapToken(detail.to);
           if (toToken) {
             setReceiveToken(toToken);
           }
         }
+        resetSwapQuote();
         return;
       }
 
-      if (detail.symbol === "cirBTC") {
-        const cirbtcToken = findPricedSwapToken("cirBTC");
-        if (cirbtcToken) {
-          setSellToken(cirbtcToken);
+      if (detail.symbol) {
+        const token = findPricedSwapToken(detail.symbol);
+        if (token) {
+          setSellToken(token);
+          resetSwapQuote();
         }
       }
     };
@@ -977,30 +1003,7 @@ const SwapCard = ({
     return () => {
       window.removeEventListener("select-sell-token", handleSelectTokenEvent);
     };
-  }, [findPricedSwapToken]);
-  const quoteRequestIdRef = useRef(0);
-  const activeQuoteKeyRef = useRef<string | null>(null);
-  const inFlightQuoteKeyRef = useRef<string | null>(null);
-  const quoteRefreshKeyRef = useRef<string | null>(null);
-  const lastSuccessfulQuoteRef = useRef<{
-    sellAmountValue: string;
-    sellTokenSymbol: SwapTokenSymbol;
-    receiveTokenSymbol: SwapTokenSymbol;
-  } | null>(null);
-  const lastSuccessfulRouteOptionsRef = useRef<SwapRouteOption[]>([]);
-
-  const resetSwapQuote = useCallback(() => {
-    quoteRequestIdRef.current += 1;
-    activeQuoteKeyRef.current = null;
-    inFlightQuoteKeyRef.current = null;
-    lastSuccessfulQuoteRef.current = null;
-    lastSuccessfulRouteOptionsRef.current = [];
-    setReceiveAmount("0.00");
-    setIsRouteSearchPending(false);
-    setQuoteFailureMessage(null);
-    setRouteOptions([]);
-    setSelectedRouterId(undefined);
-  }, []);
+  }, [findPricedSwapToken, resetSwapQuote]);
 
   const resetSwapForm = useCallback(() => {
     setSellAmount("0.00");

@@ -22,28 +22,32 @@ export default function PromotionalSidebar() {
       description: "$cNGN, the Compliant Naira stablecoin backed 1:1 by real NGN, is now available for trading on Tower.",
       ctaText: "Trade $cNGN",
       action: () => {
-        router.push("/?select=cNGN");
-        setTimeout(() => {
+        const dispatch = () => {
           const event = new CustomEvent("select-sell-token", { detail: { symbol: "cNGN" } });
           window.dispatchEvent(event);
-        }, 50);
+        };
+        dispatch();
+        router.push("/?select=cNGN");
+        setTimeout(dispatch, 50);
       }
     },
-    //  {
-    //   id: "qcad-trade",
-    //   heroImage: "/assets/promotional-card-qcad.svg",
-    //   imageWidthClass: "w-[100px]",
-    //   title: "Trade $QCAD on Tower",
-    //   description: "QCAD, Stablecorp’s Canadian Dollar stablecoin backed 1:1 by real CAD, is now available for trading on Tower.",
-    //   ctaText: "Trade QCAD",
-    //   action: () => {
-    //     router.push("/?select=QCAD");
-    //     setTimeout(() => {
-    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "QCAD" } });
-    //       window.dispatchEvent(event);
-    //     }, 50);
-    //   }
-    // },
+    {
+      id: "qcad-trade",
+      heroImage: "/assets/promotional-card-qcad.svg",
+      imageWidthClass: "w-[100px]",
+      title: "Trade $QCAD on Tower",
+      description: "QCAD, Stablecorp’s Canadian Dollar stablecoin backed 1:1 by real CAD, is now available for trading on Tower.",
+      ctaText: "Trade QCAD",
+      action: () => {
+        const dispatch = () => {
+          const event = new CustomEvent("select-sell-token", { detail: { symbol: "QCAD" } });
+          window.dispatchEvent(event);
+        };
+        dispatch();
+        router.push("/?select=QCAD");
+        setTimeout(dispatch, 50);
+      }
+    },
     {
       id: "dev-page",
       heroImage: "/assets/dev-page.svg",
@@ -55,17 +59,17 @@ export default function PromotionalSidebar() {
         window.open("https://devs.tower.exchange", "_blank", "noopener,noreferrer");
       }
     },
-    {
-      id: "bridge-solana",
-      heroImage: "/assets/promotional-card-bridge.svg",
-      imageWidthClass: "w-[125px]",
-      title: "Bridge to Solana Devnet",
-      description: "You can now seamlessly bridge your assets directly to third-party wallets on Solana Devnet.",
-      ctaText: "Try it Now",
-      action: () => {
-        router.push("/bridge?fromChain=arc-testnet&fromToken=USDC&toChain=solana&toToken=USDC");
-      }
-    },
+    // {
+    //   id: "bridge-solana",
+    //   heroImage: "/assets/promotional-card-bridge.svg",
+    //   imageWidthClass: "w-[125px]",
+    //   title: "Bridge to Solana Devnet",
+    //   description: "You can now seamlessly bridge your assets directly to third-party wallets on Solana Devnet.",
+    //   ctaText: "Try it Now",
+    //   action: () => {
+    //     router.push("/bridge?fromChain=arc-testnet&fromToken=USDC&toChain=solana&toToken=USDC");
+    //   }
+    // },
     // {
     //   id: "cirbtc-trade",
     //   heroImage: "/assets/TradecircBTC.svg",

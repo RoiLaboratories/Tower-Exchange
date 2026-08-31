@@ -1755,7 +1755,7 @@ export const AIChat = () => {
                     whileHover={{ scale: 1.06 }}
                     whileTap={{ scale: 0.94 }}
                     onClick={() => handleSendMessage(message)}
-                    className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-[#0C0C0D]"
+                    className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#0C0C0D]"
                     aria-label="Send message"
                   >
                     <ArrowUp className="h-3.5 w-3.5" />
