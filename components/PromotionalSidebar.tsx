@@ -14,6 +14,23 @@ export default function PromotionalSidebar() {
   const [dismissedSlides, setDismissedSlides] = useState<string[]>([]);
 
   const slides = [
+   {
+      id: "qcad-trade",
+      heroImage: "/assets/promotional-card-qcad.svg",
+      imageWidthClass: "w-[100px]",
+      title: "Trade $QCAD on Tower",
+      description: "QCAD, Stablecorp’s Canadian Dollar stablecoin backed 1:1 by real CAD, is now available for trading on Tower.",
+      ctaText: "Trade QCAD",
+      action: () => {
+        const dispatch = () => {
+          const event = new CustomEvent("select-sell-token", { detail: { symbol: "QCAD" } });
+          window.dispatchEvent(event);
+        };
+        dispatch();
+        router.push("/?select=QCAD");
+        setTimeout(dispatch, 50);
+      }
+    },
     {
       id: "cngn-trade",
       heroImage: "/assets/promotional-card-cngn.svg",
@@ -28,23 +45,6 @@ export default function PromotionalSidebar() {
         };
         dispatch();
         router.push("/?select=cNGN");
-        setTimeout(dispatch, 50);
-      }
-    },
-    {
-      id: "qcad-trade",
-      heroImage: "/assets/promotional-card-qcad.svg",
-      imageWidthClass: "w-[100px]",
-      title: "Trade $QCAD on Tower",
-      description: "QCAD, Stablecorp’s Canadian Dollar stablecoin backed 1:1 by real CAD, is now available for trading on Tower.",
-      ctaText: "Trade QCAD",
-      action: () => {
-        const dispatch = () => {
-          const event = new CustomEvent("select-sell-token", { detail: { symbol: "QCAD" } });
-          window.dispatchEvent(event);
-        };
-        dispatch();
-        router.push("/?select=QCAD");
         setTimeout(dispatch, 50);
       }
     },
