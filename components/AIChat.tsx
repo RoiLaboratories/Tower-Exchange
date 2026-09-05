@@ -650,7 +650,7 @@ export const AIChat = () => {
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) return;
-    const walletAddress = user?.wallet?.address;
+    const walletAddress = user?.wallet?.address?.toLowerCase();
     if (!walletAddress) {
       setError("Please connect your wallet first");
       return;

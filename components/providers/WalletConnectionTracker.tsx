@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useAccountEffect } from "wagmi";
+import { ensureAiWalletProof } from "@/lib/aiWalletProof";
 import { trackWalletConnection } from "@/lib/walletConnectionTracking";
 import {
   ensureWalletSession,
@@ -15,10 +16,12 @@ export const WalletConnectionTracker = () => {
     onConnect(data) {
       const normalizedAddress = data.address.toLowerCase();
 
-      // Establish (or refresh) signed wallet session for gated /api/user/* and AI routes.
-      void ensureWalletSession(normalizedAddress).catch((error) => {
-        console.warn("Wallet session sign-in failed:", error);
-      });
+      // Session cookie first, then the AI authorization signature (cached ~24h).
+      void ensureWalletSession(normalizedAddress)
+        .then(() => ensureAiWalletProof(normalizedAddress))
+        .catch((error) => {
+          console.warn("Wallet session or AI authorization sign-in failed:", error);
+        });
 
       if (data.isReconnected) {
         trackedAddressRef.current = normalizedAddress;

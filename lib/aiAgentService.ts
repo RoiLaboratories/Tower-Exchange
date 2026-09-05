@@ -3,6 +3,10 @@
  */
 
 import { userApiFetch } from "./userApi";
+import {
+  canonicalizeAiWalletAddress,
+  ensureAiWalletProof,
+} from "./aiWalletProof";
 import { ensureWalletSession } from "./walletSessionClient";
 
 export interface AIAgentRequest {
@@ -10,6 +14,8 @@ export interface AIAgentRequest {
   userid: string;
   session_id: string;
   wallet_address?: string;
+  wallet_signature?: string;
+  wallet_signature_timestamp?: string;
   solana_wallet_address?: string;
   solanaWalletAddress?: string;
   chain_id?: number;
@@ -175,13 +181,35 @@ export const sendMessageToAIAgent = async (
   try {
     const walletForSession =
       request.wallet_address || request.userid || undefined;
-    if (walletForSession) {
-      await ensureWalletSession(walletForSession);
+    const canonicalWallet = walletForSession
+      ? canonicalizeAiWalletAddress(walletForSession)
+      : "";
+
+    if (canonicalWallet) {
+      await ensureWalletSession(canonicalWallet);
     }
 
-    // Prepare request with wallet context and defaults
+    const proof = canonicalWallet
+      ? await ensureAiWalletProof(canonicalWallet)
+      : null;
+
+    // Prepare request with wallet context and defaults.
+    // wallet_address must be the exact string that was signed (lowercase).
     const payload = {
       ...request,
+      ...(canonicalWallet
+        ? {
+            userid: canonicalWallet,
+            wallet_address: canonicalWallet,
+          }
+        : {}),
+      ...(proof
+        ? {
+            wallet_address: proof.address,
+            wallet_signature: proof.signature,
+            wallet_signature_timestamp: proof.timestamp,
+          }
+        : {}),
       chain_id: request.chain_id || 5042002, // Arc testnet
       enable_wallet_access: request.enable_wallet_access === true,
       enable_swap_execution: request.enable_swap_execution === true,

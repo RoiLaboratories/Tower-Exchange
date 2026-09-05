@@ -1,5 +1,6 @@
 "use client";
 
+import { clearAiWalletProof } from "@/lib/aiWalletProof";
 import { signBrowserWalletMessage } from "@/lib/browser-wallet";
 
 let inFlightSessionPromise: Promise<string | null> | null = null;
@@ -116,6 +117,7 @@ export async function ensureWalletSession(
 
 export function clearCachedWalletSession() {
   cachedSessionWallet = null;
+  clearAiWalletProof();
 }
 
 export async function logoutWalletSession() {

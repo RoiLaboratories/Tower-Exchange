@@ -13,6 +13,26 @@ const BACKEND_URL =
 const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
 
+const readWalletProofFields = (payload: Record<string, unknown>) => {
+  const signature =
+    typeof payload.wallet_signature === "string"
+      ? payload.wallet_signature.trim()
+      : "";
+  const timestamp =
+    typeof payload.wallet_signature_timestamp === "string"
+      ? payload.wallet_signature_timestamp.trim()
+      : "";
+
+  if (!signature.startsWith("0x") || !timestamp) {
+    return {};
+  }
+
+  return {
+    wallet_signature: signature,
+    wallet_signature_timestamp: timestamp,
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const { wallet, response: sessionError } = requireWalletSession(request);
@@ -43,6 +63,7 @@ export async function POST(request: NextRequest) {
       walletAddress: wallet,
       userid: wallet,
       userId: wallet,
+      ...readWalletProofFields(rawBody),
     };
 
     const headers: Record<string, string> = {

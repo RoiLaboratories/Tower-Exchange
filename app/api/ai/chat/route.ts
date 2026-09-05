@@ -66,6 +66,8 @@ type AiChatPayload = Record<string, unknown> & {
   message?: string;
   enable_swap_execution?: boolean;
   enable_bridge_execution?: boolean;
+  wallet_signature?: unknown;
+  wallet_signature_timestamp?: unknown;
 };
 
 type AiChatResponsePayload = Record<string, unknown> & {
@@ -948,6 +950,26 @@ const getWalletAddress = (payload: AiChatPayload) => {
   return null;
 };
 
+const readWalletProofFields = (payload: AiChatPayload) => {
+  const signature =
+    typeof payload.wallet_signature === "string"
+      ? payload.wallet_signature.trim()
+      : "";
+  const timestamp =
+    typeof payload.wallet_signature_timestamp === "string"
+      ? payload.wallet_signature_timestamp.trim()
+      : "";
+
+  if (!signature.startsWith("0x") || !timestamp) {
+    return {};
+  }
+
+  return {
+    wallet_signature: signature,
+    wallet_signature_timestamp: timestamp,
+  };
+};
+
 const getSolanaWalletAddress = (payload: AiChatPayload) => {
   for (const field of ["solana_wallet_address", "solanaWalletAddress"]) {
     const value = payload[field];
@@ -1355,6 +1377,7 @@ export async function POST(request: NextRequest) {
       walletAddress: wallet,
       userid: wallet,
       userId: wallet,
+      ...readWalletProofFields(rawBody),
     };
 
     const headers: Record<string, string> = {
