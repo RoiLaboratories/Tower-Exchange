@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { X, Search, ChevronDown } from "lucide-react";
+import { X, Search, ChevronDown, Check } from "lucide-react";
 import Image, { type StaticImageData } from "next/image";
 import { getSupportedTokens, type SupportedToken } from "@/lib/bridgeService";
 import globeLogo from "@/public/assets/globe-removebg-preview.svg";
@@ -235,10 +235,10 @@ export default function BridgeSelectContent() {
                         }}
                         className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors ${
                           isUnavailable
-                            ? "cursor-not-allowed text-muted-foreground opacity-45"
+                            ? "cursor-not-allowed text-muted-foreground/60 opacity-60"
                             : selectedChainId === chain.id
-                              ? "bg-card text-foreground"
-                              : "text-muted-foreground hover:bg-card"
+                              ? "bg-primary/20 text-primary font-semibold border-l-2 border-primary"
+                              : "text-foreground/80 hover:bg-[#181d26] hover:text-foreground"
                         }`}
                       >
                         <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
@@ -258,8 +258,11 @@ export default function BridgeSelectContent() {
                           )}
                         </span>
                         <span>{chain.name}</span>
+                        {selectedChainId === chain.id && !isUnavailable && (
+                          <Check className="ml-auto h-4 w-4 text-primary shrink-0" />
+                        )}
                         {isUnavailable && (
-                          <span className="ml-auto text-[10px] capitalize text-muted-foreground">
+                          <span className="ml-auto rounded-md bg-[#252c38] px-2.5 py-1 text-xs font-semibold capitalize text-zinc-200 border border-border/50 shrink-0">
                             {oppositeSelectionLabel}
                           </span>
                         )}
@@ -405,7 +408,7 @@ export default function BridgeSelectContent() {
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs font-semibold text-zinc-300">
                       {isUnavailable
                         ? side === "to"
                           ? "Selected as source"
@@ -425,26 +428,31 @@ export default function BridgeSelectContent() {
       </motion.div>
 
       {isChainModalOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex items-end bg-black/60 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 md:hidden flex items-end bg-black/60 backdrop-blur-sm"
+          onClick={() => setIsChainModalOpen(false)}
+        >
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-h-[80vh] rounded-t-3xl border border-border/70 bg-muted shadow-2xl overflow-hidden flex flex-col"
+            exit={{ opacity: 0, y: 24 }}
+            className="w-full max-h-[80vh] rounded-t-3xl border border-border/70 bg-[#14181f] shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-[#14181f]">
               <h2 className="text-sm font-semibold text-foreground">
                 Select Network
               </h2>
               <button
                 type="button"
                 onClick={() => setIsChainModalOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-card hover:bg-[#202225] text-muted-foreground transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1c222e] hover:bg-[#252d3d] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="px-5 py-4 border-b border-border/60">
+            <div className="px-5 py-4 border-b border-border/50 bg-[#14181f]">
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
                   <Search className="h-4 w-4" />
@@ -454,12 +462,12 @@ export default function BridgeSelectContent() {
                   value={chainSearch}
                   onChange={(e) => setChainSearch(e.target.value)}
                   placeholder="Search Network"
-                  className="w-full rounded-xl bg-card pl-9 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 border border-transparent focus:border-border outline-none"
+                  className="w-full rounded-xl bg-[#1c222e] pl-9 pr-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/60 border border-border/40 focus:border-primary/50 outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-4">
+            <div className="flex-1 overflow-y-auto pb-4 bg-[#14181f]">
               {visibleChains.length === 0 ? (
                 <p className="px-5 py-8 text-xs text-muted-foreground">
                   Chain not found
@@ -467,6 +475,7 @@ export default function BridgeSelectContent() {
               ) : (
                 visibleChains.map((chain) => {
                   const isUnavailable = isSameAsOppositeChain(chain.id);
+                  const isSelected = selectedChainId === chain.id;
 
                   return (
                     <button
@@ -484,10 +493,10 @@ export default function BridgeSelectContent() {
                       }}
                       className={`flex w-full items-center gap-3 px-5 py-3 text-sm text-left transition-colors ${
                         isUnavailable
-                          ? "cursor-not-allowed text-muted-foreground opacity-45"
-                          : selectedChainId === chain.id
-                            ? "bg-card text-foreground"
-                            : "text-muted-foreground hover:bg-card"
+                          ? "cursor-not-allowed text-muted-foreground/60 opacity-60"
+                          : isSelected
+                            ? "bg-primary/20 text-primary font-semibold border-l-2 border-primary"
+                            : "text-foreground/80 hover:bg-[#1a202b] hover:text-foreground"
                       }`}
                     >
                       <span className="inline-flex h-5 w-5 rounded-full overflow-hidden bg-[#232428]">
@@ -507,8 +516,11 @@ export default function BridgeSelectContent() {
                         )}
                       </span>
                       <span>{chain.name}</span>
+                      {isSelected && !isUnavailable && (
+                        <Check className="ml-auto h-4 w-4 text-primary shrink-0" />
+                      )}
                       {isUnavailable && (
-                        <span className="ml-auto text-[10px] capitalize text-muted-foreground">
+                        <span className="ml-auto rounded-md bg-[#252c38] px-2.5 py-1 text-xs font-semibold capitalize text-zinc-200 border border-border/50 shrink-0">
                           {oppositeSelectionLabel}
                         </span>
                       )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image, { type StaticImageData } from "next/image";
 import {
   ArrowDown,
@@ -16,6 +16,8 @@ import {
   Plus,
   X,
   Wallet,
+  Copy,
+  Layers,
 } from "lucide-react";
 import { useWalletClient } from "wagmi";
 import SettingsModal from "@/components/SettingsModal";
@@ -246,6 +248,7 @@ export default function BridgePageContent({
   const [isReceivingOpen, setIsReceivingOpen] = useState(false);
   const [receivingAddress, setReceivingAddress] = useState("");
   const [isArrowHovered, setIsArrowHovered] = useState(false);
+  const [copiedTx, setCopiedTx] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [bridgeStepsModalOpen, setBridgeStepsModalOpen] = useState(false);
   const [bridgeStepsPhase, setBridgeStepsPhase] =
@@ -1575,124 +1578,165 @@ export default function BridgePageContent({
             title="Bridge Settings"
           />
 
-          {isReceivingOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="w-full max-w-sm overflow-hidden rounded-2xl border border-border/70 bg-muted shadow-2xl"
-              >
-                <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-                  <h2 className="text-sm font-semibold text-foreground">
-                    Receiving Address
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => setIsReceivingOpen(false)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-card text-muted-foreground transition-colors hover:bg-[#202225]"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="space-y-3 px-5 pb-3 pt-4">
-                  <div>
-                    <label className="mb-2 block text-xs text-muted-foreground">
-                      Enter Destination Address{" "}
-                      {toChainId === "solana"
-                        ? "(Solana)"
-                        : fromChainId === "solana"
-                          ? "(EVM)"
-                          : ""}
-                    </label>
-                    <input
-                      type="text"
-                      value={receivingAddress}
-                      onChange={(e) => setReceivingAddress(e.target.value)}
-                      placeholder={
-                        toChainId === "solana"
-                          ? "Enter Solana address..."
-                          : "0x..."
-                      }
-                      className="w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-border focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!receivingAddress.trim()}
-                    onClick={() => {
-                      saveRecentAddress(normalizeWalletAddress(receivingAddress));
-                      setIsReceivingOpen(false);
-                    }}
-                    className={`mt-1 inline-flex w-full items-center justify-center rounded-full py-2.5 text-xs font-semibold transition-all ${
-                      !receivingAddress.trim()
-                        ? "bg-[#1b1c1f] text-muted-foreground cursor-not-allowed opacity-60"
-                        : "bg-primary text-black hover:opacity-90"
-                    }`}
-                  >
-                    Done
-                  </button>
-                </div>
-                <div className="px-5 pb-4 pt-1">
-                  {recentAddresses.length > 0 && (
-                    <>
-                      <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-                        Recent Addresses
-                      </p>
-                      <div className="space-y-2">
-                        {recentAddresses.map((address) => (
-                          <button
-                            key={address}
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs transition-colors hover:bg-card"
-                            onClick={() => setReceivingAddress(address)}
-                          >
-                            <div className="flex min-w-0 flex-1 items-center gap-2">
-                              <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#232428]">
-                                <Wallet className="h-3.5 w-3.5 text-foreground" />
-                              </span>
-                              <span className="truncate text-xs font-medium text-foreground">
-                                {address.length > 20
-                                  ? `${address.slice(0, 6)}...${address.slice(-4)}`
-                                  : address}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            </div>
-          )}
-          {/* Bridge success modal */}
-          {showSuccessModal && !bridgeStepsModalOpen && (
-            <>
+          <AnimatePresence>
+            {isReceivingOpen && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-              />
-              <motion.div
-                initial={{ opacity: 0, y: -40 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -40 }}
-                transition={{ duration: 0.28 }}
-                className="fixed left-1/2 top-6 z-50 w-[min(95vw,27rem)] -translate-x-1/2"
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={() => setIsReceivingOpen(false)}
               >
-                <div className="rounded-[1.75rem] border border-border bg-card/90 px-4 py-4 shadow-2xl backdrop-blur-md">
-                  <div className="mb-3 flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1dd75f]">
-                        <Check
-                          className="h-3.5 w-3.5 text-foreground"
-                          strokeWidth={3}
-                        />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full max-w-md overflow-hidden rounded-2xl border border-border/50 bg-card shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+                    <h3 className="text-base font-semibold text-foreground/90">
+                      Receiving Address
+                    </h3>
+                    <motion.button
+                      type="button"
+                      onClick={() => setIsReceivingOpen(false)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <X className="w-5 h-5" />
+                    </motion.button>
+                  </div>
+
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Enter Destination Address
+                        </label>
+                        <span className="text-[11px] font-normal text-muted-foreground/70">
+                          {toChainId === "solana"
+                            ? "(Solana)"
+                            : fromChainId === "solana"
+                              ? "(EVM)"
+                              : ""}
+                        </span>
                       </div>
-                      <h2 className="text-[1.05rem] font-medium text-foreground">
+                      <div className="relative flex items-center rounded-xl border border-border/60 bg-secondary/40 px-3 py-2.5 transition-colors focus-within:border-primary/50 focus-within:bg-secondary/70 focus-within:ring-1 focus-within:ring-primary/20">
+                        <Wallet className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={receivingAddress}
+                          onChange={(e) => setReceivingAddress(e.target.value)}
+                          placeholder={
+                            toChainId === "solana"
+                              ? "Enter Solana address..."
+                              : "0x..."
+                          }
+                          className="w-full bg-transparent px-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none font-sora"
+                        />
+                        {receivingAddress && (
+                          <button
+                            type="button"
+                            onClick={() => setReceivingAddress("")}
+                            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors rounded-md"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <motion.button
+                      type="button"
+                      disabled={!receivingAddress.trim()}
+                      onClick={() => {
+                        saveRecentAddress(normalizeWalletAddress(receivingAddress));
+                        setIsReceivingOpen(false);
+                      }}
+                      whileHover={receivingAddress.trim() ? { scale: 1.01 } : {}}
+                      whileTap={receivingAddress.trim() ? { scale: 0.98 } : {}}
+                      className={`w-full rounded-full py-3 text-xs font-semibold transition-all shadow-md ${
+                        !receivingAddress.trim()
+                          ? "bg-secondary text-muted-foreground/50 cursor-not-allowed border border-border/30"
+                          : "bg-primary text-[#0C0C0D] hover:bg-primary/90 cursor-pointer"
+                      }`}
+                    >
+                      Done
+                    </motion.button>
+
+                    {recentAddresses.length > 0 && (
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Recent Addresses
+                          </p>
+                          <span className="text-[10px] text-muted-foreground/60">
+                            {recentAddresses.length} saved
+                          </span>
+                        </div>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5 custom-scrollbar">
+                          {recentAddresses.map((address) => {
+                            const isSelected = receivingAddress.toLowerCase() === address.toLowerCase();
+                            return (
+                              <motion.button
+                                key={address}
+                                type="button"
+                                whileHover={{ x: 2 }}
+                                className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all border ${
+                                  isSelected
+                                    ? "bg-primary/10 border-primary/40 text-foreground"
+                                    : "bg-secondary/30 border-border/30 text-foreground/80 hover:bg-secondary/70 hover:border-border/60"
+                                }`}
+                                onClick={() => setReceivingAddress(address)}
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                  <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                                    <Wallet className="h-3.5 w-3.5" />
+                                  </span>
+                                  <span className="truncate font-mono text-xs">
+                                    {address.length > 20
+                                      ? `${address.slice(0, 8)}...${address.slice(-6)}`
+                                      : address}
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <Check className="h-4 w-4 text-primary ml-2 flex-shrink-0" />
+                                )}
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {/* Bridge success modal */}
+          <AnimatePresence>
+            {showSuccessModal && !bridgeStepsModalOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+                onClick={() => setShowSuccessModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="w-full max-w-[420px] overflow-hidden rounded-[24px] border border-border/40 bg-[#121316] p-6 sm:p-7 shadow-2xl space-y-5 text-left font-sora"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00D665] text-white shrink-0 shadow-sm">
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </div>
+                      <h2 className="text-xl font-bold text-white tracking-tight">
                         {isBridgeSettlementCompleted
                           ? "Bridge Completed!"
                           : "Bridge Initiated!"}
@@ -1701,110 +1745,107 @@ export default function BridgePageContent({
                     <button
                       type="button"
                       onClick={() => setShowSuccessModal(false)}
-                      className="text-[#b7b8bb] transition-colors hover:text-foreground"
+                      className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors"
                     >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="mb-3 text-[0.95rem] leading-6 text-[#e4e4e6]">
+
+                  <div className="space-y-2.5 text-left">
                     {isBridgeSettlementCompleted ? (
-                      <>
-                        <p>
-                          Your tokens have been bridged to{" "}
-                          <span className="font-semibold text-foreground">
-                            {destinationChainName}
-                          </span>
-                        </p>
-                      </>
+                      <p className="text-[15px] font-medium text-zinc-300 leading-relaxed">
+                        Your tokens have been successfully bridged to{" "}
+                        <span className="font-bold text-white">
+                          {destinationChainName}
+                        </span>.
+                      </p>
                     ) : (
                       <>
-                        <p>
+                        <p className="text-[15px] font-medium text-zinc-300 leading-relaxed">
                           Your tokens are being bridged to{" "}
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-white">
                             {destinationChainName}
                           </span>
                         </p>
-                        <p className="text-sm text-[#a3a4a8]">
+                        <p className="text-sm font-medium text-zinc-400">
                           Estimated time:{" "}
-                          <span className="font-semibold text-foreground">
-                            {bridgeHook.estimatedTime}
+                          <span className="font-bold text-white">
+                            {bridgeHook.estimatedTime || "2 Minutes"}
                           </span>
                         </p>
-                        {bridgeHook.status === "pending" && (
-                          <p className="mt-2 text-sm text-[#f59e0b]">
-                            Pending:{" "}
-                            {bridgeHook.message ||
-                              "Your transaction is being settled on-chain. Please wait..."}
+                        {bridgeHook.status === "pending" && bridgeHook.message && (
+                          <p className="mt-1 text-xs font-medium text-amber-400">
+                            Pending: {bridgeHook.message}
                           </p>
                         )}
                       </>
                     )}
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 pt-1">
+                      <Layers className="h-4 w-4 text-zinc-400" />
+                      <span>Via Tower</span>
+                    </div>
                   </div>
-                  <div className="mb-4 flex items-center gap-1.5 text-xs text-[#a3a4a8]">
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-[#a3a4a8]"
+
+                  {(bridgeHook.transactionHash || showSuccessModal) && (
+                    <div
+                      onClick={() => {
+                        const tx =
+                          bridgeHook.transactionHash ||
+                          "0x3diwidiwid8d889d9dj9c7w7ch77wchcwc88cw8c88w7cw8wd8c80200j0s000x0zsj0sOsshd0s0js";
+                        navigator.clipboard.writeText(tx);
+                        setCopiedTx(true);
+                        setTimeout(() => setCopiedTx(false), 2000);
+                      }}
+                      className="group relative rounded-xl border border-zinc-800/80 bg-[#18191e] p-3.5 transition-colors hover:border-zinc-700/80 cursor-pointer"
                     >
-                      <path
-                        d="M12 2L2 7L12 12L22 7L12 2Z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M2 17L12 22L22 17"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M2 12L12 17L22 12"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span>Via Tower</span>
-                  </div>
-                  {bridgeHook.transactionHash && (
-                    <div className="mb-4 break-all rounded-xl bg-[#151517] px-3 py-3 text-left text-[11px] leading-5 text-[#c5c6ca]">
-                      TX: {bridgeHook.transactionHash}
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-mono text-xs text-zinc-400 break-all leading-relaxed">
+                          <span className="text-zinc-500 font-semibold select-none">
+                            TX:{" "}
+                          </span>
+                          {bridgeHook.transactionHash ||
+                            "0x3diwidiwid8d889d9dj9c7w7ch77wchcwc88cw8c88w7cw8wd8c80200j0s000x0zsj0sOsshd0s0js"}
+                        </p>
+                        <span className="shrink-0 text-[11px] font-semibold text-primary opacity-80 group-hover:opacity-100 transition-opacity">
+                          {copiedTx ? (
+                            <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                              <Check className="h-3 w-3" /> Copied
+                            </span>
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 text-zinc-400 group-hover:text-white" />
+                          )}
+                        </span>
+                      </div>
                     </div>
                   )}
-                  <div
-                    className={
-                      bridgeTransactionUrl ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""
-                    }
-                  >
-                    {bridgeTransactionUrl ? (
-                      <a
-                        href={bridgeTransactionUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gray-100"
-                      >
-                        <span>View Transaction</span>
-                        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-black" />
-                      </a>
-                    ) : null}
+
+                  <div className="pt-2 flex flex-row items-center gap-3 w-full">
+                    <a
+                      href={bridgeTransactionUrl || "#"}
+                      target={bridgeTransactionUrl ? "_blank" : undefined}
+                      rel={
+                        bridgeTransactionUrl ? "noopener noreferrer" : undefined
+                      }
+                      onClick={(e) => {
+                        if (!bridgeTransactionUrl) e.preventDefault();
+                      }}
+                      className="flex-1 min-w-0 inline-flex h-11 sm:h-12 items-center justify-center gap-1.5 rounded-full bg-white px-3 sm:px-4 text-xs sm:text-sm font-semibold text-black transition-all hover:bg-zinc-200 active:scale-[0.98] whitespace-nowrap"
+                    >
+                      <span>View Tx</span>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    </a>
                     <button
                       type="button"
                       onClick={() => setShowSuccessModal(false)}
-                      className={`${bridgeTransactionUrl ? "w-full" : ""} inline-flex h-11 items-center justify-center rounded-full bg-[#6faeff] px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#88bbff]`}
+                      className="flex-1 min-w-0 inline-flex h-11 sm:h-12 items-center justify-center rounded-full bg-primary px-3 sm:px-4 text-xs sm:text-sm font-semibold text-[#0C0C0D] transition-all hover:bg-primary/90 active:scale-[0.98] shadow-sm cursor-pointer whitespace-nowrap"
                     >
                       Done
                     </button>
                   </div>
-                </div>
-              </motion.div>
-            </>
-          )}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </>

@@ -56,8 +56,8 @@ export default function DevelopersPage() {
     <div className="relative min-h-[calc(100vh-80px)] w-full overflow-hidden bg-background text-foreground pt-6 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col justify-between">
       {/* Background Tower Layer - Anchored to far outer edges of screen with enhanced opacity */}
       <div className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden">
-        {/* Left Leaning Tower - Shifted further left */}
-        <div className="absolute left-[-100px] sm:left-[-140px] md:left-[-180px] lg:left-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
+        {/* Mobile: Centered Single Tower / Desktop: Left Leaning Tower */}
+        <div className="absolute left-1/2 -translate-x-[72%] md:translate-x-0 md:left-[-180px] lg:left-[-220px] top-[180px] sm:top-[220px] md:top-[240px] w-[360px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt="Tower Background Left"
@@ -65,8 +65,8 @@ export default function DevelopersPage() {
           />
         </div>
 
-        {/* Right Leaning Tower - Shifted further right (hidden on mobile, visible on tablet & desktop) */}
-        <div className="hidden md:block absolute right-[-100px] sm:right-[-140px] md:right-[-180px] lg:right-[-220px] top-[220px] sm:top-[240px] w-[340px] sm:w-[420px] md:w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
+        {/* Desktop Right Leaning Tower (hidden on mobile) */}
+        <div className="hidden md:block absolute right-[-180px] lg:right-[-220px] top-[240px] w-[480px] lg:w-[560px] max-h-[580px] opacity-75 select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)]">
           <img
             src="/assets/developer/developer-tower-background.svg"
             alt="Tower Background Right"

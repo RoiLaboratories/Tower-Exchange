@@ -69,6 +69,8 @@ body {
   --color-chart-4: hsl(35 90% 55%);
   --color-chart-5: hsl(340 80% 55%);
 
+  --font-sora: var(--font-sora);
+  --font-sans: var(--font-sora);
   --font-family-sans: var(--font-sora);
   --font-family-cinzel: var(--font-cinzel);
   --font-family-inter: var(--font-inter);
@@ -213,7 +215,7 @@ html.light .shadow-\[0_10px_35px_rgba\(0\,0\,0\,\.45\)\,inset_0_1px_rgba\(255\,2
 }
 
 .chat-scrollbar:hover {
-  scrollbar-color: rgba(123, 184, 255, 0.65) transparent;
+  scrollbar-color: #2b303b transparent;
 }
 
 .chat-scrollbar::-webkit-scrollbar {
