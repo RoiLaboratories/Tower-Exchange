@@ -223,10 +223,10 @@ export const TransactionStepsModal = ({
                   )}
                 </div>
 
-                <h2 className="max-w-full whitespace-nowrap text-[0.88rem] font-semibold leading-tight text-foreground min-[390px]:text-[0.95rem] sm:text-[1.3rem]">
+                <h2 className="max-w-full break-words text-[0.88rem] font-semibold leading-tight text-foreground min-[390px]:text-[0.95rem] sm:text-[1.3rem]">
                   {title}
                 </h2>
-                <p className="mt-1 text-sm font-medium text-foreground">{subtitle}</p>
+                <p className="mt-1 max-w-full break-words text-sm font-medium text-foreground">{subtitle}</p>
 
                 <div className="mt-6 rounded-full bg-muted px-7 py-2 text-sm font-semibold text-foreground">
                   Steps

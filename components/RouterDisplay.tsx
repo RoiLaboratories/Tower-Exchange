@@ -319,7 +319,7 @@ export default function RouterDisplay({
                   <span className="text-[9px] font-normal leading-none text-muted-foreground/80">
                     Via
                   </span>
-                  <span className="truncate">{dexNamesLabel}</span>
+                  <span className="truncate text-white">{dexNamesLabel}</span>
                   <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground transition-transform group-open/routes:rotate-180" />
                 </summary>
                 <div className="absolute right-0 top-full z-50 mt-2 min-w-36 rounded-lg border border-border bg-popover px-2 py-1.5 text-[11px] text-muted-foreground shadow-[0_16px_32px_rgba(0,0,0,0.45)]">
