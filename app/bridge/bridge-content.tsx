@@ -1799,7 +1799,7 @@ export default function BridgePageContent({
                       className="group relative rounded-xl border border-zinc-800/80 bg-[#18191e] p-3.5 transition-colors hover:border-zinc-700/80 cursor-pointer"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-mono text-xs text-zinc-400 break-all leading-relaxed">
+                        <p className="font-sora text-xs text-zinc-400 break-all leading-relaxed">
                           <span className="text-zinc-500 font-semibold select-none">
                             TX:{" "}
                           </span>

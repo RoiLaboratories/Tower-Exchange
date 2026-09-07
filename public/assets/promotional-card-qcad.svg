@@ -7,18 +7,10 @@
 <g filter="url(#filter0_f_3570_2013)">
 <ellipse cx="134.531" cy="196" rx="87.0001" ry="85.5315" transform="rotate(90 134.531 196)" fill="#2259FF" fill-opacity="0.33"/>
 </g>
-<circle cx="135.517" cy="72.5168" r="37.5168" fill="black"/>
-<path d="M134.831 66.2452L127.875 63.2806L125.025 70.4641L134.831 80.8404V66.2452Z" fill="#D8D7D7"/>
-<path d="M136.314 66.2452V80.1562L145.094 70.4641L142.129 64.1928L136.314 66.2452Z" fill="#D8D7D7"/>
-<path d="M144.296 73.0867L150.795 75.8233V80.1562H137.682L144.296 73.0867Z" fill="#D8D7D7"/>
-<path d="M120.578 75.8233L126.279 73.0867L132.893 80.1562L121.034 80.4983L120.578 75.8233Z" fill="#D8D7D7"/>
-<path fill-rule="evenodd" clip-rule="evenodd" d="M105.754 81.7526L126.963 89.0502L134.667 81.7526L135.629 80.8404L136.884 82.0286L144.296 89.0502L165.277 80.1562L157.409 78.0488L152.506 76.7355L154.709 71.6044L162.198 54.1586L148.173 61.1711L142.129 64.1928L145.094 70.4641L136.314 80.1562V66.2452L142.129 64.1928L139.897 58.2635L134.831 44.8086L130.323 56.7812L127.875 63.2806L134.831 66.2452V80.8404L125.025 70.4641L127.875 63.2806L121.946 60.7026L109.517 55.2989L116.889 71.6044L119.209 76.7355L113.736 78.7764L105.754 81.7526ZM150.795 75.8233L144.296 73.0867L137.682 80.1562H150.795V75.8233ZM126.279 73.0867L120.578 75.8233L121.034 80.4983L132.893 80.1562L126.279 73.0867Z" fill="#ADADAD"/>
-<path d="M148.173 48.6854L140.647 57.3956L142.699 62.4824L148.173 60.0879V48.6854Z" fill="#ADADAD"/>
-<path d="M129.215 55.7108L121.946 48.6854V59.3182L127.22 61.3137L129.215 55.7108Z" fill="#ADADAD"/>
-<path d="M115.446 71.6044H107.122L112.748 77.7047L117.613 75.8233L115.446 71.6044Z" fill="#ADADAD"/>
-<path d="M163.11 71.6044H155.756L153.874 76.1084L158.117 77.2486L163.11 71.6044Z" fill="#ADADAD"/>
-<path d="M135.629 80.8404L134.667 81.7526V100.225H135.775L135.629 80.8404Z" fill="#D8D7D7"/>
-<path d="M136.884 82.0286L135.629 80.8404L135.775 100.225H136.884V82.0286Z" fill="#ADADAD"/>
+<g filter="url(#filter1_i_3570_2013)">
+<circle cx="132.497" cy="72.4969" r="38.4969" fill="black"/>
+</g>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M102.828 74.3358L122.093 91.728L130.589 82.7643V92.1293H134.736V82.7643L143.298 91.728L162.095 74.4696L148.784 72.5297V58.1477L142.429 64.9708L132.529 49.7861L122.762 64.9708L116.274 58.1477L116.541 72.5966L102.828 74.3358ZM121.759 85.4401L129.719 77.7474L120.755 68.7837V76.2088L112.795 77.4129L121.759 85.4401ZM143.298 85.4401L152.396 77.346L144.569 76.3426V68.9175L135.673 77.7474L143.298 85.4401ZM132.529 74.6703L139.285 68.0813L132.529 58.1477L126.107 68.0813L132.529 74.6703Z" fill="white" stroke="black" stroke-width="0.133786"/>
 </g>
 <rect x="0.5" y="0.5" width="260" height="144" rx="9.5" stroke="#1E1E1E"/>
 <defs>
@@ -26,6 +18,17 @@
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
 <feGaussianBlur stdDeviation="38.116" result="effect1_foregroundBlur_3570_2013"/>
+</filter>
+<filter id="filter1_i_3570_2013" x="94" y="34" width="76.9941" height="77.5288" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="0.535143" operator="erode" in="SourceAlpha" result="effect1_innerShadow_3570_2013"/>
+<feOffset dy="0.535143"/>
+<feGaussianBlur stdDeviation="5.25778"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0.866667 0 0 0 0 1 0 0 0 1 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_3570_2013"/>
 </filter>
 <clipPath id="clip0_3570_2013">
 <rect width="261" height="145" rx="10" fill="white"/>
