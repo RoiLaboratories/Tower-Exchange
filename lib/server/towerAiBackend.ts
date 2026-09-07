@@ -7,15 +7,6 @@ const FORBIDDEN = NextResponse.json(
 
 const stripTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
-const normalizeOrigin = (value: string) => {
-  try {
-    const url = new URL(value);
-    return `${url.protocol}//${url.host}`.toLowerCase();
-  } catch {
-    return null;
-  }
-};
-
 const getConfiguredBaseUrl = () => {
   const raw = (
     process.env.TOWER_AI_API ||
@@ -66,71 +57,82 @@ export function getTowerAiAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-const getAllowedOrigins = (request: NextRequest) => {
-  const allowed = new Set<string>();
-  const requestOrigin = normalizeOrigin(request.nextUrl.origin);
+const DEFAULT_FRONTEND_HOSTS = new Set([
+  "tower.exchange",
+  "www.tower.exchange",
+  "app.tower.exchange",
+]);
 
-  if (requestOrigin) {
-    allowed.add(requestOrigin);
-  }
+const stripWww = (host: string) => host.replace(/^www\./, "");
 
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) {
-    const vercelOrigin = normalizeOrigin(
-      vercelUrl.includes("://") ? vercelUrl : `https://${vercelUrl}`,
-    );
-    if (vercelOrigin) {
-      allowed.add(vercelOrigin);
-    }
-  }
-
-  const extra = process.env.TOWER_AI_ALLOWED_ORIGINS || "";
-  for (const origin of extra.split(",")) {
-    const normalized = normalizeOrigin(origin.trim());
-    if (normalized) {
-      allowed.add(normalized);
-    }
-  }
-
-  return allowed;
-};
-
-const originFromReferer = (referer: string) => {
+const hostFromUrl = (value: string) => {
   try {
-    const url = new URL(referer);
-    return `${url.protocol}//${url.host}`.toLowerCase();
+    return new URL(value).host.toLowerCase();
   } catch {
     return null;
   }
 };
 
+const getRequestHost = (request: NextRequest) => {
+  const forwarded = request.headers.get("x-forwarded-host");
+  const hostHeader = forwarded || request.headers.get("host") || request.nextUrl.host;
+  return hostHeader.split(",")[0]?.trim().toLowerCase() || "";
+};
+
+const isKnownFrontendHost = (host: string) => {
+  if (!host) {
+    return false;
+  }
+
+  if (DEFAULT_FRONTEND_HOSTS.has(host) || DEFAULT_FRONTEND_HOSTS.has(stripWww(host))) {
+    return true;
+  }
+
+  const extra = process.env.TOWER_AI_ALLOWED_ORIGINS || "";
+  for (const origin of extra.split(",")) {
+    const extraHost = hostFromUrl(origin.trim()) || origin.trim().toLowerCase();
+    if (extraHost && (extraHost === host || stripWww(extraHost) === stripWww(host))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const hostsMatch = (left: string, right: string) =>
+  Boolean(left && right && stripWww(left) === stripWww(right));
+
 /**
- * Reject terminal/curl callers that are not a same-origin browser request
- * from the Tower frontend. This is a gate, not a cryptographic proof —
- * wallet session is still required on each AI route.
+ * Reject terminal/curl callers that are not a browser request from the
+ * Tower frontend. Wallet session is still required on each AI route.
+ *
+ * On Vercel, `request.nextUrl.origin` is often the *.vercel.app host while
+ * the browser Origin is tower.exchange — never require those to be equal.
  */
 export function rejectNonFrontendAiRequest(request: NextRequest) {
-  const allowedOrigins = getAllowedOrigins(request);
-  const originHeader = request.headers.get("origin");
-  const refererHeader = request.headers.get("referer");
-  const secFetchSite = request.headers.get("sec-fetch-site");
-  const origin = originHeader ? normalizeOrigin(originHeader) : null;
-  const refererOrigin = refererHeader ? originFromReferer(refererHeader) : null;
+  const secFetchSite = (request.headers.get("sec-fetch-site") || "").toLowerCase();
 
-  const originAllowed = Boolean(origin && allowedOrigins.has(origin));
-  const refererAllowed = Boolean(
-    refererOrigin && allowedOrigins.has(refererOrigin),
-  );
-
-  if (secFetchSite === "same-origin" && (originAllowed || !originHeader)) {
+  if (secFetchSite === "same-origin") {
     return null;
   }
 
-  if (originAllowed) {
+  const requestHost = getRequestHost(request);
+  const originHost = request.headers.get("origin")
+    ? hostFromUrl(request.headers.get("origin") || "")
+    : null;
+  const refererHost = request.headers.get("referer")
+    ? hostFromUrl(request.headers.get("referer") || "")
+    : null;
+
+  if (originHost && (hostsMatch(originHost, requestHost) || isKnownFrontendHost(originHost))) {
     return null;
   }
 
-  if (!originHeader && refererAllowed) {
+  if (
+    !originHost &&
+    refererHost &&
+    (hostsMatch(refererHost, requestHost) || isKnownFrontendHost(refererHost))
+  ) {
     return null;
   }
 
