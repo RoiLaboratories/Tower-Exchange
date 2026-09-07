@@ -321,11 +321,14 @@ export const PortfolioAnalysis = () => {
           </div>
         </div>
 
-        <div className="relative h-24 sm:h-32">
+        <div className="relative h-24 outline-none sm:h-32 [&_.recharts-surface]:outline-none [&_.recharts-tooltip-cursor]:hidden [&_.recharts-tooltip-wrapper]:hidden [&_.recharts-wrapper]:outline-none">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={chartData}
               margin={{ top: 8, right: 4, left: 4, bottom: 4 }}
+              accessibilityLayer={false}
+              tabIndex={-1}
+              style={{ outline: "none", pointerEvents: "none" }}
             >
               <defs>
                 <linearGradient id="portfolio-volume-gradient" x1="0" y1="0" x2="0" y2="1">
@@ -341,6 +344,7 @@ export const PortfolioAnalysis = () => {
                 fill="url(#portfolio-volume-gradient)"
                 fillOpacity={1}
                 dot={false}
+                activeDot={false}
                 isAnimationActive={false}
               />
             </AreaChart>
