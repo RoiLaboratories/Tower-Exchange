@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/devApiSupabase";
 import { requireWalletSession } from "@/lib/server/walletSession";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_TOWER_AI_API ||
-  "https://tower-exchange-ai-production-5811.up.railway.app";
-const API_KEY = process.env.TOWER_AI_API_KEY || "";
+import {
+  getTowerAiAuthHeaders,
+  getTowerAiChatUrl,
+  rejectNonFrontendAiRequest,
+} from "@/lib/server/towerAiBackend";
 
 interface ConfirmationRequest {
   session_id: string;
@@ -17,6 +17,11 @@ interface ConfirmationRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    const frontendGate = rejectNonFrontendAiRequest(request);
+    if (frontendGate) {
+      return frontendGate;
+    }
+
     const { wallet, response: sessionError } = requireWalletSession(request);
     if (sessionError || !wallet) {
       return (
@@ -69,33 +74,26 @@ Gas Used: ${gas_used}
 
 The swap has completed successfully. Your tokens are now in your wallet.`;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const chatUrl = getTowerAiChatUrl();
+    if (chatUrl) {
+      const aiResponse = await fetch(chatUrl, {
+        method: "POST",
+        headers: getTowerAiAuthHeaders(),
+        body: JSON.stringify({
+          message: `[System: Transaction confirmed - ${transaction_hash}] The user's swap transaction has been successfully confirmed on the blockchain.`,
+          userid: wallet,
+          session_id,
+          wallet_address: wallet,
+          chain_id: 5042002,
+          enable_wallet_access: false,
+          enable_swap_execution: false,
+          enable_portfolio_analysis: false,
+        }),
+      });
 
-    if (API_KEY) {
-      headers["endpoint_auth"] = API_KEY;
-    }
-
-    const chatUrl = `${BACKEND_URL}/api/v1/chat`;
-
-    const aiResponse = await fetch(chatUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        message: `[System: Transaction confirmed - ${transaction_hash}] The user's swap transaction has been successfully confirmed on the blockchain.`,
-        userid: wallet,
-        session_id,
-        wallet_address: wallet,
-        chain_id: 5042002,
-        enable_wallet_access: false,
-        enable_swap_execution: false,
-        enable_portfolio_analysis: false,
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      console.error("Error notifying AI agent of confirmation");
+      if (!aiResponse.ok) {
+        console.error("Error notifying AI agent of confirmation");
+      }
     }
 
     const { error: historyError } = await supabaseAdmin.from("ai_db").insert({

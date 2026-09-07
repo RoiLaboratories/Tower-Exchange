@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireWalletSession } from "@/lib/server/walletSession";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_AI_AGENT_URL ||
-  "https://tower-exchange-ai-production-5811.up.railway.app";
-const API_KEY = process.env.AI_AGENT_API_KEY || "";
+import {
+  aiBackendUnconfiguredResponse,
+  getTowerAiAuthHeaders,
+  getTowerAiBaseUrl,
+  rejectNonFrontendAiRequest,
+} from "@/lib/server/towerAiBackend";
 
 export async function POST(request: NextRequest) {
   try {
+    const frontendGate = rejectNonFrontendAiRequest(request);
+    if (frontendGate) {
+      return frontendGate;
+    }
+
     const { wallet, response: sessionError } = requireWalletSession(request);
     if (sessionError || !wallet) {
       return (
@@ -17,6 +23,11 @@ export async function POST(request: NextRequest) {
           { status: 401 },
         )
       );
+    }
+
+    const backendUrl = getTowerAiBaseUrl();
+    if (!backendUrl) {
+      return aiBackendUnconfiguredResponse();
     }
 
     const rawBody = (await request.json().catch(() => ({}))) as Record<
@@ -32,17 +43,9 @@ export async function POST(request: NextRequest) {
       userId: wallet,
     };
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (API_KEY) {
-      headers["Authorization"] = `Bearer ${API_KEY}`;
-    }
-
-    const response = await fetch(`${BACKEND_URL}/api/chat/session`, {
+    const response = await fetch(`${backendUrl}/api/chat/session`, {
       method: "POST",
-      headers,
+      headers: getTowerAiAuthHeaders(),
       body: JSON.stringify(body),
     });
 

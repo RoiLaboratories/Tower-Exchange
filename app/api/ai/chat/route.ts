@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
 import { requireWalletSession } from "@/lib/server/walletSession";
 import { normalizeWalletAddress } from "@/lib/server/wallet";
+import {
+  aiBackendUnconfiguredResponse,
+  getTowerAiAuthHeaders,
+  getTowerAiChatUrl,
+  rejectNonFrontendAiRequest,
+} from "@/lib/server/towerAiBackend";
 
-const DEFAULT_TOWER_AI_API =
-  "https://tower-exchange-ai-production-3248.up.railway.app";
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_TOWER_AI_API || DEFAULT_TOWER_AI_API;
-const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
 const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -1347,6 +1348,11 @@ const enrichBridgeExecution = (
 };
 export async function POST(request: NextRequest) {
   try {
+    const frontendGate = rejectNonFrontendAiRequest(request);
+    if (frontendGate) {
+      return frontendGate;
+    }
+
     const { wallet, response: sessionError } = requireWalletSession(request);
     if (sessionError || !wallet) {
       return (
@@ -1356,6 +1362,11 @@ export async function POST(request: NextRequest) {
           { status: 401 },
         )
       );
+    }
+
+    const chatUrl = getTowerAiChatUrl();
+    if (!chatUrl) {
+      return aiBackendUnconfiguredResponse();
     }
 
     const rawBody = (await request.json()) as AiChatPayload;
@@ -1380,26 +1391,9 @@ export async function POST(request: NextRequest) {
       ...readWalletProofFields(rawBody),
     };
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    // Add API key in the correct header
-    if (API_KEY) {
-      headers["endpoint_auth"] = API_KEY;
-    }
-
-    const chatUrl = `${BACKEND_URL}/api/v1/chat`;
-
-    console.log("Sending request to:", chatUrl);
-    console.log("Headers:", {
-      "Content-Type": "application/json",
-      ...(API_KEY ? { endpoint_auth: "***REDACTED***" } : {}),
-    });
-
     const response = await fetch(chatUrl, {
       method: "POST",
-      headers,
+      headers: getTowerAiAuthHeaders(),
       body: JSON.stringify(body),
       cache: "no-store",
     });

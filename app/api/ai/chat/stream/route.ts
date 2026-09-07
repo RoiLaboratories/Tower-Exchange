@@ -6,11 +6,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireWalletSession } from "@/lib/server/walletSession";
 import { normalizeWalletAddress } from "@/lib/server/wallet";
+import {
+  aiBackendUnconfiguredResponse,
+  getTowerAiAuthHeaders,
+  getTowerAiStreamUrl,
+  rejectNonFrontendAiRequest,
+} from "@/lib/server/towerAiBackend";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_TOWER_AI_API ||
-  "https://tower-exchange-ai-production-5811.up.railway.app";
-const API_KEY = process.env.TOWER_AI_API_KEY || "";
 const EVM_ADDRESS_IN_TEXT_PATTERN = /0x[a-fA-F0-9]{40}/g;
 
 const readWalletProofFields = (payload: Record<string, unknown>) => {
@@ -35,6 +37,11 @@ const readWalletProofFields = (payload: Record<string, unknown>) => {
 
 export async function POST(request: NextRequest) {
   try {
+    const frontendGate = rejectNonFrontendAiRequest(request);
+    if (frontendGate) {
+      return frontendGate;
+    }
+
     const { wallet, response: sessionError } = requireWalletSession(request);
     if (sessionError || !wallet) {
       return (
@@ -44,6 +51,11 @@ export async function POST(request: NextRequest) {
           { status: 401 },
         )
       );
+    }
+
+    const streamUrl = getTowerAiStreamUrl();
+    if (!streamUrl) {
+      return aiBackendUnconfiguredResponse();
     }
 
     const rawBody = (await request.json()) as Record<string, unknown>;
@@ -66,27 +78,16 @@ export async function POST(request: NextRequest) {
       ...readWalletProofFields(rawBody),
     };
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (API_KEY) {
-      headers["Authorization"] = `Bearer ${API_KEY}`;
-    }
-
-    const streamUrl = `${BACKEND_URL}/api/v1/chat/stream`;
-
-    console.log("Sending streaming request to:", streamUrl);
-
     const response = await fetch(streamUrl, {
       method: "POST",
-      headers,
+      headers: getTowerAiAuthHeaders(),
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Backend streaming error:", errorData);
+      const errorData = await response.json().catch(() => ({
+        error: "AI stream failed",
+      }));
       return NextResponse.json(errorData, { status: response.status });
     }
 
