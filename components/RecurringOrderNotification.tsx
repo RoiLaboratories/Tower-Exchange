@@ -44,7 +44,7 @@ const RecurringOrderNotification = ({
             Recurring {orderTypeLabel} order created
           </p>
           <p className="text-sm text-muted-foreground mb-2">
-            {amount} {sourceToken} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ {targetToken}
+            {amount} {sourceToken} → {targetToken}
           </p>
           <p className="text-xs text-muted-foreground">
             Executes {frequency.toLowerCase()}
