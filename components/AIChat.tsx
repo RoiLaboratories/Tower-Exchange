@@ -1,8 +1,8 @@
 "use client";
 import { Fragment, useState, useEffect, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import { ArrowUp, ArrowDown, Info } from "lucide-react";
+import { ArrowUp, ArrowDown, Info, Mic } from "lucide-react";
 import {
   sendMessageToAIAgent,
   createAIAgentSession,
@@ -13,6 +13,7 @@ import {
   type AIAgentBridgeRequest,
 } from "@/lib/aiAgentService";
 import { loadProfileData } from "@/lib/profileService";
+import { createPortal } from "react-dom";
 import { registerBridgeActivity, registerBridgeFee, insertActivity } from "@/lib/supabase";
 import { recordExecutorSwapFee } from "@/lib/swapFeeTracking";
 import { v4 as uuidv4 } from "uuid";
@@ -331,6 +332,7 @@ export const AIChat = () => {
   const [isAtTop, setIsAtTop] = useState(true);
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [showVoiceChatComingSoon, setShowVoiceChatComingSoon] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1452,6 +1454,53 @@ export const AIChat = () => {
           title="Operation failed"
         />
 
+        {typeof document !== "undefined" &&
+          createPortal(
+            <AnimatePresence>
+              {showVoiceChatComingSoon && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[220] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+                  onClick={() => setShowVoiceChatComingSoon(false)}
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 20 }}
+                    transition={{ duration: 0.2 }}
+                    className="relative w-full max-w-sm rounded-[1.75rem] border border-border bg-card/95 px-6 py-8 text-center shadow-2xl backdrop-blur-md"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowVoiceChatComingSoon(false)}
+                      className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/80 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      aria-label="Close"
+                    >
+                      <X size={16} />
+                    </button>
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
+                      <Mic className="h-7 w-7 text-primary" />
+                    </div>
+                    <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                      Voice chat is coming soon
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setShowVoiceChatComingSoon(false)}
+                      className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gray-100"
+                    >
+                      Got it
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
+          )}
+
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
             ref={messagesContainerRef}
@@ -1752,6 +1801,7 @@ export const AIChat = () => {
                     }}
                   />
                   <motion.button
+                    type="button"
                     whileHover={{ scale: 1.06 }}
                     whileTap={{ scale: 0.94 }}
                     onClick={() => handleSendMessage(message)}
@@ -1759,6 +1809,16 @@ export const AIChat = () => {
                     aria-label="Send message"
                   >
                     <ArrowUp className="h-3.5 w-3.5" />
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => setShowVoiceChatComingSoon(true)}
+                    className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-accent"
+                    aria-label="Voice chat"
+                  >
+                    <Mic className="h-3.5 w-3.5" />
                   </motion.button>
                 </div>
               </div>

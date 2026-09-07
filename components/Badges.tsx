@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import badgeClaimedImage from "@/public/assets/Squire 2.svg";
 import badgeUnclaimedImage from "@/public/assets/Dull 2.svg";
+import mysteryBadgeImage from "@/public/assets/mystery badge.svg";
 import starIcon from "@/public/assets/Star icon.svg";
+import { CountdownBadgeModal } from "@/components/CountdownBadgeModal";
 import {
   claimSquireBadge,
   fetchSquireBadgeStatus,
@@ -21,6 +23,7 @@ type Badge = {
   alt: string;
   isClaimed: boolean;
   isInteractive: boolean;
+  isMystery?: boolean;
 };
 
 const badges: Badge[] = [
@@ -34,9 +37,10 @@ const badges: Badge[] = [
   {
     id: "badge-slot-2",
     name: "",
-    alt: "Unclaimed badge",
+    alt: "Mystery badge",
     isClaimed: false,
-    isInteractive: false,
+    isInteractive: true,
+    isMystery: true,
   },
   {
     id: "badge-slot-3",
@@ -323,6 +327,7 @@ type BadgesProps = {
   walletAddress?: string | null;
   isWalletConnected?: boolean;
   highlightedBadgeId?: string | null;
+  countdownOpenKey?: number;
   onSquireBadgeStatusChange?: (status: SquireBadgeStatus | null) => void;
 };
 
@@ -330,10 +335,14 @@ const Badges = ({
   walletAddress = null,
   isWalletConnected = false,
   highlightedBadgeId = null,
+  countdownOpenKey = 0,
   onSquireBadgeStatusChange,
 }: BadgesProps) => {
   const router = useRouter();
   const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
+  const [showCountdownModal, setShowCountdownModal] = useState(
+    highlightedBadgeId !== "squire",
+  );
   const [squireBadgeStatus, setSquireBadgeStatus] =
     useState<SquireBadgeStatus | null>(null);
   const [isCheckingSquireBadge, setIsCheckingSquireBadge] = useState(false);
@@ -341,6 +350,10 @@ const Badges = ({
   const [showClaimCongratulations, setShowClaimCongratulations] = useState(false);
   const [badgeError, setBadgeError] = useState<string | null>(null);
   const normalizedWalletAddress = walletAddress?.trim().toLowerCase() ?? null;
+
+  const handleCloseCountdown = useCallback(() => {
+    setShowCountdownModal(false);
+  }, []);
 
   useEffect(() => {
     if (!normalizedWalletAddress) {
@@ -399,9 +412,17 @@ const Badges = ({
 
   useEffect(() => {
     if (highlightedBadgeId === "squire" && squireBadgeStatus?.isClaimed) {
+      setShowCountdownModal(false);
       setSelectedBadgeId("squire");
     }
   }, [highlightedBadgeId, squireBadgeStatus?.isClaimed]);
+
+  useEffect(() => {
+    if (countdownOpenKey > 0) {
+      setSelectedBadgeId(null);
+      setShowCountdownModal(true);
+    }
+  }, [countdownOpenKey]);
 
   const displayBadges = useMemo(
     () =>
@@ -515,9 +536,11 @@ const Badges = ({
           <div className="flex w-full justify-center lg:justify-end">
             <div className="grid w-full max-w-[430px] grid-cols-3 items-start gap-4 sm:gap-7 lg:max-w-[460px] lg:gap-10">
               {displayBadges.map((badge) => {
-                const badgeImage = badge.isClaimed
-                  ? badgeClaimedImage
-                  : badgeUnclaimedImage;
+                const badgeImage = badge.isMystery
+                  ? mysteryBadgeImage
+                  : badge.isClaimed
+                    ? badgeClaimedImage
+                    : badgeUnclaimedImage;
                 const badgeContent = (
                   <>
                     <Image
@@ -548,9 +571,22 @@ const Badges = ({
                   <button
                     key={badge.id}
                     type="button"
-                    onClick={() => setSelectedBadgeId(badge.id)}
+                    onClick={() => {
+                      if (badge.isMystery) {
+                        setSelectedBadgeId(null);
+                        setShowCountdownModal(true);
+                        return;
+                      }
+
+                      setShowCountdownModal(false);
+                      setSelectedBadgeId(badge.id);
+                    }}
                     className="group flex min-w-0 flex-col items-center rounded-xl outline-none transition-transform hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-primary/70"
-                    aria-label={`Open ${badge.name} badge details`}
+                    aria-label={
+                      badge.isMystery
+                        ? "Open Arctember badge countdown"
+                        : `Open ${badge.name} badge details`
+                    }
                   >
                     {badgeContent}
                   </button>
@@ -561,6 +597,10 @@ const Badges = ({
         </div>
       </motion.section>
 
+      <CountdownBadgeModal
+        isOpen={showCountdownModal}
+        onClose={handleCloseCountdown}
+      />
       <BadgeDetailsModal
         badge={selectedBadge}
         onClose={() => setSelectedBadgeId(null)}

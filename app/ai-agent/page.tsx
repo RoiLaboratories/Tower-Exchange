@@ -2,14 +2,15 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
-import { RecurringBuys } from "@/components/reusable/RecurringBuys";
-import { RecurringSell } from "@/components/reusable/RecurringSell";
+// Hidden until recurring orders have a seamless flow.
+// import { RecurringBuys } from "@/components/reusable/RecurringBuys";
+// import { RecurringSell } from "@/components/reusable/RecurringSell";
 import { PortfolioAnalysis } from "@/components/reusable/PortfolioAnalysis";
 import { AIChat } from "@/components/AIChat";
 import TokenTicker from "@/components/TokenTicker";
 
 const AIAgentPage = () => {
-  const [activeTab, setActiveTab] = useState("recurring-buys");
+  const [activeTab, setActiveTab] = useState("portfolio");
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
 
@@ -24,8 +25,9 @@ const AIAgentPage = () => {
   }, []);
 
   const tabs = [
-    { id: "recurring-buys", label: "Recurring Buy" },
-    { id: "recurring-sell", label: "Recurring Sell" },
+    // Hidden until recurring orders have a seamless flow.
+    // { id: "recurring-buys", label: "Recurring Buy" },
+    // { id: "recurring-sell", label: "Recurring Sell" },
     { id: "portfolio", label: "Portfolio Analysis" },
   ];
 
@@ -110,7 +112,7 @@ const AIAgentPage = () => {
                   )}
 
                   <div className="shrink-0 rounded-[10px] border border-border bg-muted p-1.5 lg:p-1">
-                    <div className="grid w-full grid-cols-3 gap-1.5 lg:gap-1">
+                    <div className="grid w-full grid-cols-1 gap-1.5 lg:gap-1">
                       {tabs.map((tab) => (
                         <motion.button
                           key={tab.id}
@@ -140,12 +142,14 @@ const AIAgentPage = () => {
                   >
                     <div className="mx-auto w-full max-w-[430px] xl:max-w-[470px]">
                       <AnimatePresence mode="wait">
+                        {/* Hidden until recurring orders have a seamless flow.
                         {activeTab === "recurring-buys" && (
                           <RecurringBuys key="buys" />
                         )}
                         {activeTab === "recurring-sell" && (
                           <RecurringSell key="sell" />
                         )}
+                        */}
                         {activeTab === "portfolio" && (
                           <PortfolioAnalysis key="portfolio" />
                         )}

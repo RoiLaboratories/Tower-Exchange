@@ -125,7 +125,8 @@ const Header = () => {
   const tradeOptions = [
     { name: "Swap", path: "/" },
     { name: "Bridge", path: "/bridge" },
-    { name: "Recurring Orders", path: "/recurring-orders" },
+    // Hidden until recurring orders have a seamless flow.
+    // { name: "Recurring Orders", path: "/recurring-orders" },
   ];
 
   const navItems: NavItem[] = [
