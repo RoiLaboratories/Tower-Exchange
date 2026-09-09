@@ -51,3 +51,5 @@ supabase/.temp/invite-codes.generated.json
 supabase/.temp/invite-codes.generated.sql
 supabase/.temp/invite-codes.txt
 /.agents
+
+TowerExchange_webapp-Audit_report.md

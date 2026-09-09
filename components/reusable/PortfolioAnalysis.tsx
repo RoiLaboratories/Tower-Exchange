@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
@@ -17,6 +17,8 @@ type ChartPoint = {
   label: string;
   value: number;
 };
+
+const CHART_MARGIN = { top: 8, right: 4, left: 4, bottom: 4 };
 
 const timeframes: Timeframe[] = ["24H", "7D", "30D", "ALL"];
 
@@ -175,6 +177,7 @@ const buildVolumeChart = (
 
 export const PortfolioAnalysis = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D");
+  const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const { user } = useRainbowKitAuth();
@@ -231,6 +234,38 @@ export const PortfolioAnalysis = () => {
     () => buildVolumeChart(activities, timeframe),
     [activities, timeframe],
   );
+
+  useEffect(() => {
+    setActivePointIndex(null);
+  }, [timeframe, chartData]);
+
+  const chartMaxValue = useMemo(
+    () => Math.max(...chartData.map((point) => point.value), 1),
+    [chartData],
+  );
+
+  const handleChartClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (chartData.length === 0) {
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const plotWidth = bounds.width - CHART_MARGIN.left - CHART_MARGIN.right;
+
+    if (plotWidth <= 0) {
+      return;
+    }
+
+    const ratio = (event.clientX - bounds.left - CHART_MARGIN.left) / plotWidth;
+    const nextIndex = Math.round(
+      Math.max(0, Math.min(1, ratio)) * (chartData.length - 1),
+    );
+
+    setActivePointIndex(nextIndex);
+  };
+
+  const activePoint =
+    activePointIndex === null ? null : chartData[activePointIndex] ?? null;
 
   const positions = [
     {
@@ -321,11 +356,15 @@ export const PortfolioAnalysis = () => {
           </div>
         </div>
 
-        <div className="relative h-24 outline-none sm:h-32 [&_.recharts-surface]:outline-none [&_.recharts-tooltip-cursor]:hidden [&_.recharts-tooltip-wrapper]:hidden [&_.recharts-wrapper]:outline-none">
+        <div
+          className="relative h-24 cursor-pointer select-none outline-none sm:h-32 [&_.recharts-surface]:outline-none [&_.recharts-wrapper]:outline-none"
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          onClick={handleChartClick}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={chartData}
-              margin={{ top: 8, right: 4, left: 4, bottom: 4 }}
+              margin={CHART_MARGIN}
               accessibilityLayer={false}
               tabIndex={-1}
               style={{ outline: "none", pointerEvents: "none" }}
@@ -349,6 +388,20 @@ export const PortfolioAnalysis = () => {
               />
             </AreaChart>
           </ResponsiveContainer>
+          {activePoint ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7BB8FF] ring-2 ring-[#191A1C]"
+              style={{
+                left: `calc(${CHART_MARGIN.left}px + (100% - ${CHART_MARGIN.left + CHART_MARGIN.right}px) * ${
+                  (activePointIndex ?? 0) / Math.max(chartData.length - 1, 1)
+                })`,
+                top: `calc(${CHART_MARGIN.top}px + (100% - ${CHART_MARGIN.top + CHART_MARGIN.bottom}px) * ${
+                  1 - activePoint.value / chartMaxValue
+                })`,
+              }}
+            />
+          ) : null}
         </div>
       </div>
 
